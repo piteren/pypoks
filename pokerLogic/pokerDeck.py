@@ -76,7 +76,10 @@ class PokerDeck:
     @staticmethod
     def cardsRank(cards: list):
 
-        cRank = 0
+        cards = sorted(cards)
+
+        cRank = [False for _ in range(9)]
+        cRank[0] = True # for sure highCard
 
         # calc possible multiFig and colours
         cFig = [[] for _ in range(13)]
@@ -84,10 +87,62 @@ class PokerDeck:
         for card in cards:
             cFig[card[0]].append(card)
             cCol[card[1]].append(card)
-        possibleColour = max([len(c) for c in cCol]) > 4
-        multiFig = max([len(f) for f in cFig])
 
-        return cRank, possibleColour, multiFig
+        colCards = None
+        for cards in cCol:
+            if len(cards) > 4: colCards = cards
+
+        nFig = [len(f) for f in cFig] # multiple figures
+
+        nInRow = 0
+        pix = -2
+        for ix in range(13):
+            if len(cFig[ix]):
+                if pix + 1 == ix:
+                    nInRow += 1
+                else:
+                    nInRow = 1
+                pix = ix
+        possibleStraight = nInRow > 4
+
+        if 2 in nFig:               cRank[1] = True # pair
+        if nFig.count(2) > 1:       cRank[2] = True # twoPairs
+        if 3 in nFig:               cRank[3] = True # threeOf
+        if possibleStraight:        cRank[4] = True # straight
+        if colCards:                cRank[5] = True # flush
+        if 3 in nFig and 2 in nFig: cRank[6] = True # fullHouse
+        if 4 in nFig:               cRank[7] = True # fourOf
+
+        # straightFlush case check
+        if cRank[4] and cRank[5]:
+
+            ccFig = [[] for _ in range(13)]
+            for card in colCards: ccFig[card[0]].append(card)
+
+            nInRow = 0
+            pix = -2
+            for ix in range(13):
+                if len(ccFig[ix]):
+                    if pix + 1 == ix:
+                        nInRow += 1
+                    else:
+                        nInRow = 1
+                    pix = ix
+            possibleStraightFlush = nInRow > 4
+            if possibleStraightFlush: cRank[8] = True # straightFlush
+
+        # calc topRank
+        topRank = 0
+        for ix in reversed(range(9)):
+            if cRank[ix]:
+                topRank = ix
+                break
+
+        # calc topRank value
+        if topRank == 8:
+            pass
+
+        return topRank
 
 
 if __name__ == "__main__":
