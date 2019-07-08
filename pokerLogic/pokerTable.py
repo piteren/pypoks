@@ -4,7 +4,6 @@
 
 """
 
-
 from pokerLogic.pokerPlayer import PokerPlayer, PLR_MVS
 from pokerLogic.pokerDeck import PokerDeck
 
@@ -16,6 +15,7 @@ TBL_STT = {
     3:  'turn',
     4:  'river',
     5:  'handFin'}
+
 
 class PokerTable:
 
@@ -52,10 +52,14 @@ class PokerTable:
     # runs single hand
     def runHand(self):
 
-        if self.verbLev: print('(table)%s starts new hand' % self.name)
+        if self.verbLev: print('\n(table)%s starts new hand' % self.name)
         self.state = 1
         self.deck.resetDeck()
         handPlayers = [] + self.players # original order of players for current hand (SB, BB, ..)
+        if self.pMsg:
+            print(' ### (table)%s hand players:' % self.name)
+            for player in handPlayers:
+                print(' ### (player)%s starting cash %d$' %(player.name, player.cash))
 
         # put blinds on table
         handPlayers[0].cash -= self.SB
@@ -87,9 +91,11 @@ class PokerTable:
 
                 if cmpIX == len(handPlayers): cmpIX = 0 # next loop
 
+                """
                 print('  >> %d'%cmpIX, end=' ')
                 for pl in handPlayers: print(pl.name, end=' ')
                 print(clcIX)
+                """
 
                 playerFolded = False
                 playerRaised = False
@@ -103,7 +109,7 @@ class PokerTable:
                         self.cashToCall = handPlayers[cmpIX].cRiverCash
                         clcIX = cmpIX - 1 if cmpIX > 0 else len(handPlayers) - 1 # player before in loop
 
-                    if self.pMsg: print(' ### (player)%s had %3d$, moved %s with %3d$, tableCash %4d toCall %3d' %(handPlayers[cmpIX].name, hadCash, PLR_MVS[playerMove[0]], playerMove[1], self.cash, self.cashToCall))
+                    if self.pMsg: print(' ### (player)%s had %4d$, moved %s with %4d$, tableCash %4d$ toCall %4d$' %(handPlayers[cmpIX].name, hadCash, PLR_MVS[playerMove[0]], playerMove[1], self.cash, self.cashToCall))
 
                     if playerMove[0] == 0 and self.cashToCall > handPlayers[cmpIX].cRiverCash:
                         playerFolded = True
@@ -131,12 +137,14 @@ class PokerTable:
             # choose top hand
             playerCards = [list(pl.hand) for pl in handPlayers]
             playerCards = [cards+self.cards for cards in playerCards]
-            cardsRanks = [PokerDeck.cardsRank(cards) for cards in playerCards]
-            topRank = max(cardsRanks)
-            idWinners = [ix for ix in range(len(handPlayers)) if cardsRanks[ix] == topRank]
+            fullRanks = [PokerDeck.cardsRank(cards) for cards in playerCards]
+            simpledRanks = [rank[0:2] for rank in fullRanks]
+            topRank = max(simpledRanks)
+            idWinners = [ix for ix in range(len(handPlayers)) if simpledRanks[ix] == topRank]
             prize = self.cash // len(idWinners)
             for id in idWinners:
-                print('### (player)%s won %d$ with rank %s' %(handPlayers[id].name, prize, cardsRanks[id]))
+                handPlayers[id].cash += prize
+                print('### (player)%s won %d$ with %s' %(handPlayers[id].name, prize, fullRanks[id][-1]))
         self.cash = 0
         self.cards = []
 
@@ -158,4 +166,4 @@ if __name__ == "__main__":
     print()
     pTable = PokerTable()
     for ix in range(pTable.maxPlayers): pTable.addPlayer(PokerPlayer('pl%d'%ix))
-    pTable.runHand()
+    for _ in range(5): pTable.runHand()

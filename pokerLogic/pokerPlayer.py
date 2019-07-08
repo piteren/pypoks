@@ -4,9 +4,6 @@
 
 """
 
-# TODO:
-#  - finalize makeMove
-
 import random
 from pokerLogic.pokerDeck import PokerDeck
 
@@ -16,6 +13,7 @@ PLR_MVS = {
     1:      'CLL',
     2:      'B/R',
     3:      'ALL'}
+
 
 class PokerPlayer:
 
@@ -40,8 +38,7 @@ class PokerPlayer:
     def rtrnHand(self): self.hand = None
 
     # makes player decision (having table status ...and any other info)
-    def makeMove(
-            self):
+    def makeMove(self):
 
         possibleMoves = {x: True for x in range(4)}
         if self.table.cashToCall - self.cRiverCash == 0: possibleMoves[1] = False # cannot call (already called)
