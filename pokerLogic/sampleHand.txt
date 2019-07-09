@@ -1,0 +1,59 @@
+PokerStars Hand #156605842579: Tournament #1618015625, $2.00+$2.00+$0.40 USD Hold'em No Limit - Level XVIII (300/600) - 2016/07/29 23:25:05 MSK [2016/07/29 16:25:05 ET]
+Table '1618015625 40' 9-max Seat #7 is the button
+Seat 1: nossoff (22844 in chips)
+Seat 2: Gr0z3LB (27895 in chips)
+Seat 3: yarikkkkk (7005 in chips)
+Seat 4: sigis1313 (18222 in chips)
+Seat 5: S21berlin (25318 in chips)
+Seat 6: Hero (8240 in chips)
+Seat 7: tommesk (8185 in chips)
+Seat 8: gergelyt3 (17912 in chips)
+Seat 9: endreooo (50289 in chips)
+nossoff: posts the ante 90
+Gr0z3LB: posts the ante 90
+yarikkkkk: posts the ante 90
+sigis1313: posts the ante 90
+S21berlin: posts the ante 90
+Hero: posts the ante 90
+tommesk: posts the ante 90
+gergelyt3: posts the ante 90
+endreooo: posts the ante 90
+gergelyt3: posts small blind 300
+endreooo: posts big blind 600
+*** HOLE CARDS ***
+Dealt to Hero [Jd Ac]
+nossoff: raises 600 to 1200
+Gr0z3LB: folds
+yarikkkkk: folds
+sigis1313: folds
+S21berlin: folds
+Hero: raises 6950 to 8150 and is all-in
+tommesk: folds
+gergelyt3: folds
+endreooo: folds
+nossoff: calls 6950
+*** FLOP *** [7h 2h 5s]
+*** TURN *** [7h 2h 5s] [5d]
+*** RIVER *** [7h 2h 5s 5d] [4d]
+*** SHOW DOWN ***
+nossoff: shows [Qd Ah] (a pair of Fives)
+Hero: shows [Jd Ac] (a pair of Fives - lower kicker)
+nossoff collected 18010 from pot
+nossoff wins $1 for eliminating Hero and their own bounty increases by $1 to $6
+Hero finished the tournament in 5028th place
+*** SUMMARY ***
+Total pot 18010 | Rake 0
+Board [7h 2h 5s 5d 4d]
+Seat 1: nossoff showed [Qd Ah] and won (18010) with a pair of Fives
+Seat 2: Gr0z3LB folded before Flop (didn't bet)
+Seat 3: yarikkkkk folded before Flop (didn't bet)
+Seat 4: sigis1313 folded before Flop (didn't bet)
+Seat 5: S21berlin folded before Flop (didn't bet)
+Seat 6: Hero showed [Jd Ac] and lost with a pair of Fives
+Seat 7: tommesk (button) folded before Flop (didn't bet)
+Seat 8: gergelyt3 (small blind) folded before Flop
+Seat 9: endreooo (big blind) folded before Flop
+
+https://en.wikipedia.org/wiki/Glossary_of_poker_terms
+
+http://datagenetics.com/blog/december32018/index.html

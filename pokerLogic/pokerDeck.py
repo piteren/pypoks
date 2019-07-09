@@ -61,11 +61,11 @@ class PokerDeck:
     # returns one card from deck
     def getCard(self): return self.cards.pop()
 
-    # returns card in form of int
+    # returns card id (int)
     @staticmethod
     def cardToInt(card: tuple): return card[0]*4+card[1]
 
-    # retund card in form of str
+    # retund card str
     @staticmethod
     def cardToStr(card: tuple): return CRD_FIG[card[0]] + CRD_COL[card[1]]
 

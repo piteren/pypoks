@@ -2,6 +2,12 @@
 
  2019 (c) piteren
 
+ simplified poker hand algorithm because:
+ - no ante
+ - constant sb, bb
+ - 3 players
+ - constant / simplified betting sizes
+
 """
 
 from pokerLogic.pokerPlayer import PokerPlayer, PLR_MVS
@@ -90,12 +96,6 @@ class PokerTable:
             while len(handPlayers) > 1: # more important condition breaks below
 
                 if cmpIX == len(handPlayers): cmpIX = 0 # next loop
-
-                """
-                print('  >> %d'%cmpIX, end=' ')
-                for pl in handPlayers: print(pl.name, end=' ')
-                print(clcIX)
-                """
 
                 playerFolded = False
                 playerRaised = False
