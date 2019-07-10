@@ -23,7 +23,8 @@ class PokerPlayer:
         self.pMsg = True
         self.name = name
         self.cash = 500
-        self.upFilledCash = 0
+        self.wonLast = 0
+        self.wonTotal = 0
         self.table = None
         self.hand = None
         self.cRiverCash = 0 # current river cash (amount put by player on current river yet)

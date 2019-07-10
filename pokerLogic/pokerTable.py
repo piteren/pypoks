@@ -7,6 +7,7 @@
  - constant sb, bb
  - 3 players
  - constant / simplified betting sizes
+ - every player starts hand with startCash
 
 """
 
@@ -59,6 +60,12 @@ class PokerTable:
     def runHand(self):
 
         if self.verbLev: print('\n(table)%s starts new hand' % self.name)
+
+        hHis = [] # hand history
+        hHs = ['hs']
+        for player in self.players: hHs += [player.name, player.wonLast] # ['pl0',25]
+        hHis.append(hHs)
+
         self.state = 1
         self.deck.resetDeck()
         handPlayers = [] + self.players # original order of players for current hand (SB, BB, ..)
@@ -127,32 +134,38 @@ class PokerTable:
             for pl in self.players: pl.cRiverCash = 0
             self.state += 1  # move table to next state
 
+        # first save what every player put on the table, fill players cash up to table startCash
+        for player in self.players:
+            lost = self.startCash - player.cash
+            player.wonLast = -lost
+            player.wonTotal -= lost
+            player.cash = self.startCash
+
         if self.verbLev: print('(table)%s rivers finished, time to select winners' % self.name)
-        # winners
-        if len(handPlayers) == 1:
-            if self.pMsg:
-                handPlayers[0].cash += self.cash
-                print(' ### (player)%s won %d$' %(handPlayers[0].name, self.cash))
+        # get id of winners
+        idWinners = []
+        fullRanks = []
+        if len(handPlayers) == 1: idWinners.append(0)
         else:
-            # choose top hand
             playerCards = [list(pl.hand) for pl in handPlayers]
             playerCards = [cards+self.cards for cards in playerCards]
             fullRanks = [PokerDeck.cardsRank(cards) for cards in playerCards]
             simpledRanks = [rank[0:2] for rank in fullRanks]
             topRank = max(simpledRanks)
             idWinners = [ix for ix in range(len(handPlayers)) if simpledRanks[ix] == topRank]
-            prize = self.cash // len(idWinners)
-            for id in idWinners:
-                handPlayers[id].cash += prize
-                print('### (player)%s won %d$ with %s' %(handPlayers[id].name, prize, fullRanks[id][-1]))
+
+        prize = self.cash // len(idWinners)
+        for id in idWinners:
+            handPlayers[id].wonLast = prize
+            handPlayers[id].wonTotal += prize
+            handPlayers[id].cash = self.startCash
+            if self.pMsg:
+                print('### (player)%s won %d$' %(handPlayers[id].name, prize), end='')
+                if fullRanks: print(' with %s' % fullRanks[id][-1], end='')
+                print()
+
         self.cash = 0
         self.cards = []
-
-        # fill players cash up to table startCash
-        for player in self.players:
-            if player.cash < self.startCash:
-                player.upFilledCash += self.startCash - player.cash
-                player.cash = self.startCash
 
         for player in handPlayers: player.hand = None # players return cards
         self.players.append(self.players.pop(0)) # circle table players
