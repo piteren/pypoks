@@ -42,7 +42,7 @@ CRD_RNK = {
     8:  'straightFlush'}
 
 
-class PokerDeck:
+class PDeck:
 
     def __init__(self):
 
@@ -211,21 +211,21 @@ class PokerDeck:
         # prep string
         string = CRD_RNK[topRank] + ' %s'%rankValue
         for card in fiveCards:
-            string += ' %s'%PokerDeck.cardToStr(card)
+            string += ' %s' % PDeck.cardToStr(card)
 
         return topRank, rankValue, fiveCards, string
 
 
 if __name__ == "__main__":
 
-    testDeck = PokerDeck()
+    testDeck = PDeck()
 
     for _ in range(10):
         sevenCards = [testDeck.getCard() for _ in range(7)]
         print(' ', end='')
         for card in sorted(sevenCards):
-            print(PokerDeck.cardToStr(card), end=' ')
+            print(PDeck.cardToStr(card), end=' ')
         print()
-        cR = PokerDeck.cardsRank(sevenCards)
+        cR = PDeck.cardsRank(sevenCards)
         print(cR[-1])
         testDeck.resetDeck()

@@ -36,13 +36,13 @@
 
 """
 
-from pokerLogic.pokerPlayer import PokerPlayer
-from pokerLogic.pokerTable import PokerTable
+from pLogic.pPlayer import PPlayer
+from pLogic.pTable import PTable
 
 
 if __name__ == "__main__":
 
     print()
-    pTable = PokerTable()
-    for ix in range(pTable.maxPlayers): pTable.addPlayer(PokerPlayer('pl%d'%ix))
+    pTable = PTable()
+    for ix in range(pTable.maxPlayers): pTable.addPlayer(PPlayer('pl%d'%ix))
     for _ in range(5): pTable.runHand()

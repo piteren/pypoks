@@ -14,8 +14,8 @@
 
 """
 
-from pokerLogic.pokerPlayer import PokerPlayer, PLR_MVS
-from pokerLogic.pokerDeck import PokerDeck
+from pLogic.pPlayer import PPlayer, PLR_MVS
+from pLogic.pDeck import PDeck
 
 # table states
 TBL_STT = {
@@ -27,7 +27,7 @@ TBL_STT = {
     5:  'handFin'}
 
 
-class PokerTable:
+class PTable:
 
     def __init__(self, name='pTable'):
 
@@ -41,7 +41,7 @@ class PokerTable:
         self.startCash = 500
 
         self.players = [] # list of table players, order: SB, BB ...
-        self.deck = PokerDeck()
+        self.deck = PDeck()
         self.state = 0
         self.cash = 0 # cash on table
         self.cards = [] # table cards (max 5)
@@ -55,7 +55,7 @@ class PokerTable:
     # puts player on table (self)
     def addPlayer(
             self,
-            pPlayer: PokerPlayer):
+            pPlayer: PPlayer):
 
         pPlayer.table = self
         pPlayer.cash = self.startCash
@@ -66,59 +66,68 @@ class PokerTable:
     def runHand(self):
 
         self.handID += 1
-        hHis = []  # hand history
-
         if self.verbLev: print('\n(table)%s starts new hand, handID %d' % (self.name, self.handID))
 
-        # handStart event
-        playersData = []
-        for player in self.players:
-            playersData.append({
-                'plName':       player.name,
-                'plCash':       player.cash,
-                'plWonLast':    player.wonLast,
-                'plWonTotal':   player.wonTotal})
-        event = {'handStart': {
-            'handID':       self.handID,
-            'tableType':    self.maxPlayers,
-            'SB':           self.SB,
-            'BB':           self.BB,
-            'startCash':    self.startCash,
-            'playersSeated':playersData}}
-        hHis.append(event)
+        # start hand history
+        hHis = [
+            {   'handStart':
+                {   'tableName':    self.name,
+                    'handID':       self.handID,
+                    'tableType':    self.maxPlayers,
+                    'SB':           self.SB,
+                    'BB':           self.BB,
+                    'startCash':    self.startCash}}]
 
         self.state = 1
-        self.deck.resetDeck()
         handPlayers = [] + self.players # original order of players for current hand (SB, BB, ..)
         if self.pMsg:
             print(' ### (table)%s hand players:' % self.name)
             for player in handPlayers:
                 print(' ### (player)%s starting cash %d$' %(player.name, player.cash))
 
+        playersData = []
+        for player in self.players:
+            playersData.append({
+                'plName':       player.name,
+                'plCash':       player.cash})
+        hHis.append({'playersSeated':{'playersData': playersData}})
+
         # put blinds on table
         handPlayers[0].cash -= self.SB
+        handPlayers[0].cHandCash = self.SB
         handPlayers[0].cRiverCash = self.SB
         self.cash += self.SB
         if self.pMsg: print(' ### (player)%s put SB %d$'%(handPlayers[0].name, self.SB))
         handPlayers[1].cash -= self.BB
+        handPlayers[1].cHandCash = self.BB
         handPlayers[1].cRiverCash = self.BB
         self.cash += self.BB
         if self.pMsg: print(' ### (player)%s put BB %d$' % (handPlayers[1].name, self.BB))
+        self.cashToCall = self.BB
 
         clcIX = 1 # current loop closing player index
         cmpIX = 2 # currently moving player index (for 2 players not valid but validated at first river loop)
-        self.cashToCall = self.BB
 
-        for player in handPlayers: player.takeHand(self.deck.getCard(), self.deck.getCard()) # give cards for players
+        # hand cards
+        for player in handPlayers:
+            ca, cb = self.deck.getCard(), self.deck.getCard()
+            player.hand = ca, cb
+            if self.pMsg: print(' ### (player)%s taken hand %s %s' % (self.name, PDeck.cardToStr(ca), PDeck.cardToStr(cb)))
 
         while self.state < 5 and len(handPlayers) > 1:
 
-            if self.state == 2: self.cards = [self.deck.getCard(), self.deck.getCard(), self.deck.getCard()]
-            if self.state in [3,4]: self.cards += [self.deck.getCard()]
-            if self.verbLev:
-                print('(table)%s currently @state %s, table cards: ' % (self.name, TBL_STT[self.state]), end='')
-                for card in self.cards: print(PokerDeck.cardToStr(card), end=' ')
-                print()
+            if self.pMsg: print(' ### (table)%s state %s' % (self.name, TBL_STT[self.state]))
+
+            # manage table cards
+            newTableCards = []
+            if self.state == 2: newTableCards = [self.deck.getCard(), self.deck.getCard(), self.deck.getCard()]
+            if self.state in [3,4]: newTableCards = [self.deck.getCard()]
+            if newTableCards:
+                self.cards += newTableCards
+                if self.pMsg:
+                    print(' ### (table)%s cards: '%self.name, end='')
+                    for card in self.cards: print(PDeck.cardToStr(card), end=' ')
+                    print()
 
             # ask players for moves
             while len(handPlayers) > 1: # more important condition breaks below
@@ -153,58 +162,66 @@ class PokerTable:
             cmpIX = 0
             self.cashToCall = 0
             for pl in self.players: pl.cRiverCash = 0
+
             self.state += 1  # move table to next state
 
-        # first save what every player put on the table, fill players cash up to table startCash
-        for player in self.players:
-            lost = self.startCash - player.cash
-            player.wonLast = -lost
-            player.wonTotal -= lost
-            player.cash = self.startCash
-
         if self.verbLev: print('(table)%s rivers finished, time to select winners' % self.name)
-        # get id of winners
-        winners = [] # list of winning players
-        fullRanks = [None for _ in self.players]
-        if len(handPlayers) == 1:
-            winners.append(handPlayers[0])
+
+        # prep template of winners announced event
+        winnersData = []
+        for player in self.players:
+            winnersData.append({
+                'plName':       player.name,
+                'winner':       False,
+                'fullRank':     None,
+                'won':          0})
+
+        # select id (in self.players) of winners
+        idWinners = []
+        if len(handPlayers) == 1: idWinners.append(self.players.index(handPlayers[0]))
         else:
             hpCards = [list(pl.hand)+self.cards for pl in handPlayers] # handPlayers cards with table cards
-            hpRanks = [PokerDeck.cardsRank(cards) for cards in hpCards]
+            hpRanks = [PDeck.cardsRank(cards) for cards in hpCards]
             simpledRanks = [rank[0:2] for rank in hpRanks]
             topRank = max(simpledRanks)
-            idWinnersH = [ix for ix in range(len(handPlayers)) if simpledRanks[ix] == topRank]
-            winners = [handPlayers[ix] for ix in range(len(handPlayers)) if ix in idWinnersH]
-            # TODO: finalize from here
+            winners = [handPlayers[ix] for ix in range(len(handPlayers)) if simpledRanks[ix] == topRank]
+            idWinners = [ix for ix in range(len(self.players)) if self.players[ix] in winners]
             for ix in range(len(self.players)):
-                # build fullRanks for winning players
-                # not include ranks of not show-down
-                pass
-        prize = self.cash // len(winners)
-        for player in self.players:
+                if ix in idWinners:
+                    winnersData[ix]['fullRank'] = hpRanks[handPlayers.index(self.players[ix])]
+                    # TODO: is there a show-down? => do not show cards of some players
 
-            if player in winners:
+        # manage cash and information about
+        prize = self.cash // len(idWinners)
+        for ix in range(len(self.players)):
+            player = self.players[ix]
+            if ix in idWinners:
+                myWon = prize - player.cHandCash # brutto winning
                 player.cash += prize # winning player receives prize
-                player.wonLast = prize
-                player.wonTotal += prize
-                if self.pMsg:
-                    print('### (player)%s won %d$' % (player.name, prize), end='')
-                    if fullRanks: print(' with %s' % fullRanks[id][-1], end='')
-                    print()
-            # player lost
+                player.wonLast = myWon
+                player.wonTotal += myWon
+                winnersData[ix]['winner'] = True
+                winnersData[ix]['won'] = myWon
+                if self.pMsg: print('### (player)%s won %d$ with %s' % (player.name, myWon, winnersData[ix]['fullRank'][-1]))
             else:
+                myWon = -player.cHandCash  # brutto lost
+                player.wonLast = myWon
+                player.wonTotal += myWon
+                winnersData[ix]['won'] = myWon
+                if self.pMsg: print('### (player)%s lost %d$' % (player.name, myWon))
 
+        # reset player data (cash, cards)
+        for player in self.players:
+            player.cHandCash = 0
+            player.cRiverCash = 0
+            player.hand = None  # players return cards
+            if player.cash < self.startCash: player.cash = self.startCash
 
-        for id in idWinners:
-            handPlayers[id].wonLast = prize
-            handPlayers[id].wonTotal += prize
-            handPlayers[id].cash = self.startCash
-
-
+        # reset table data
         self.cash = 0
         self.cards = []
+        self.deck.resetDeck()
 
-        for player in handPlayers: player.hand = None # players return cards
         self.players.append(self.players.pop(0)) # circle table players
         self.state = 0
 
@@ -216,6 +233,6 @@ class PokerTable:
 if __name__ == "__main__":
 
     print()
-    pTable = PokerTable()
-    for ix in range(pTable.maxPlayers): pTable.addPlayer(PokerPlayer('pl%d'%ix))
+    pTable = PTable()
+    for ix in range(pTable.maxPlayers): pTable.addPlayer(PPlayer('pl%d' % ix))
     for _ in range(5): pTable.runHand()

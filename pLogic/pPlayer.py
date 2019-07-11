@@ -5,7 +5,7 @@
 """
 
 import random
-from pokerLogic.pokerDeck import PokerDeck
+from pLogic.pDeck import PDeck
 
 # player possible moves
 PLR_MVS = {
@@ -15,28 +15,23 @@ PLR_MVS = {
     3:      'ALL'}
 
 
-class PokerPlayer:
+class PPlayer:
 
     def __init__(self, name='pPlayer'):
 
         self.verbLev = 1
         self.pMsg = True
         self.name = name
-        self.cash = 500
-        self.wonLast = 0
-        self.wonTotal = 0
+        # managed by table
         self.table = None
         self.hand = None
+        self.cash = 0
+        self.wonLast = 0
+        self.wonTotal = 0
+        self.cHandCash = 0 # current hand cash (amount put by player on current hand)
         self.cRiverCash = 0 # current river cash (amount put by player on current river yet)
+
         if self.verbLev: print('(player)%s created' % self.name)
-
-    # player takes hand
-    def takeHand(self, ca, cb):
-        self.hand = ca, cb
-        if self.pMsg: print(' ### (player)%s taken hand %s %s' %(self.name, PokerDeck.cardToStr(ca), PokerDeck.cardToStr(cb)))
-
-    # player returns hand
-    def rtrnHand(self): self.hand = None
 
     # makes player decision (having table status ...and any other info)
     def makeMove(self):
