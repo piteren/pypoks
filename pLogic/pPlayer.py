@@ -50,7 +50,5 @@ class PPlayer:
         selectedMove = [key for key in possibleMoves.keys() if possibleMoves[key]]
         random.shuffle(selectedMove)
         selectedMove = selectedMove[0]
-        self.cash -= possibleMovesCash[selectedMove]
-        self.cRiverCash += possibleMovesCash[selectedMove]
 
         return selectedMove, possibleMovesCash[selectedMove]

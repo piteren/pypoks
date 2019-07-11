@@ -207,6 +207,7 @@ class PDeck:
         # calc rankValue
         rankValue = 0
         for ix in range(5): rankValue += fiveCards[ix][0]*13**ix
+        rankValue += 1000000*topRank
 
         # prep string
         string = CRD_RNK[topRank] + ' %s'%rankValue
