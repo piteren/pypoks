@@ -248,7 +248,6 @@ class PTable:
         self.state = 0
 
         self.hands.append(hHis)
-        print(hHis)
 
         if self.verbLev: print('(table)%s hand finished, table state %s' % (self.name, TBL_STT[self.state]))
 
