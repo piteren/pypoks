@@ -38,11 +38,19 @@
 
 from pLogic.pPlayer import PPlayer
 from pLogic.pTable import PTable
+from decisionMaker import DecisionMaker
 
 
 if __name__ == "__main__":
 
     print()
     pTable = PTable()
-    for ix in range(pTable.maxPlayers): pTable.addPlayer(PPlayer('pl%d'%ix))
-    for _ in range(5): pTable.runHand()
+    dMK = DecisionMaker()
+    aiPlayer = PPlayer(
+        name=   'pl0',
+        dMK=    dMK)
+    pTable.addPlayer(aiPlayer)
+    for ix in range(1, pTable.maxPlayers): pTable.addPlayer(PPlayer('pl%d'%ix))
+    for _ in range(50):
+        pTable.runHand()
+        #for event in pTable.hands[-1]: print(event)

@@ -26,6 +26,15 @@ TBL_STT = {
     4:  'river',
     5:  'handFin'}
 
+# returns list of table position names in dependency of num of table players
+def posNames(nP=3):
+
+    pNames = ['SB','BB','BTN']
+    if nP == 2: pNames = pNames[:-1]
+    if nP == 6: pNames = ['SB','BB','UTG','MP','CT','BTN']
+    if nP == 9: pNames = ['SB','BB','UTG1','UTG2','MP1','MP2','HJ','CT','BTN']
+    return pNames
+
 
 class PTable:
 
@@ -68,13 +77,14 @@ class PTable:
         self.handID += 1
         self.state = 1
         if self.verbLev: print('\n(table)%s starts new hand, handID %d' % (self.name, self.handID))
-        hHis = [{'handStart': {'handID': self.handID}}] # start hand history
+        hHis = [{'handStartID': self.handID}] # start hand history
+        self.hands.append(hHis)
 
         handPlayers = [] + self.players # original order of players for current hand (SB, BB, ..)
         if self.pMsg:
             print(' ### (table)%s hand players:' % self.name)
             for player in handPlayers: print(' ### (player)%s'%player.name)
-        hHis.append({'playersSeated':{'playersData': [{'plName': player.name} for player in handPlayers]}})
+        hHis.append({'handPlayers': [player.name for player in handPlayers]})
 
         # put blinds on table
         handPlayers[0].cash -= self.SB
@@ -98,6 +108,7 @@ class PTable:
             ca, cb = self.deck.getCard(), self.deck.getCard()
             player.hand = ca, cb
             if self.pMsg: print(' ### (player)%s taken hand %s %s' % (player.name, PDeck.cardToStr(ca), PDeck.cardToStr(cb)))
+        hHis.append({'playersCards': [player.hand for player in handPlayers]})
 
         while self.state < 5 and len(handPlayers) > 1:
 
@@ -109,6 +120,7 @@ class PTable:
             if self.state in [3,4]: newTableCards = [self.deck.getCard()]
             if newTableCards:
                 self.cards += newTableCards
+                hHis.append({'newTableCards': newTableCards})
                 if self.pMsg:
                     print(' ### (table)%s cards: '%self.name, end='')
                     for card in self.cards: print(PDeck.cardToStr(card), end=' ')
@@ -210,19 +222,14 @@ class PTable:
 
         # manage cash and information about
         prize = self.cash // nWinners
-
         for ix in range(len(self.players)):
             player = self.players[ix]
-            if winnersData[ix]['winner']:
-                myWon = prize - player.cHandCash # netto winning
-                player.wonLast = myWon
-                player.wonTotal += myWon
-                winnersData[ix]['won'] = myWon
-            else:
-                myWon = -player.cHandCash  # netto lost
-                player.wonLast = myWon
-                player.wonTotal += myWon
-                winnersData[ix]['won'] = myWon
+            myWon = -player.cHandCash  # netto lost
+            if winnersData[ix]['winner']: myWon += prize # add netto winning
+            player.wonLast = myWon
+            player.wonTotal += myWon
+            winnersData[ix]['won'] = myWon
+            player.getReward(myWon)
             if self.pMsg:
                 print(' ### (player)%s : %d$' %(player.name, myWon), end='')
                 if winnersData[ix]['fullRank']:
@@ -230,31 +237,19 @@ class PTable:
                     else: print(' with %s'%winnersData[ix]['fullRank'][-1], end='')
                 print()
 
-        hHis.append({'winnersData': winnersData})
-
-        # reset player data (cash, cards)
-        for player in self.players:
+            # reset player data (cash, cards)
+            player.hand = None  # players return cards
             player.cash = self.startCash
             player.cHandCash = 0
             player.cRiverCash = 0
-            player.hand = None  # players return cards
 
-        # reset table data
+        hHis.append({'winnersData': winnersData})
+
+        # table reset
         self.cash = 0
         self.cards = []
         self.deck.resetDeck()
-
-        self.players.append(self.players.pop(0)) # rotate table players
         self.state = 0
-
-        self.hands.append(hHis)
+        self.players.append(self.players.pop(0)) # rotate table players for next hand
 
         if self.verbLev: print('(table)%s hand finished, table state %s' % (self.name, TBL_STT[self.state]))
-
-
-if __name__ == "__main__":
-
-    print()
-    pTable = PTable()
-    for ix in range(pTable.maxPlayers): pTable.addPlayer(PPlayer('pl%d' % ix))
-    for _ in range(5): pTable.runHand()

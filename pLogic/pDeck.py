@@ -167,7 +167,7 @@ class PDeck:
             for cL in cFig:
                 if len(cL) == 4: four = cL
             for c in four: cards.remove(c)
-            fiveCards = cards[-1] + four
+            fiveCards = [cards[-1]] + four
         if topRank == 6:
             three = []
             for cL in cFig:
