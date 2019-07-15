@@ -38,10 +38,14 @@ def posNames(nP=3):
 
 class PTable:
 
-    def __init__(self, name='pTable'):
+    def __init__(
+            self,
+            name=       'pTable',
+            pMsg=       True,
+            verbLev=    1):
 
-        self.verbLev = 1
-        self.pMsg = True
+        self.verbLev = verbLev
+        self.pMsg = pMsg
 
         self.name = name
         self.maxPlayers = 3
@@ -227,13 +231,13 @@ class PTable:
             player.wonLast = myWon
             player.wonTotal += myWon
             winnersData[ix]['won'] = myWon
-            player.getReward(myWon)
             if self.pMsg:
                 print(' ### (player)%s : %d$' %(player.name, myWon), end='')
                 if winnersData[ix]['fullRank']:
                     if type(winnersData[ix]['fullRank']) is str: print(', mucked hand', end ='')
                     else: print(' with %s'%winnersData[ix]['fullRank'][-1], end='')
                 print()
+            player.getReward(myWon)
 
             # reset player data (cash, cards)
             player.hand = None  # players return cards

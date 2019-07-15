@@ -2,7 +2,7 @@
 
  2019 (c) piteren
 
-
+ http://karpathy.github.io/2016/05/31/rl/
  http://spinningup.openai.com/en/latest/
  http://inoryy.com/post/tensorflow2-deep-reinforcement-learning/
  https://stackoverflow.com/questions/51944199/calculating-loss-from-action-and-reward-in-tensorflow
@@ -44,14 +44,14 @@ from decisionMaker import DecisionMaker
 if __name__ == "__main__":
 
     print()
-    pTable = PTable()
+    pTable = PTable(pMsg=False, verbLev=0)
     dMK = DecisionMaker()
     aiPlayer = PPlayer(
         name=   'pl0',
         dMK=    dMK)
     pTable.addPlayer(aiPlayer)
     for ix in range(1, pTable.maxPlayers): pTable.addPlayer(PPlayer('pl%d'%ix))
-    for _ in range(5000):
+    for n in range(1,100001):
         pTable.runHand()
+        if n%100 == 0: print(aiPlayer.wonTotal, n)
         #for event in pTable.hands[-1]: print(event)
-    print(aiPlayer.wonTotal)

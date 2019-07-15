@@ -92,6 +92,15 @@ class DecisionMaker:
             print(' > inCemb:', inCemb)
 
             input = tf.concat([inETemb, inCemb, self.inV], axis=-1)
+            denseOut = layDENSE(
+                input=      input,
+                units=      width,
+                activation= tf.nn.relu)
+            input = denseOut['output']
+            input = tf.contrib.layers.layer_norm(
+                    inputs=             input,
+                    begin_norm_axis=    -1,
+                    begin_params_axis=  -1)
             print(' > input:', input)
 
             bsz = tf.shape(input)[0]
@@ -129,7 +138,11 @@ class DecisionMaker:
             rewNorm = 3*tf.nn.tanh(self.reward/100)
             loss = loss(self.move, logits, sample_weight=rewNorm)
             gradients = tf.gradients(loss, vars)
-            optimizer = tf.train.GradientDescentOptimizer(1e-5)
+            gradients, _ = tf.clip_by_global_norm(
+                t_list=     gradients,
+                clip_norm=  3)
+            #optimizer = tf.train.GradientDescentOptimizer(1e-5)
+            optimizer = tf.train.AdamOptimizer(1e-4)
             self.optimizer = optimizer.apply_gradients(zip(gradients,vars))
 
     # runs fwd to get probs
@@ -152,25 +165,28 @@ class DecisionMaker:
     def _runUpdate(self):
 
         for upInput in self.upInputs:
-            rew = upInput[0]
+            rew = [upInput[0]]
             inputs = upInput[1]
-            if len(inputs):
-                rewPI = rew / len(inputs)
-                for inp in inputs:
-                    inET =  inp['inET']
-                    inC =   inp['inC']
-                    inV =   inp['inV']
-                    move =  inp['move']
+            for inp in inputs:
 
-                    feed = {
-                        self.inET:      inET,
-                        self.inC:       inC,
-                        self.inV:       inV,
-                        self.move:      move,
-                        self.reward:    [rewPI]}
-                    if self.lastUpdState is not None: feed[self.inState] = self.lastUpdState
-                    fetches = [self.optimizer, self.finState]
-                    _, self.lastUpdState = self.session.run(fetches, feed_dict=feed)
+                inET =  inp['inET']
+                inC =   inp['inC']
+                inV =   inp['inV']
+                move =  inp['move']
+
+                feed = {
+                    self.inET:      inET,
+                    self.inC:       inC,
+                    self.inV:       inV,
+                    self.move:      move,
+                    self.reward:    rew}
+                if self.lastUpdState is not None: feed[self.inState] = self.lastUpdState
+
+                fetches = [self.optimizer, self.finState]
+                _, self.lastUpdState = self.session.run(fetches, feed_dict=feed)
+
+        self.lastFwdState = self.lastUpdState
+        self.upInputs = []
 
     # returns int
     def mDec(
@@ -210,35 +226,37 @@ class DecisionMaker:
 
                 vec = np.zeros(shape=self.wV)
                 vec[0] = self.players.index(state[key]['pName'])-1
-                vec[1] = state[key]['tBCash']       /750-1
-                vec[2] = state[key]['pBCash']       /250-1
-                vec[3] = state[key]['pBCHandCash']  /250-1
-                vec[4] = state[key]['pBCRiverCash'] /250-1
-                vec[5] = state[key]['bCashToCall']  /250-1
-                vec[6] = state[key]['plMove'][0]    /1.5-1
-                vec[7] = state[key]['tACash']       /750-1
-                vec[8] = state[key]['pACash']       /250-1
-                vec[9] = state[key]['pACHandCash']  /250-1
-                vec[10]= state[key]['pACRiverCash'] /250-1
+                vec[1] = state[key]['tBCash']       /1500
+                vec[2] = state[key]['pBCash']       /500
+                vec[3] = state[key]['pBCHandCash']  /500
+                vec[4] = state[key]['pBCRiverCash'] /500
+                vec[5] = state[key]['bCashToCall']  /500
+                vec[6] = state[key]['plMove'][0]    /3
+                vec[7] = state[key]['tACash']       /1500
+                vec[8] = state[key]['pACash']       /500
+                vec[9] = state[key]['pACHandCash']  /500
+                vec[10]= state[key]['pACRiverCash'] /500
 
                 inET.append(2)
                 inC.append((52,52,52))
-                inV.append(np.zeros(shape=self.wV))
+                #print(vec)
+                inV.append(vec)
 
         probs = self._getProbs([inET],[inC],[inV])
         probs = probs[0]
-        print(' *** nn probs:', probs)
+        #print(' *** nn probs:', probs)
 
         probMask = [0,0,0,0]
         for pos in possibleMoves: probMask[pos] = 1
         probMask = np.asarray(probMask)
-        print(' *** probMask:', probMask)
+        #print(' *** probMask:', probMask)
         probs = probs*probMask
-        probs = probs/np.sum(probs)
-        print(' *** probs masked:', probs)
+        if np.sum(probs) > 0: probs = probs/np.sum(probs)
+        else: probs = [0.25,0.25,0.25,0.25]
+        #print(' *** probs masked:', probs)
 
         move = np.random.choice(np.arange(4), p=probs)
-        print(' *** move:', move)
+        #print(' *** move:', move)
 
         inDict = {
             'inET': [inET],
@@ -257,4 +275,3 @@ class DecisionMaker:
         self.upInputs.append((reward, self.lInputs))
         self.lInputs = []
         self._runUpdate()
-        self.upInputs = []
