@@ -51,6 +51,7 @@ if __name__ == "__main__":
         dMK=    dMK)
     pTable.addPlayer(aiPlayer)
     for ix in range(1, pTable.maxPlayers): pTable.addPlayer(PPlayer('pl%d'%ix))
-    for _ in range(50):
+    for _ in range(5000):
         pTable.runHand()
         #for event in pTable.hands[-1]: print(event)
+    print(aiPlayer.wonTotal)

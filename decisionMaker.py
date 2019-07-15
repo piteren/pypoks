@@ -48,7 +48,7 @@ class DecisionMaker:
             self.inET =         tf.placeholder( # event type
                 name=           'inET',
                 dtype=          tf.int32,
-                shape=          [None,None])
+                shape=          [None,None]) # [bsz,seq]
 
             etEMB = tf.get_variable( # event type embeddings
                 name=           'etEMB',
@@ -59,7 +59,7 @@ class DecisionMaker:
             self.inC = tf.placeholder( # 3 cards
                 name=           'inC',
                 dtype=          tf.int32,
-                shape=          [None,None,3])
+                shape=          [None,None,3]) # [bsz,seq,3cards]
 
             cEMB = tf.get_variable( # cards embeddings
                 name=           'imVar',
@@ -70,7 +70,17 @@ class DecisionMaker:
             self.inV = tf.placeholder( # event float values
                 name=           'inV',
                 dtype=          tf.float32,
-                shape=          [None,None,self.wV])
+                shape=          [None,None,self.wV]) # [bsz,seq,vec]
+
+            self.move = tf.placeholder( # "correct" move (class)
+                name=           'move',
+                dtype=          tf.int32,
+                shape=          [None]) # [bsz]
+
+            self.reward = tf.placeholder( # reward for "correct" move
+                name=           'reward',
+                dtype=          tf.float32,
+                shape=          [None]) # [bsz]
 
             inETemb = tf.nn.embedding_lookup(params=etEMB, ids=self.inET)
             print(' > inETemb:', inETemb)
@@ -114,11 +124,20 @@ class DecisionMaker:
 
             self.probs = tf.nn.softmax(logits)
 
+            vars = tf.trainable_variables()
+            loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
+            rewNorm = 3*tf.nn.tanh(self.reward/100)
+            loss = loss(self.move, logits, sample_weight=rewNorm)
+            gradients = tf.gradients(loss, vars)
+            optimizer = tf.train.GradientDescentOptimizer(1e-5)
+            self.optimizer = optimizer.apply_gradients(zip(gradients,vars))
+
+    # runs fwd to get probs
     def _getProbs(
             self,
-            inET,   # [bsz, seq]
-            inC,    # [bsz, seq, 3]
-            inV):   # [bsz, seq, inVw]
+            inET,   # [bsz,seq]
+            inC,    # [bsz,seq,3]
+            inV):   # [bsz,seq,inVw]
 
         feed = {
             self.inET:  inET,
@@ -128,6 +147,30 @@ class DecisionMaker:
         fetches = [self.probs, self.finState]
         probs, self.lastFwdState = self.session.run(fetches, feed_dict=feed)
         return probs
+
+    # runs update of net with self.upInputs
+    def _runUpdate(self):
+
+        for upInput in self.upInputs:
+            rew = upInput[0]
+            inputs = upInput[1]
+            if len(inputs):
+                rewPI = rew / len(inputs)
+                for inp in inputs:
+                    inET =  inp['inET']
+                    inC =   inp['inC']
+                    inV =   inp['inV']
+                    move =  inp['move']
+
+                    feed = {
+                        self.inET:      inET,
+                        self.inC:       inC,
+                        self.inV:       inV,
+                        self.move:      move,
+                        self.reward:    [rewPI]}
+                    if self.lastUpdState is not None: feed[self.inState] = self.lastUpdState
+                    fetches = [self.optimizer, self.finState]
+                    _, self.lastUpdState = self.session.run(fetches, feed_dict=feed)
 
     # returns int
     def mDec(
@@ -201,7 +244,7 @@ class DecisionMaker:
             'inET': [inET],
             'inC':  [inC],
             'inV':  [inV],
-            'move': move}
+            'move': [move]}
         self.lInputs.append(inDict)
 
         return move
@@ -213,3 +256,5 @@ class DecisionMaker:
 
         self.upInputs.append((reward, self.lInputs))
         self.lInputs = []
+        self._runUpdate()
+        self.upInputs = []
