@@ -5,6 +5,7 @@
 """
 
 import numpy as np
+import os
 import tensorflow as tf
 
 from pUtils.nnTools.nnBaseElements import defInitializer, layDENSE
@@ -15,12 +16,20 @@ class DecisionMaker:
 
     def __init__(self):
 
-        self.inIw = 8
-        self.inVw = 120
+        # tf verbosity
+        tf.logging.set_verbosity(tf.logging.ERROR)
+        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+
+        self.wET = 8 # event type emb width
+        self.wC = 20 # card (single) emb width
+        self.wV = 120 #
+
         self.lastFwdState = None # netState after last fwd
         self.lastUpdState = None # netState after last update
         self.inputs = None # inputs save for update
+
         self._buildGraph()
+
         self.session = tf.Session()
         self.session.run(tf.initializers.global_variables())
 
@@ -29,29 +38,46 @@ class DecisionMaker:
 
         with tf.variable_scope('decMaker'):
 
-            width = self.inIw + self.inVw
+            width = self.wET + self.wC*3 + self.wV
             cell = tf.contrib.rnn.NASCell(width)
 
-            self.inI = tf.placeholder(
-                name=   'inI',
-                dtype=  tf.int32,
-                shape=  [None,None])
+            self.inET =         tf.placeholder( # event type
+                name=           'inET',
+                dtype=          tf.int32,
+                shape=          [None,None])
 
-            self.inV = tf.placeholder(
-                name=   'inV',
-                dtype=  tf.float32,
-                shape=  [None,None,self.inVw])
-
-            imVar = tf.get_variable(
-                name=           'imVar',
-                shape=          [10,self.inIw],
+            etEMB = tf.get_variable( # event type embeddings
+                name=           'etEMB',
+                shape=          [10,self.wET],
                 dtype=          tf.float32,
                 initializer=    defInitializer())
 
-            embInI = tf.nn.embedding_lookup(params=imVar, ids=self.inI)
-            print(' > embInI:', embInI)
+            self.inC = tf.placeholder( # 3 cards
+                name=           'inC',
+                dtype=          tf.int32,
+                shape=          [None,None,3])
 
-            input = tf.concat([embInI, self.inV], axis=-1)
+            cEMB = tf.get_variable( # cards embeddings
+                name=           'imVar',
+                shape=          [53, self.wC],
+                dtype=          tf.float32,
+                initializer=    defInitializer())
+
+            self.inV = tf.placeholder( # event float values
+                name=           'inV',
+                dtype=          tf.float32,
+                shape=          [None,None,self.wV])
+
+            inETemb = tf.nn.embedding_lookup(params=etEMB, ids=self.inET)
+            print(' > inETemb:', inETemb)
+
+            inCemb = tf.nn.embedding_lookup(params=cEMB, ids=self.inC)
+            print(' > inCemb:', inCemb)
+            inCemb = tf.unstack(inCemb, axis=-1)
+            inCemb = tf.concat(inCemb, axis=-1)
+            print(' > inCemb:', inCemb)
+
+            input = tf.concat([inETemb, inCemb, self.inV], axis=-1)
             print(' > input:', input)
 
             bsz = tf.shape(input)[0]
@@ -86,10 +112,14 @@ class DecisionMaker:
 
     def _getProbs(
             self,
-            inI,    # [bsz, seq]
+            inET,   # [bsz, seq]
+            inC,    # [bsz, seq, 3]
             inV):   # [bsz, seq, inVw]
 
-        feed = {self.inI: inI, self.inV: inV}
+        feed = {
+            self.inET:  inET,
+            self.inC:   inC,
+            self.inV:   inV}
         if self.lastFwdState is not None: feed[self.inState] = self.lastFwdState
         fetches = [self.probs, self.finState]
         probs, self.lastFwdState = self.session.run(fetches, feed_dict=feed)
@@ -104,9 +134,7 @@ class DecisionMaker:
         for state in stateChanges:
             print(' *** state:', state)
 
-        inV = np.random.random(size=[1,1,self.inVw])
-
-        probs = self._getProbs([[2]],inV)
+        probs = self._getProbs([[2]],[[[0,0,0]]],np.random.random(size=[1,1,self.wV]))
         probs = probs[0]
         print(' *** nn probs:', probs)
 
