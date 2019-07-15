@@ -77,14 +77,13 @@ class PTable:
         self.handID += 1
         self.state = 1
         if self.verbLev: print('\n(table)%s starts new hand, handID %d' % (self.name, self.handID))
-        hHis = [{'handStartID': self.handID}] # start hand history
-        self.hands.append(hHis)
 
         handPlayers = [] + self.players # original order of players for current hand (SB, BB, ..)
         if self.pMsg:
             print(' ### (table)%s hand players:' % self.name)
             for player in handPlayers: print(' ### (player)%s'%player.name)
-        hHis.append({'handPlayers': [player.name for player in handPlayers]})
+        hHis = [{'handPlayers': [player.name for player in handPlayers]}]
+        self.hands.append(hHis)
 
         # put blinds on table
         handPlayers[0].cash -= self.SB
