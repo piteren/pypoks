@@ -19,7 +19,7 @@ class PPlayer:
 
     def __init__(
             self,
-            name=       'pPlayer',
+            name=       'pl0',
             dMK=        None):      # decisionMaker
 
         self.verbLev = 1

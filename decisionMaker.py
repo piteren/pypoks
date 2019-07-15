@@ -9,6 +9,7 @@ import os
 import tensorflow as tf
 
 from pUtils.nnTools.nnBaseElements import defInitializer, layDENSE
+from pLogic.pDeck import PDeck
 
 
 # proto of neural decision maker
@@ -20,13 +21,16 @@ class DecisionMaker:
         tf.logging.set_verbosity(tf.logging.ERROR)
         os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
+        self.players = ['pl0','pl1','pl2'] # myself always 1st
+
         self.wET = 8 # event type emb width
         self.wC = 20 # card (single) emb width
         self.wV = 120 #
 
         self.lastFwdState = None # netState after last fwd
         self.lastUpdState = None # netState after last update
-        self.inputs = None # inputs save for update
+        self.lInputs = [] # list of inputs dicts (save till reward)
+        self.upInputs = [] # list of tuples (reward,inputs)
 
         self._buildGraph()
 
@@ -131,10 +135,54 @@ class DecisionMaker:
             stateChanges: list,
             possibleMoves: list):
 
+        inET = [] # list of ints
+        inC = [] # list of (int,int,int)
+        inV = [] # list of vectors
         for state in stateChanges:
-            print(' *** state:', state)
+            key = list(state.keys())[0]
+            # print(' *** state:', state)
 
-        probs = self._getProbs([[2]],[[[0,0,0]]],np.random.random(size=[1,1,self.wV]))
+            if key == 'playersPC':
+                myPos = 0
+                for ix in range(len(state[key])):
+                    if state[key][ix][0] == self.players[0]: myPos = ix
+                cards = state[key][myPos][1]
+                vec = np.zeros(shape=self.wV)
+                vec[0] = myPos - 1
+
+                inET.append(0)
+                inC.append((PDeck.cardToInt(cards[0]),PDeck.cardToInt(cards[1]),52))
+                inV.append(vec)
+
+            if key == 'newTableCards':
+                cards = state[key]
+                cards = [PDeck.cardToInt(card) for card in cards]
+                while len(cards) < 3: cards.append(52)
+
+                inET.append(1)
+                inC.append(cards)
+                inV.append(np.zeros(shape=self.wV))
+
+            if key == 'moveData':
+
+                vec = np.zeros(shape=self.wV)
+                vec[0] = self.players.index(state[key]['pName'])-1
+                vec[1] = state[key]['tBCash']       /750-1
+                vec[2] = state[key]['pBCash']       /250-1
+                vec[3] = state[key]['pBCHandCash']  /250-1
+                vec[4] = state[key]['pBCRiverCash'] /250-1
+                vec[5] = state[key]['bCashToCall']  /250-1
+                vec[6] = state[key]['plMove'][0]    /1.5-1
+                vec[7] = state[key]['tACash']       /750-1
+                vec[8] = state[key]['pACash']       /250-1
+                vec[9] = state[key]['pACHandCash']  /250-1
+                vec[10]= state[key]['pACRiverCash'] /250-1
+
+                inET.append(2)
+                inC.append((52,52,52))
+                inV.append(np.zeros(shape=self.wV))
+
+        probs = self._getProbs([inET],[inC],[inV])
         probs = probs[0]
         print(' *** nn probs:', probs)
 
@@ -149,6 +197,13 @@ class DecisionMaker:
         move = np.random.choice(np.arange(4), p=probs)
         print(' *** move:', move)
 
+        inDict = {
+            'inET': [inET],
+            'inC':  [inC],
+            'inV':  [inV],
+            'move': move}
+        self.lInputs.append(inDict)
+
         return move
 
     # takes reward and updates net if "condition"
@@ -156,4 +211,5 @@ class DecisionMaker:
             self,
             reward: int):
 
-        pass
+        self.upInputs.append((reward, self.lInputs))
+        self.lInputs = []

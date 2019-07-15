@@ -82,8 +82,6 @@ class PTable:
         if self.pMsg:
             print(' ### (table)%s hand players:' % self.name)
             for player in handPlayers: print(' ### (player)%s'%player.name)
-        hHis = [{'handPlayers': [player.name for player in handPlayers]}]
-        self.hands.append(hHis)
 
         # put blinds on table
         handPlayers[0].cash -= self.SB
@@ -107,7 +105,8 @@ class PTable:
             ca, cb = self.deck.getCard(), self.deck.getCard()
             player.hand = ca, cb
             if self.pMsg: print(' ### (player)%s taken hand %s %s' % (player.name, PDeck.cardToStr(ca), PDeck.cardToStr(cb)))
-        hHis.append({'playersCards': [player.hand for player in handPlayers]})
+        hHis = [{'playersPC': [(player.name, player.hand) for player in handPlayers]}]
+        self.hands.append(hHis)
 
         while self.state < 5 and len(handPlayers) > 1:
 
