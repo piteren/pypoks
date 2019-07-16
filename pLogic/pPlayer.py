@@ -5,7 +5,8 @@
 """
 
 import random
-from pLogic.pDeck import PDeck
+import tensorflow as tf
+import time
 
 # player possible moves
 PLR_MVS = {
@@ -35,6 +36,11 @@ class PPlayer:
         self.wonTotal = 0
         self.cHandCash = 0 # current hand cash (amount put by player on current hand)
         self.cRiverCash = 0 # current river cash (amount put by player on current river yet)
+
+        self.summWriter = None
+        if self.name == 'pl0':
+            self.summWriter = tf.summary.FileWriter(logdir='_nnTB/pyp_'+time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3], flush_secs=10)
+        self.counter = 0
 
         if self.verbLev: print('(player)%s created' % self.name)
 
@@ -74,3 +80,8 @@ class PPlayer:
 
         self.nextStateUpdate = 0 # TODO: not the best place to reset this counter ...player should know new hand starts
         if self.dMK: self.dMK.getReward(reward)
+
+        if self.summWriter and self.counter % 1000 == 0:
+            accSumm = tf.Summary(value=[tf.Summary.Value(tag=self.name+'/wonTot', simple_value=self.wonTotal)])
+            self.summWriter.add_summary(accSumm, self.counter)
+        self.counter += 1

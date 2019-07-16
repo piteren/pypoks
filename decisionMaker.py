@@ -2,6 +2,9 @@
 
  2019 (c) piteren
 
+ https://stackoverflow.com/questions/46772685/how-to-accumulate-gradients-in-tensorflow
+ https://github.com/tensorflow/benchmarks/issues/210
+
 """
 
 import numpy as np
@@ -39,6 +42,8 @@ class DecisionMaker:
 
     # builds NN graph
     def _buildGraph(self):
+
+        tf.reset_default_graph()
 
         with tf.variable_scope('decMaker'):
 
@@ -135,15 +140,16 @@ class DecisionMaker:
 
             vars = tf.trainable_variables()
             loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
-            rewNorm = 3*tf.nn.tanh(self.reward/100)
-            loss = loss(self.move, logits, sample_weight=rewNorm)
-            gradients = tf.gradients(loss, vars)
-            gradients, _ = tf.clip_by_global_norm(
-                t_list=     gradients,
-                clip_norm=  3)
+            self.loss = loss(self.move, logits, sample_weight=self.reward)
+            self.gradients = tf.gradients(self.loss, vars)
+            self.gN = tf.global_norm(self.gradients)
+
+            self.gradients, _ = tf.clip_by_global_norm(t_list=self.gradients, clip_norm=1, use_norm=self.gN)
+
             #optimizer = tf.train.GradientDescentOptimizer(1e-5)
-            optimizer = tf.train.AdamOptimizer(1e-4)
-            self.optimizer = optimizer.apply_gradients(zip(gradients,vars))
+            optimizer = tf.train.AdamOptimizer(1e-6)
+
+            self.optimizer = optimizer.apply_gradients(zip(self.gradients,vars))
 
     # runs fwd to get probs
     def _getProbs(
@@ -165,25 +171,36 @@ class DecisionMaker:
     def _runUpdate(self):
 
         for upInput in self.upInputs:
-            rew = [upInput[0]]
+            #rew = upInput[0]/1500
+            rew = 1 if upInput[0] > 0 else -1
+            if upInput[0] == 0: rew = 0
             inputs = upInput[1]
-            for inp in inputs:
+            if len(inputs):
+                #rew /= len(inputs)
+                for inp in inputs:
 
-                inET =  inp['inET']
-                inC =   inp['inC']
-                inV =   inp['inV']
-                move =  inp['move']
+                    inET =  inp['inET']
+                    inC =   inp['inC']
+                    inV =   inp['inV']
+                    move =  inp['move']
 
-                feed = {
-                    self.inET:      inET,
-                    self.inC:       inC,
-                    self.inV:       inV,
-                    self.move:      move,
-                    self.reward:    rew}
-                if self.lastUpdState is not None: feed[self.inState] = self.lastUpdState
+                    feed = {
+                        self.inET:      inET,
+                        self.inC:       inC,
+                        self.inV:       inV,
+                        self.move:      move,
+                        self.reward:    [rew]}
+                    if self.lastUpdState is not None: feed[self.inState] = self.lastUpdState
 
-                fetches = [self.optimizer, self.finState]
-                _, self.lastUpdState = self.session.run(fetches, feed_dict=feed)
+                    fetches = [self.optimizer, self.loss, self.gN, self.gradients, self.finState]
+                    _, loss, gN, grads, self.lastUpdState = self.session.run(fetches, feed_dict=feed)
+                    """
+                    for gr in grads:
+                        print(type(gr), end=' ')
+                        if type(gr) is np.ndarray: print(gr.shape)
+                        else: print(gr.dense_shape)
+                    """
+                    #print('loss %.3f gN %.3f' %(loss, gN))
 
         self.lastFwdState = self.lastUpdState
         self.upInputs = []
@@ -244,19 +261,14 @@ class DecisionMaker:
 
         probs = self._getProbs([inET],[inC],[inV])
         probs = probs[0]
-        #print(' *** nn probs:', probs)
 
         probMask = [0,0,0,0]
         for pos in possibleMoves: probMask[pos] = 1
-        probMask = np.asarray(probMask)
-        #print(' *** probMask:', probMask)
-        probs = probs*probMask
+        probs = probs*np.asarray(probMask)
         if np.sum(probs) > 0: probs = probs/np.sum(probs)
         else: probs = [0.25,0.25,0.25,0.25]
-        #print(' *** probs masked:', probs)
 
         move = np.random.choice(np.arange(4), p=probs)
-        #print(' *** move:', move)
 
         inDict = {
             'inET': [inET],
@@ -267,7 +279,7 @@ class DecisionMaker:
 
         return move
 
-    # takes reward and updates net if "condition"
+    # takes reward (updates net)
     def getReward(
             self,
             reward: int):

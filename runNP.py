@@ -43,15 +43,19 @@ from decisionMaker import DecisionMaker
 
 if __name__ == "__main__":
 
-    print()
-    pTable = PTable(pMsg=False, verbLev=0)
-    dMK = DecisionMaker()
-    aiPlayer = PPlayer(
-        name=   'pl0',
-        dMK=    dMK)
-    pTable.addPlayer(aiPlayer)
-    for ix in range(1, pTable.maxPlayers): pTable.addPlayer(PPlayer('pl%d'%ix))
-    for n in range(1,100001):
-        pTable.runHand()
-        if n%100 == 0: print(aiPlayer.wonTotal, n)
-        #for event in pTable.hands[-1]: print(event)
+    for _ in range(20):
+        print()
+        pTable = PTable(pMsg=False, verbLev=0)
+        dMK = DecisionMaker()
+        aiPlayer = PPlayer(
+            name=   'pl0',
+            dMK=    dMK)
+        pTable.addPlayer(aiPlayer)
+        for ix in range(1, pTable.maxPlayers): pTable.addPlayer(PPlayer('pl%d'%ix))
+
+        n = 0
+        while n < 20000:
+            n += 1
+            pTable.runHand()
+            #print(aiPlayer.wonTotal)
+            if n % 1000 == 0: print(aiPlayer.wonTotal, n)
