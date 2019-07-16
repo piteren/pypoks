@@ -14,25 +14,15 @@
  for every state outputs Decision, every Decision is rewarded with cash
 
  Decision types:
- - idle
- - C/F
- - CLL
- - B/R # bet size is defined by algorithm (by now so simple)
- - ALL
+  0 - C/F
+  1 - CLL
+  2 - B/R # bet size is defined by algorithm (by now so simple)
+  3 - ALL
 
- States:
-
- - (hand starts)
-        myPosition(iR)              # 0,1,2
-        myLastWon                   # -500:1500
-        player1lastWon              # -500:1500
-        player2lastWon              # -500:1500
- - (player decision)
-        tableCash(R)                # 0:1500
-        tableCards(LE)              # [E,E,E,E,E] # encodes table state
-        playerID(iR)                # 0,1
-        playerDecisionType(iR)      # 0,1,2,3
-        playerDecisionCash(R)       # 0:500
+ TODO:
+  - better net arch and updates
+  - cards network with embeddings
+  - player stats
 
 """
 
@@ -43,7 +33,7 @@ from decisionMaker import DecisionMaker
 
 if __name__ == "__main__":
 
-    for _ in range(20):
+    for _ in range(100):
         print()
         pTable = PTable(pMsg=False, verbLev=0)
         dMK = DecisionMaker()
@@ -54,7 +44,7 @@ if __name__ == "__main__":
         for ix in range(1, pTable.maxPlayers): pTable.addPlayer(PPlayer('pl%d'%ix))
 
         n = 0
-        while n < 20000:
+        while n < 100000:
             n += 1
             pTable.runHand()
             #print(aiPlayer.wonTotal)
