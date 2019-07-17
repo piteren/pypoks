@@ -2,11 +2,6 @@
 
  2019 (c) piteren
 
- http://karpathy.github.io/2016/05/31/rl/
- http://spinningup.openai.com/en/latest/
- http://inoryy.com/post/tensorflow2-deep-reinforcement-learning/
- https://stackoverflow.com/questions/51944199/calculating-loss-from-action-and-reward-in-tensorflow
-
 
  the simplest neural model:
 
@@ -22,21 +17,32 @@
  TODO:
   - better net arch and updates
   - cards network with embeddings
-  - player stats
+  - player model:
+    - predicts next move
+    - predicts player cards
+    - models player stats
+  - player stats puts as state (input), if player model do not works ok
 
 """
 
+import tensorflow as tf
+import os
+
 from pLogic.pPlayer import PPlayer
 from pLogic.pTable import PTable
-from decisionMaker import DecisionMaker
+from decisionMaker import BNdmk
 
 
 if __name__ == "__main__":
 
+    # tf verbosity
+    tf.logging.set_verbosity(tf.logging.ERROR)
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+
     for _ in range(100):
         print()
         pTable = PTable(pMsg=False, verbLev=0)
-        dMK = DecisionMaker()
+        dMK = BNdmk(name='nnBase')
         aiPlayer = PPlayer(
             name=   'pl0',
             dMK=    dMK)

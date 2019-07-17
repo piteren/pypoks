@@ -7,6 +7,8 @@
 
 """
 
+from abc import abstractmethod
+
 import numpy as np
 import os
 import tensorflow as tf
@@ -15,16 +17,27 @@ from pUtils.nnTools.nnBaseElements import defInitializer, layDENSE
 from pLogic.pDeck import PDeck
 
 
-# proto of neural decision maker
-class DecisionMaker:
+class DecisionMaker(object):
 
-    def __init__(self):
+    @abstractmethod
+    def __init__(
+            self,
+            name :str):
 
-        # tf verbosity
-        tf.logging.set_verbosity(tf.logging.ERROR)
-        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+        self.name = name
 
-        self.players = ['pl0','pl1','pl2'] # myself always 1st
+
+# base neural decision maker
+class BNdmk(DecisionMaker):
+
+    def __init__(
+            self,
+            name):
+
+        super().__init__(name)
+
+        # TODO: strange as shit
+        self.players = ['pl0', 'pl1', 'pl2']  # myself always 1st
 
         self.wET = 8 # event type emb width
         self.wC = 20 # card (single) emb width
@@ -44,7 +57,6 @@ class DecisionMaker:
     def _buildGraph(self):
 
         tf.reset_default_graph()
-
         with tf.variable_scope('decMaker'):
 
             width = self.wET + self.wC*3 + self.wV
