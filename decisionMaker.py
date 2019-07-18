@@ -5,39 +5,134 @@
  https://stackoverflow.com/questions/46772685/how-to-accumulate-gradients-in-tensorflow
  https://github.com/tensorflow/benchmarks/issues/210
 
+ TODO:
+  - separate tf.graph from DMK, DMK should be universal neural interface
+  - implement simple stats for DMK
+
 """
 
-from abc import abstractmethod
-
 import numpy as np
-import os
 import tensorflow as tf
+import time
 
-from pUtils.nnTools.nnBaseElements import defInitializer, layDENSE
+from pUtils.littleTools.littleMethods import shortSCIN
+from pUtils.nnTools.nnBaseElements import defInitializer, layDENSE, numVFloats
 from pLogic.pDeck import PDeck
 
 
-class DecisionMaker(object):
+# basic implementation of DMK (random sampling)
+class DecisionMaker:
 
-    @abstractmethod
     def __init__(
             self,
-            name :str):
+            name :str=  None,
+            nMoves=     4,      # number of (all) moves
+            runTB=      True#False
+    ):
 
         self.name = name
+        if self.name is None: self.name = self.getName()
+        self.nMoves = nMoves
 
+        self.myTableID = None
+        self.myOponents = [] # table ids of oponents
 
-# base neural decision maker
+        self.lDSTMVwR = []  # list of dicts {'decState': 'move': 'reward':}
+
+        self.runTB = runTB
+        self.summWriter = None
+        self.counter = 0
+        self.accumRew = 0
+
+    # starts DMK for new game (table, player)
+    def start(
+            self,
+            table,
+            player):
+
+        self.myTableID = player.tID
+        self.myOponents = [ix for ix in range(table.nPlayers) if ix != player.tID]
+        if self.runTB: self.summWriter = tf.summary.FileWriter(logdir='_nnTB/' + self.name, flush_secs=10)
+
+    # generates name regarding class policy
+    def getName(self): return 'rnDMK_%s'%time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3]
+
+    # resets knowledge, stats, name of DMK
+    def resetME(self, newName=None):
+
+        if newName is True: self.name = self.getName()
+        elif newName: self.name = newName
+
+        if self.runTB: self.summWriter = tf.summary.FileWriter(logdir='_nnTB/' + self.name, flush_secs=10)
+        self.counter = 0
+        self.accumRew = 0
+
+    # translates table stateChanges to decState object (table state readable by getProbs)
+    def decState(
+            self,
+            tableStateChanges: list):
+
+        decState = None
+        return decState
+
+    # returns probabilities of moves
+    def getProbs(
+            self,
+            decState):
+
+        return [1/self.nMoves] * self.nMoves
+
+    # makes decision based on stateChanges - selects move from possibleMoves
+    def mDec(
+            self,
+            tableStateChanges: list,
+            possibleMoves: list):
+
+        decState = self.decState(tableStateChanges)
+        probs = self.getProbs(decState)
+
+        probMask = [int(pM) for pM in possibleMoves]
+        probs = probs * np.asarray(probMask)
+        if np.sum(probs) > 0: probs = probs / np.sum(probs)
+        else: probs = [1/self.nMoves] * self.nMoves
+
+        move = np.random.choice(np.arange(self.nMoves), p=probs) # sample from probs
+
+        # save state and move (for updates etc.)
+        self.lDSTMVwR.append({
+            'decState': decState,
+            'move':     move,
+            'reward':   None})
+
+        return move
+
+    # takes reward for last decision
+    def getReward(
+            self,
+            reward: int):
+
+        if self.lDSTMVwR: # only when there was any decision
+            if self.lDSTMVwR[-1]['reward'] is None: # only when last decision was not rewarded yet
+                self.lDSTMVwR[-1]['reward'] = reward # update reward
+                self.accumRew += reward
+
+        if self.summWriter and self.counter % 1000 == 0:
+            accSumm = tf.Summary(value=[tf.Summary.Value(tag='wonTot', simple_value=self.accumRew)])
+            self.summWriter.add_summary(accSumm, self.counter)
+        self.counter += 1
+        # here custom implementation may update decision alg
+
+# base neural decision maker implementation
+# LSTM with updated state
 class BNdmk(DecisionMaker):
 
     def __init__(
             self,
-            name):
+            session :tf.compat.v1.Session,
+            name=   None):
 
-        super().__init__(name)
-
-        # TODO: strange as shit
-        self.players = ['pl0', 'pl1', 'pl2']  # myself always 1st
+        super().__init__(name, runTB=True)
+        self.session = session
 
         self.wET = 8 # event type emb width
         self.wC = 20 # card (single) emb width
@@ -45,19 +140,17 @@ class BNdmk(DecisionMaker):
 
         self.lastFwdState = None # netState after last fwd
         self.lastUpdState = None # netState after last update
-        self.lInputs = [] # list of inputs dicts (save till reward)
-        self.upInputs = [] # list of tuples (reward,inputs)
 
         self._buildGraph()
+        self.session.run(tf.initializers.variables(var_list=self.vars+self.optVars))
 
-        self.session = tf.Session()
-        self.session.run(tf.initializers.global_variables())
+
+    def getName(self): return 'bnnDMK_%s'%time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3]
 
     # builds NN graph
     def _buildGraph(self):
 
-        tf.reset_default_graph()
-        with tf.variable_scope('decMaker'):
+        with tf.variable_scope('bnnDMK_%s'%self.name):
 
             width = self.wET + self.wC*3 + self.wV
             cell = tf.contrib.rnn.NASCell(width)
@@ -80,7 +173,7 @@ class BNdmk(DecisionMaker):
 
             cEMB = tf.get_variable( # cards embeddings
                 name=           'imVar',
-                shape=          [53, self.wC],
+                shape=          [53,self.wC], # one card for 'no_card'
                 dtype=          tf.float32,
                 initializer=    defInitializer())
 
@@ -104,7 +197,7 @@ class BNdmk(DecisionMaker):
 
             inCemb = tf.nn.embedding_lookup(params=cEMB, ids=self.inC)
             print(' > inCemb:', inCemb)
-            inCemb = tf.unstack(inCemb, axis=-1)
+            inCemb = tf.unstack(inCemb, axis=-2)
             inCemb = tf.concat(inCemb, axis=-1)
             print(' > inCemb:', inCemb)
 
@@ -150,96 +243,53 @@ class BNdmk(DecisionMaker):
 
             self.probs = tf.nn.softmax(logits)
 
-            vars = tf.trainable_variables()
+            self.vars = tf.trainable_variables(scope=tf.get_variable_scope().name)
+            print(' ### num of vars %s'%shortSCIN(numVFloats(self.vars)))
+
             loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
             self.loss = loss(self.move, logits, sample_weight=self.reward)
-            self.gradients = tf.gradients(self.loss, vars)
+            self.gradients = tf.gradients(self.loss, self.vars)
             self.gN = tf.global_norm(self.gradients)
 
             self.gradients, _ = tf.clip_by_global_norm(t_list=self.gradients, clip_norm=1, use_norm=self.gN)
 
             #optimizer = tf.train.GradientDescentOptimizer(1e-5)
-            optimizer = tf.train.AdamOptimizer(1e-6)
+            optimizer = tf.compat.v1.train.AdamOptimizer(1e-6)
 
-            self.optimizer = optimizer.apply_gradients(zip(self.gradients,vars))
+            self.optimizer = optimizer.apply_gradients(zip(self.gradients,self.vars))
 
-    # runs fwd to get probs
-    def _getProbs(
+            # select optimizer vars
+            self.optVars = []
+            for var in tf.global_variables(scope=tf.get_variable_scope().name):
+                if var not in self.vars: self.optVars.append(var)
+
+
+    def resetME(self, newName=None):
+        super().resetME(newName)
+        self.session.run(tf.initializers.global_variables())
+
+    # prepares state in form of nn input
+    def decState(
             self,
-            inET,   # [bsz,seq]
-            inC,    # [bsz,seq,3]
-            inV):   # [bsz,seq,inVw]
+            tableStateChanges: list):
 
-        feed = {
-            self.inET:  inET,
-            self.inC:   inC,
-            self.inV:   inV}
-        if self.lastFwdState is not None: feed[self.inState] = self.lastFwdState
-        fetches = [self.probs, self.finState]
-        probs, self.lastFwdState = self.session.run(fetches, feed_dict=feed)
-        return probs
-
-    # runs update of net with self.upInputs
-    def _runUpdate(self):
-
-        for upInput in self.upInputs:
-            #rew = upInput[0]/1500
-            rew = 1 if upInput[0] > 0 else -1
-            if upInput[0] == 0: rew = 0
-            inputs = upInput[1]
-            if len(inputs):
-                #rew /= len(inputs)
-                for inp in inputs:
-
-                    inET =  inp['inET']
-                    inC =   inp['inC']
-                    inV =   inp['inV']
-                    move =  inp['move']
-
-                    feed = {
-                        self.inET:      inET,
-                        self.inC:       inC,
-                        self.inV:       inV,
-                        self.move:      move,
-                        self.reward:    [rew]}
-                    if self.lastUpdState is not None: feed[self.inState] = self.lastUpdState
-
-                    fetches = [self.optimizer, self.loss, self.gN, self.gradients, self.finState]
-                    _, loss, gN, grads, self.lastUpdState = self.session.run(fetches, feed_dict=feed)
-                    """
-                    for gr in grads:
-                        print(type(gr), end=' ')
-                        if type(gr) is np.ndarray: print(gr.shape)
-                        else: print(gr.dense_shape)
-                    """
-                    #print('loss %.3f gN %.3f' %(loss, gN))
-
-        self.lastFwdState = self.lastUpdState
-        self.upInputs = []
-
-    # returns int
-    def mDec(
-            self,
-            stateChanges: list,
-            possibleMoves: list):
-
-        inET = [] # list of ints
-        inC = [] # list of (int,int,int)
-        inV = [] # list of vectors
-        for state in stateChanges:
+        inET = []  # list of ints
+        inC = []  # list of (int,int,int)
+        inV = []  # list of vectors
+        for state in tableStateChanges:
             key = list(state.keys())[0]
             # print(' *** state:', state)
 
             if key == 'playersPC':
                 myPos = 0
                 for ix in range(len(state[key])):
-                    if state[key][ix][0] == self.players[0]: myPos = ix
+                    if state[key][ix][0] == self.myTableID: myPos = ix
                 cards = state[key][myPos][1]
                 vec = np.zeros(shape=self.wV)
                 vec[0] = myPos - 1
 
                 inET.append(0)
-                inC.append((PDeck.cardToInt(cards[0]),PDeck.cardToInt(cards[1]),52))
+                inC.append((PDeck.cardToInt(cards[0]), PDeck.cardToInt(cards[1]), 52))
                 inV.append(vec)
 
             if key == 'newTableCards':
@@ -252,50 +302,87 @@ class BNdmk(DecisionMaker):
                 inV.append(np.zeros(shape=self.wV))
 
             if key == 'moveData':
-
                 vec = np.zeros(shape=self.wV)
-                vec[0] = self.players.index(state[key]['pName'])-1
-                vec[1] = state[key]['tBCash']       /1500
-                vec[2] = state[key]['pBCash']       /500
-                vec[3] = state[key]['pBCHandCash']  /500
-                vec[4] = state[key]['pBCRiverCash'] /500
-                vec[5] = state[key]['bCashToCall']  /500
-                vec[6] = state[key]['plMove'][0]    /3
-                vec[7] = state[key]['tACash']       /1500
-                vec[8] = state[key]['pACash']       /500
-                vec[9] = state[key]['pACHandCash']  /500
-                vec[10]= state[key]['pACRiverCash'] /500
+                vec[0] = state[key]['pltID']
+                vec[1] = state[key]['tBCash'] / 1500
+                vec[2] = state[key]['pBCash'] / 500
+                vec[3] = state[key]['pBCHandCash'] / 500
+                vec[4] = state[key]['pBCRiverCash'] / 500
+                vec[5] = state[key]['bCashToCall'] / 500
+                vec[6] = state[key]['plMove'][0] / 3
+                vec[7] = state[key]['tACash'] / 1500
+                vec[8] = state[key]['pACash'] / 500
+                vec[9] = state[key]['pACHandCash'] / 500
+                vec[10] = state[key]['pACRiverCash'] / 500
 
                 inET.append(2)
-                inC.append((52,52,52))
-                #print(vec)
+                inC.append((52, 52, 52))
+                # print(vec)
                 inV.append(vec)
 
-        probs = self._getProbs([inET],[inC],[inV])
-        probs = probs[0]
+        nnInput = [inET], [inC], [inV]
+        return nnInput
 
-        probMask = [0,0,0,0]
-        for pos in possibleMoves: probMask[pos] = 1
-        probs = probs*np.asarray(probMask)
-        if np.sum(probs) > 0: probs = probs/np.sum(probs)
-        else: probs = [0.25,0.25,0.25,0.25]
+    # runs fwd to get probs (np.array)
+    def getProbs(
+            self,
+            decState):
 
-        move = np.random.choice(np.arange(4), p=probs)
+        inET, inC, inV = decState
+        feed = {
+            self.inET:  inET,
+            self.inC:   inC,
+            self.inV:   inV}
+        if self.lastFwdState is not None: feed[self.inState] = self.lastFwdState
+        fetches = [self.probs, self.finState]
+        probs, self.lastFwdState = self.session.run(fetches, feed_dict=feed)
+        return probs[0]
 
-        inDict = {
-            'inET': [inET],
-            'inC':  [inC],
-            'inV':  [inV],
-            'move': [move]}
-        self.lInputs.append(inDict)
+    # runs update of net
+    def runUpdate(self):
 
-        return move
+        if self.lDSTMVwR: # only when there was any decision
+            # reverse update of rewards
+            rew = 0
+            for dec in reversed(self.lDSTMVwR):
+                if dec['reward'] is not None:
+                    # rew = upInput[0]/1500
+                    rew = 1 if dec['reward'] > 0 else -1
+                    if dec['reward'] == 0: rew = 0
+                else: dec['reward'] = rew
+            for dec in self.lDSTMVwR:
+
+                inET =  dec['decState'][0]
+                inC =   dec['decState'][1]
+                inV =   dec['decState'][2]
+                move =  dec['move']
+                rew =   dec['reward']
+
+                feed = {
+                    self.inET:      inET,
+                    self.inC:       inC,
+                    self.inV:       inV,
+                    self.move:      [move],
+                    self.reward:    [rew]}
+                if self.lastUpdState is not None: feed[self.inState] = self.lastUpdState
+
+                fetches = [self.optimizer, self.loss, self.gN, self.gradients, self.finState]
+                _, loss, gN, grads, self.lastUpdState = self.session.run(fetches, feed_dict=feed)
+                """
+                for gr in grads:
+                    print(type(gr), end=' ')
+                    if type(gr) is np.ndarray: print(gr.shape)
+                    else: print(gr.dense_shape)
+                """
+                #print('loss %.3f gN %.3f' %(loss, gN))
+
+        self.lastFwdState = self.lastUpdState
+        self.lDSTMVwR = []
 
     # takes reward (updates net)
     def getReward(
             self,
             reward: int):
 
-        self.upInputs.append((reward, self.lInputs))
-        self.lInputs = []
-        self._runUpdate()
+        super().getReward(reward)
+        self.runUpdate()
