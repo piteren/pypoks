@@ -2,9 +2,6 @@
 
  2019 (c) piteren
 
- https://stackoverflow.com/questions/46772685/how-to-accumulate-gradients-in-tensorflow
- https://github.com/tensorflow/benchmarks/issues/210
-
  TODO:
   - implement simple algorithmic DMK
   - separate tf.graph from DMK, DMK should be universal neural interface
@@ -18,7 +15,10 @@ import time
 
 from pUtils.littleTools.littleMethods import shortSCIN
 from pUtils.nnTools.nnBaseElements import defInitializer, layDENSE, numVFloats
+
+from graphManager import GraphManager
 from pLogic.pDeck import PDeck
+from pLogic.pTable import PTable
 
 
 # basic implementation of DMK (random sampling)
@@ -27,7 +27,7 @@ class DecisionMaker:
     def __init__(
             self,
             name :str=  None,
-            nMoves=     4,      # number of (all) moves
+            nMoves=     4,      # number of (all) moves supported by DM, has to match table/player
             runTB=      True#False
     ):
 
@@ -35,28 +35,28 @@ class DecisionMaker:
         if self.name is None: self.name = self.getName()
         self.nMoves = nMoves
 
-        self.myTableID = None
-        self.myOponents = [] # table ids of oponents
+        self.myPTID = None
+        self.myOpponents = [] # table ids of opponents
 
         self.lDSTMVwR = []  # list of dicts {'decState': 'move': 'reward':}
 
         self.runTB = runTB
         self.summWriter = None
-        self.counter = 0
-        self.accumRew = 0
+        self.rewCounter = 0 # rewards counter
+        self.accumRew = 0 # accumulated reward
+
+    # generates name regarding class policy
+    def getName(self): return 'rnDMK_%s' % time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3]
 
     # starts DMK for new game (table, player)
     def start(
             self,
-            table,
-            player):
+            table :PTable,
+            player :PTable.PPlayer):
 
-        self.myTableID = player.tID
-        self.myOponents = [ix for ix in range(table.nPlayers) if ix != player.tID]
+        self.myPTID = player.tID # player ID @ table
+        self.myOpponents = [ix for ix in range(table.nPlayers) if ix != player.tID]
         if self.runTB: self.summWriter = tf.summary.FileWriter(logdir='_nnTB/' + self.name, flush_secs=10)
-
-    # generates name regarding class policy
-    def getName(self): return 'rnDMK_%s'%time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3]
 
     # resets knowledge, stats, name of DMK
     def resetME(self, newName=None):
@@ -65,7 +65,7 @@ class DecisionMaker:
         elif newName: self.name = newName
 
         if self.runTB: self.summWriter = tf.summary.FileWriter(logdir='_nnTB/' + self.name, flush_secs=10)
-        self.counter = 0
+        self.rewCounter = 0
         self.accumRew = 0
 
     # translates table stateChanges to decState object (table state readable by getProbs)
@@ -117,19 +117,20 @@ class DecisionMaker:
                 self.lDSTMVwR[-1]['reward'] = reward # update reward
                 self.accumRew += reward
 
-        if self.summWriter and self.counter % 1000 == 0:
+        if self.summWriter and self.rewCounter % 1000 == 0:
             accSumm = tf.Summary(value=[tf.Summary.Value(tag='wonTot', simple_value=self.accumRew)])
-            self.summWriter.add_summary(accSumm, self.counter)
-        self.counter += 1
+            self.summWriter.add_summary(accSumm, self.rewCounter)
+        self.rewCounter += 1
         # here custom implementation may update decision alg
 
-# base neural decision maker implementation
+# base neural-interface-decision-maker implementation
 # LSTM with updated state
 class BNdmk(DecisionMaker):
 
     def __init__(
             self,
-            session :tf.compat.v1.Session,
+            gMan :GraphManager,
+            session :tf.compat.v1.Session, # TODO: not needed then (with gMan)
             name=   None):
 
         super().__init__(name, runTB=True)
@@ -284,7 +285,7 @@ class BNdmk(DecisionMaker):
             if key == 'playersPC':
                 myPos = 0
                 for ix in range(len(state[key])):
-                    if state[key][ix][0] == self.myTableID: myPos = ix
+                    if state[key][ix][0] == self.myPTID: myPos = ix
                 cards = state[key][myPos][1]
                 vec = np.zeros(shape=self.wV)
                 vec[0] = myPos - 1

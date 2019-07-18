@@ -14,6 +14,8 @@
 
 """
 
+import random
+
 from pLogic.pDeck import PDeck
 from decisionMaker import DecisionMaker
 
@@ -36,7 +38,7 @@ TBL_MOV = {
 # returns list of table position names in dependency of num of table players
 def posNames(nP=3):
 
-    pNames = ['SB','BB','BTN']
+    pNames = ['SB','BB','BTN'] # default for 3
     if nP == 2: pNames = pNames[:-1]
     if nP == 6: pNames = ['SB','BB','UTG','MP','CT','BTN']
     if nP == 9: pNames = ['SB','BB','UTG1','UTG2','MP1','MP2','HJ','CT','BTN']
@@ -144,7 +146,9 @@ class PTable:
             dMK: DecisionMaker):
 
         added = False
-        for pl in self.players:
+        sPlayers = [] + self.players
+        random.shuffle(sPlayers) # shuffled players for random placement
+        for pl in sPlayers:
             if type(pl.dMK) is DecisionMaker:
                 pl.dMK = dMK
                 added = True
