@@ -172,7 +172,7 @@ class BNdmk(DecisionMaker):
                 shape=          [None,None,3]) # [bsz,seq,3cards]
 
             cEMB = tf.get_variable( # cards embeddings
-                name=           'imVar',
+                name=           'cEMB',
                 shape=          [53,self.wC], # one card for 'no_card'
                 dtype=          tf.float32,
                 initializer=    defInitializer())
@@ -215,9 +215,9 @@ class BNdmk(DecisionMaker):
 
             bsz = tf.shape(input)[0]
             self.inState = tf.placeholder_with_default(
-                input=  tf.zeros(shape=[2,bsz,width]),
-                shape=  [2,None,width],
-                name=   'state')
+                input=      tf.zeros(shape=[2,bsz,width]),
+                shape=      [2,None,width],
+                name=       'state')
 
             # state is a tensor of shape [batch_size, cell_state_size]
             c, h = tf.unstack(self.inState, axis=0)
