@@ -6,7 +6,7 @@
  https://github.com/tensorflow/benchmarks/issues/210
 
  TODO:
-  - implement simple algorythmic DMK
+  - implement simple algorithmic DMK
   - separate tf.graph from DMK, DMK should be universal neural interface
   - implement simple stats for DMK
 
