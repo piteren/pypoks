@@ -2,9 +2,6 @@
 
  2019 (c) piteren
 
-
- the simplest neural model:
-
  receives States in form of constant size vector
  for every state outputs Decision, every Decision is rewarded with cash
 
@@ -17,10 +14,12 @@
     - predicts player cards
     - models player stats
   - player stats puts as state (input), if player model do not works ok
+  ** tf process runs from another thread and communicates through batch-queue
 
 """
 
 import tensorflow as tf
+import time
 import os
 
 from pLogic.pTable import PTable
@@ -34,9 +33,12 @@ if __name__ == "__main__":
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
     session = tf.Session()
 
-    pTable = PTable(pMsg=False, verbLev=0)
-    dMKa = BNdmk(session, 'dMKa')
-    dMKb = BNdmk(session, 'dMKb')
+    pTable = PTable(
+        pMsg=       False,
+        verbLev=    0
+    )
+    dMKa = BNdmk(session, 'dMKa_%s'% time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3])
+    dMKb = BNdmk(session, 'dMKb_%s'% time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3])
     pTable.addDMK(dMKa)
     pTable.addDMK(dMKb)
 
@@ -46,5 +48,5 @@ if __name__ == "__main__":
         while n < 500000:
             n += 1
             pTable.runHand()
-            if n % 1000 == 0: print(dMKa.accumRew, dMKb.accumRew, n)
-        #dMK.resetME(newName=True)
+            if n % 1000 == 0: print(dMKa.sts['$'][0], dMKb.sts['$'][0], n)
+        #dMKa.resetME(newName='dMKa_%s'% time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3])

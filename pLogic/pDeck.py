@@ -63,11 +63,11 @@ class PDeck:
 
     # returns card id (int)
     @staticmethod
-    def cardToInt(card: tuple): return card[0]*4+card[1]
+    def cti(card: tuple): return card[0]*4+card[1]
 
     # retund card str
     @staticmethod
-    def cardToStr(card: tuple): return CRD_FIG[card[0]] + CRD_COL[card[1]]
+    def cts(card: tuple): return CRD_FIG[card[0]] + CRD_COL[card[1]]
 
     # returns rank of 5 from 7 given cards
     @staticmethod
@@ -212,7 +212,7 @@ class PDeck:
         # prep string
         string = CRD_RNK[topRank] + ' %s'%rankValue
         for card in fiveCards:
-            string += ' %s' % PDeck.cardToStr(card)
+            string += ' %s' % PDeck.cts(card)
 
         return topRank, rankValue, fiveCards, string
 
@@ -225,7 +225,7 @@ if __name__ == "__main__":
         sevenCards = [testDeck.getCard() for _ in range(7)]
         print(' ', end='')
         for card in sorted(sevenCards):
-            print(PDeck.cardToStr(card), end=' ')
+            print(PDeck.cts(card), end=' ')
         print()
         cR = PDeck.cardsRank(sevenCards)
         print(cR[-1])

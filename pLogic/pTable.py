@@ -9,8 +9,7 @@
  - constant / simplified betting sizes
  - every player starts hand with startCash (no need for advanced win cash distribution)
 
- every played hand generates its history
- hand history is a list of events
+ every played hand generates its history, hand history is a list of events
 
 """
 
@@ -32,7 +31,7 @@ TBL_STT = {
 TBL_MOV = {
     0:  'C/F',
     1:  'CLL',
-    2:  'B/R',  # bet size is defined by algorithm (by now so simple)
+    2:  'B/R',
     3:  'ALL'}
 
 # returns list of table position names in dependency of num of table players
@@ -47,27 +46,26 @@ def posNames(nP=3):
 
 class PTable:
 
-    # player is a bridge between table and DMK
+    # player is a bridge interface between table and DMK
     class PPlayer:
 
         def __init__(
                 self,
-                tID: int,  # table ID
-                dMK=        None):  # decisionMaker
+                table,
+                dMK :DecisionMaker):
 
-            self.tID = tID
-            self.dMK = dMK if dMK else DecisionMaker()  # given or default DMK
+            self.table = table
+            self.dMK = dMK
+            self.name = self.dMK.name # player takes name after DMK
 
-            self.nextStateUpdate = 0  # number of hand state to_update_from next
-
-            # managed ONLY by table
-            self.table = None
             self.hand = None
+            self.nhsIX = 0  # next hand state index to update from
+            self.cHandCash = 0  # current hand cash (amount put by player on current hand)
+            self.cRiverCash = 0  # current river cash (amount put by player on current river yet)
+
             self.cash = 0
             self.wonLast = 0
             self.wonTotal = 0
-            self.cHandCash = 0  # current hand cash (amount put by player on current hand)
-            self.cRiverCash = 0  # current river cash (amount put by player on current river yet)
 
         # asks DMK for move decision (having table status ...and any other info)
         def makeMove(self):
@@ -76,8 +74,7 @@ class PTable:
             possibleMoves = [True for x in range(4)]  # by now all
             if self.table.cashToCall - self.cRiverCash == 0: possibleMoves[1] = False  # cannot call (already called)
             if self.cash < 2 * self.table.cashToCall: possibleMoves[2] = False  # cannot bet/raise
-            if self.cash == self.table.cashToCall - self.cRiverCash: possibleMoves[
-                1] = False  # cannot call (just allin)
+            if self.cash == self.table.cashToCall - self.cRiverCash: possibleMoves[1] = False  # cannot call (just allin)
             # by now simple hardcoded amounts of cash
             possibleMovesCash = {
                 0: 0,
@@ -86,8 +83,9 @@ class PTable:
                 3: self.cash}
 
             currentHandH = self.table.hands[-1]
-            stateChanges = currentHandH[self.nextStateUpdate:]
-            self.nextStateUpdate = len(currentHandH)
+            stateChanges = currentHandH[self.nhsIX:]
+
+            self.nhsIX = len(currentHandH)
             selectedMove = self.dMK.mDec(stateChanges, possibleMoves)
 
             return selectedMove, possibleMovesCash[selectedMove]
@@ -98,7 +96,7 @@ class PTable:
                 self,
                 reward: int):
 
-            self.nextStateUpdate = 0
+            self.nhsIX = 0
             self.dMK.getReward(reward)
 
 
@@ -115,7 +113,10 @@ class PTable:
         self.name = name
 
         self.nPlayers = nPlayers
-        self.players = [self.PPlayer(ix, dMK=DecisionMaker('rnDMK_%d'%ix)) for ix in range(self.nPlayers)] # generic table players
+        self.players = [
+            self.PPlayer(
+                table=  self,
+                dMK=    DecisionMaker('rDMK_%d'%ix)) for ix in range(self.nPlayers)] # generic random table players
 
         self.SB = 2
         self.BB = 5
@@ -136,9 +137,9 @@ class PTable:
     def _initPlayers(self):
 
         for pl in self.players:
-            pl.table = self
             pl.cash = self.startCash
-            pl.dMK.start(self,pl)
+            pls = [pl.name for pl in self.players]
+            pl.dMK.start(pls)
 
     # puts DMK on table (self)
     def addDMK(
@@ -151,10 +152,11 @@ class PTable:
         for pl in sPlayers:
             if type(pl.dMK) is DecisionMaker:
                 pl.dMK = dMK
+                pl.name = dMK.name
                 added = True
                 break
 
-        assert added, 'cannot add DMK!'
+        assert added, 'cannot add DMK, probably no free players!'
         if self.verbLev: print('(dmk)%s joined (table)%s' % (dMK.name, self.name))
 
     # runs single hand
@@ -172,19 +174,19 @@ class PTable:
             pNames = posNames(self.nPlayers)
             for ix in range(self.nPlayers):
                 pl = handPlayers[ix]
-                print(' ### (pl)%d @ %s'%(pl.tID, pNames[ix]))
+                print(' ### (pl)%s @ %s' % (pl.name, pNames[ix]))
 
         # put blinds on table
         handPlayers[0].cash -= self.SB
         handPlayers[0].cHandCash = self.SB
         handPlayers[0].cRiverCash = self.SB
         self.cash += self.SB
-        if self.pMsg: print(' ### (pl)%d put SB %d$'%(handPlayers[0].tID, self.SB))
+        if self.pMsg: print(' ### (pl)%s put SB %d$' % (handPlayers[0].name, self.SB))
         handPlayers[1].cash -= self.BB
         handPlayers[1].cHandCash = self.BB
         handPlayers[1].cRiverCash = self.BB
         self.cash += self.BB
-        if self.pMsg: print(' ### (pl)%d put BB %d$' % (handPlayers[1].tID, self.BB))
+        if self.pMsg: print(' ### (pl)%s put BB %d$' % (handPlayers[1].name, self.BB))
         self.cashToCall = self.BB
         # by now blinds info is not needed for hand history
 
@@ -195,8 +197,8 @@ class PTable:
         for pl in handPlayers:
             ca, cb = self.deck.getCard(), self.deck.getCard()
             pl.hand = ca, cb
-            if self.pMsg: print(' ### (pl)%d taken hand %s %s' % (pl.tID, PDeck.cardToStr(ca), PDeck.cardToStr(cb)))
-        hHis = [{'playersPC': [(pl.tID, pl.hand) for pl in handPlayers]}]
+            if self.pMsg: print(' ### (pl)%s taken hand %s %s' % (pl.name, PDeck.cts(ca), PDeck.cts(cb)))
+        hHis = [{'playersPC': [(pl.name, pl.hand) for pl in handPlayers]}]
         self.hands.append(hHis)
 
         while self.state < 5 and len(handPlayers) > 1:
@@ -212,7 +214,7 @@ class PTable:
                 hHis.append({'newTableCards': newTableCards})
                 if self.pMsg:
                     print(' ### (table)%s cards: '%self.name, end='')
-                    for card in self.cards: print(PDeck.cardToStr(card), end=' ')
+                    for card in self.cards: print(PDeck.cts(card), end=' ')
                     print()
 
             # ask players for moves
@@ -230,7 +232,7 @@ class PTable:
                     mvD = {
                         'tState':       self.state,
                         'tBCash':       self.cash,
-                        'pltID':        pl.tID,
+                        'pName':        pl.name,
                         'pBCash':       pl.cash,
                         'pBCHandCash':  pl.cHandCash,
                         'pBCRiverCash': pl.cRiverCash,
@@ -253,7 +255,7 @@ class PTable:
                         clcIX = cmpIX - 1 if cmpIX > 0 else len(handPlayers) - 1 # player before in loop
                     mvD['aCashToCall'] = self.cashToCall
 
-                    if self.pMsg: print(' ### (pl)%d had %4d$, moved %s with %4d$, now: tableCash %4d$ toCall %4d$' %(pl.tID, mvD['pBCash'], TBL_MOV[plMV[0]], plMV[1], self.cash, self.cashToCall))
+                    if self.pMsg: print(' ### (pl)%s had %4d$, moved %s with %4d$, now: tableCash %4d$ toCall %4d$' % (pl.name, mvD['pBCash'], TBL_MOV[plMV[0]], plMV[1], self.cash, self.cashToCall))
 
                     if plMV[0] == 0 and self.cashToCall > pl.cRiverCash:
                         playerFolded = True
@@ -280,7 +282,7 @@ class PTable:
         winnersData = []
         for pl in self.players:
             winnersData.append({
-                'pltID':        pl.tID,
+                'pName':        pl.name,
                 'winner':       False,
                 'fullRank':     None,
                 'simpleRank':   0,
@@ -319,7 +321,7 @@ class PTable:
             pl.wonTotal += myWon
             winnersData[ix]['won'] = myWon
             if self.pMsg:
-                print(' ### (pl)%d : %d$' %(pl.tID, myWon), end='')
+                print(' ### (pl)%s : %d$' % (pl.name, myWon), end='')
                 if winnersData[ix]['fullRank']:
                     if type(winnersData[ix]['fullRank']) is str: print(', mucked hand', end ='')
                     else: print(' with %s'%winnersData[ix]['fullRank'][-1], end='')
