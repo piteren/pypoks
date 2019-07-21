@@ -5,7 +5,7 @@
  receives States in form of constant size vector
  for every state outputs Decision, every Decision is rewarded with cash
 
- first implementation: training time: 10.7sec/1KH
+ first implementation: training time: 10.7sec/1KH = 93.4H/s
 
 
  TODO:
@@ -25,7 +25,7 @@ import time
 import os
 
 from pLogic.pTable import PTable
-from decisionMaker import BNdmk
+from decisionMaker import BNdmk, SNdmk
 
 
 if __name__ == "__main__":
@@ -39,10 +39,10 @@ if __name__ == "__main__":
         pMsg=       False,
         verbLev=    0
     )
-    dMKa = BNdmk(session, 'dMKa_%s'% time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3])
-    #dMKb = BNdmk(session, 'dMKb_%s'% time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3])
+    dMKa = SNdmk(session, 'dMKa_%s'%time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3])
+    dMKb = BNdmk(session, 'dMKb_%s'%time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3])
     pTable.addDMK(dMKa)
-    #pTable.addDMK(dMKb)
+    pTable.addDMK(dMKb)
 
     for _ in range(1):
         print()
@@ -51,6 +51,6 @@ if __name__ == "__main__":
             n += 1
             pTable.runHand()
             if n % 1000 == 0:
-                print(dMKa.sts['$'][0], n)
-                #print(dMKa.sts['$'][0], dMKb.sts['$'][0], n)
+                #print(dMKa.sts['$'][0], n)
+                print(dMKa.sts['$'][0], dMKb.sts['$'][0], n)
         #dMKa.resetME(newName='dMKa_%s'% time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3])

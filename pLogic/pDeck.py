@@ -5,6 +5,7 @@
 """
 
 import random
+import time
 
 # card figures
 CRD_FIG = {
@@ -70,17 +71,17 @@ class PDeck:
     def cts(card: tuple): return CRD_FIG[card[0]] + CRD_COL[card[1]]
 
     # returns rank of 5 from 7 given cards
+    # simple implementation evaluates about 12,3K*7cards/sec
     @staticmethod
     def cardsRank(cards: list):
-
         cards = sorted(cards)
 
         # calc possible multiFig and colours
         cFig = [[] for _ in range(13)]
         cCol = [[] for _ in range(4)]
-        for card in cards:
-            cFig[card[0]].append(card)
-            cCol[card[1]].append(card)
+        for c in cards:
+            cFig[c[0]].append(c)
+            cCol[c[1]].append(c)
 
         nFig = [len(f) for f in cFig]  # multiple figures
 
@@ -98,17 +99,17 @@ class PDeck:
         for ix in range(13):
             if len(cFig[ix]):
                 # select card
-                card = cFig[ix][0]
+                c = cFig[ix][0]
                 if len(cFig[ix]) > 1 and colour:
                     for c in cFig[ix]:
                         if c[1] == colour:
-                            card = c
+                            c = c
                             break
                 if pix + 1 == ix:
-                    inRow.append(card)
+                    inRow.append(c)
                 else:
                     if len(inRow) in [3,4]: break # no chance anymore
-                    if len(inRow) in [0,1,2]: inRow = [card] # still a chance
+                    if len(inRow) in [0,1,2]: inRow = [c] # still a chance
                     else: break # got 5
                 pix = ix
         possibleStraight = len(inRow) > 4
@@ -141,23 +142,15 @@ class PDeck:
                     if possibleStraightFlush: colInRow = colInRow[splitIX[ixFrom]:splitIX[ixFrom+1]]
                 if len(colInRow) > 5: colInRow = colInRow[len(colInRow)-5:]
 
-        cRank = [False for _ in range(9)]
-        if True:                    cRank[0] = True # highCard
-        if 2 in nFig:               cRank[1] = True # pair
-        if nFig.count(2) > 1:       cRank[2] = True # twoPairs
-        if 3 in nFig:               cRank[3] = True # threeOf
-        if possibleStraight:        cRank[4] = True # straight
-        if colCards:                cRank[5] = True # flush
-        if 3 in nFig and 2 in nFig: cRank[6] = True # fullHouse
-        if 4 in nFig:               cRank[7] = True # fourOf
-        if possibleStraightFlush:   cRank[8] = True # straightFlush
-
-        # find topRank
-        topRank = 0
-        for ix in reversed(range(9)):
-            if cRank[ix]:
-                topRank = ix
-                break
+        if possibleStraightFlush:       topRank = 8 # straightFlush
+        elif 4 in nFig:                 topRank = 7 # fourOf
+        elif 3 in nFig and 2 in nFig:   topRank = 6 # fullHouse
+        elif colCards:                  topRank = 5 # flush
+        elif possibleStraight:          topRank = 4 # straight
+        elif 3 in nFig:                 topRank = 3 # threeOf
+        elif nFig.count(2) > 1:         topRank = 2 # twoPairs
+        elif 2 in nFig:                 topRank = 1 # pair
+        else:                           topRank = 0 # highCard
 
         # find five cards
         fiveCards = []
@@ -165,7 +158,9 @@ class PDeck:
         if topRank == 7:
             four = []
             for cL in cFig:
-                if len(cL) == 4: four = cL
+                if len(cL) == 4:
+                    four = cL
+                    break
             for c in four: cards.remove(c)
             fiveCards = [cards[-1]] + four
         if topRank == 6:
@@ -211,8 +206,8 @@ class PDeck:
 
         # prep string
         string = CRD_RNK[topRank] + ' %s'%rankValue
-        for card in fiveCards:
-            string += ' %s' % PDeck.cts(card)
+        for c in fiveCards:
+            string += ' %s' % PDeck.cts(c)
 
         return topRank, rankValue, fiveCards, string
 
@@ -221,12 +216,17 @@ if __name__ == "__main__":
 
     testDeck = PDeck()
 
-    for _ in range(10):
+    sTime = time.time()
+    for _ in range(12300):
         sevenCards = [testDeck.getCard() for _ in range(7)]
+        """
         print(' ', end='')
         for card in sorted(sevenCards):
             print(PDeck.cts(card), end=' ')
         print()
+        #"""
         cR = PDeck.cardsRank(sevenCards)
-        print(cR[-1])
+        #print(cR[-1])
         testDeck.resetDeck()
+    print('time taken %.2fsec'%(time.time()-sTime))
+
