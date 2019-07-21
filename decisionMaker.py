@@ -9,6 +9,7 @@
 
 import numpy as np
 import tensorflow as tf
+import time
 
 from pUtils.littleTools.littleMethods import shortSCIN
 from pUtils.nnTools.nnBaseElements import defInitializer, layDENSE, numVFloats
@@ -39,6 +40,7 @@ class DecisionMaker:
         self.preflop = True # preflop indicator
         self.myTablePos = 0 # position @table (@hand)
 
+        self.repTime = 0
         self.stsV = 1000 # stats interval
         self.sts = {} # stats
         self.cHSdata = {} # current hand data for stats
@@ -81,6 +83,7 @@ class DecisionMaker:
 
         self.pls = pls
         if self.runTB: self.summWriter = tf.summary.FileWriter(logdir='_nnTB/' + self.name, flush_secs=10)
+        self.repTime = time.time()
 
     # resets knowledge, stats, name of DMK
     def resetME(self, newName=None):
@@ -158,7 +161,7 @@ class DecisionMaker:
         return move
 
     # takes reward for last decision
-    # performs after hand opps (stats etc.)
+    # performs after-hand opps (stats etc.)
     def getReward(
             self,
             reward: int):
@@ -213,8 +216,13 @@ class DecisionMaker:
                 for key in self.sts.keys():
                     self.sts[key][1] = 0
 
-        if self.summWriter and self.sts['nH'][1] % self.stsV == 0:  repSTS(True)
-        if self.summWriter and self.sts['nH'][0] % 1000 == 0:       repSTS()
+        if self.summWriter and self.sts['nH'][1] % self.stsV == 0:
+            repSTS(True)
+        if self.summWriter and self.sts['nH'][0] % 1000 == 0:
+            repSTS()
+            print(' >>> training time: %.1fsec/%d'%(time.time() - self.repTime, 1000))
+            self.repTime = time.time()
+
 
         self.preflop = True
 
@@ -226,7 +234,7 @@ class BNdmk(DecisionMaker):
 
     def __init__(
             self,
-            session :tf.compat.v1.Session, # TODO: not needed then (with gMan)
+            session :tf.compat.v1.Session,
             name=   None):
 
         super().__init__(name, runTB=True)

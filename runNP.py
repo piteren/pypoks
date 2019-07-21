@@ -5,6 +5,8 @@
  receives States in form of constant size vector
  for every state outputs Decision, every Decision is rewarded with cash
 
+ first implementation: training time: 10.7sec/1KH
+
 
  TODO:
   - better net arch and updates
@@ -38,9 +40,9 @@ if __name__ == "__main__":
         verbLev=    0
     )
     dMKa = BNdmk(session, 'dMKa_%s'% time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3])
-    dMKb = BNdmk(session, 'dMKb_%s'% time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3])
+    #dMKb = BNdmk(session, 'dMKb_%s'% time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3])
     pTable.addDMK(dMKa)
-    pTable.addDMK(dMKb)
+    #pTable.addDMK(dMKb)
 
     for _ in range(1):
         print()
@@ -48,5 +50,7 @@ if __name__ == "__main__":
         while n < 500000:
             n += 1
             pTable.runHand()
-            if n % 1000 == 0: print(dMKa.sts['$'][0], dMKb.sts['$'][0], n)
+            if n % 1000 == 0:
+                print(dMKa.sts['$'][0], n)
+                #print(dMKa.sts['$'][0], dMKb.sts['$'][0], n)
         #dMKa.resetME(newName='dMKa_%s'% time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3])
