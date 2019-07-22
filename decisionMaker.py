@@ -751,5 +751,5 @@ class SNdmk(DecisionMaker):
 
         super().getReward(reward)
         self.myCards = []
-        self.runUpdate()
-        #if self.sts['nH'][0] % 100 == 0: self.runUpdate()
+        #self.runUpdate()
+        if self.sts['nH'][0] % 100 == 0: self.runUpdate()
