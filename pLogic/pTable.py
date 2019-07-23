@@ -10,9 +10,11 @@
  - every player starts hand with startCash (no need for advanced win cash distribution)
 
  every played hand generates its history, hand history is a list of events
+ player translates table history into player history
 
 """
 
+import copy
 import random
 
 from pLogic.pDeck import PDeck
@@ -57,6 +59,7 @@ class PTable:
             self.table = table
             self.dMK = dMK
             self.name = self.dMK.name # player takes name after DMK
+            self.pls = [] # names of all players @table, initialised with start(), self.name always first
 
             self.hand = None
             self.nhsIX = 0  # next hand state index to update from
@@ -83,9 +86,22 @@ class PTable:
                 3: self.cash}
 
             currentHandH = self.table.hands[-1]
-            stateChanges = currentHandH[self.nhsIX:]
+            stateChanges = copy.deepcopy(currentHandH[self.nhsIX:]) # copy part of history
+            self.nhsIX = len(currentHandH) # update index for next
 
-            self.nhsIX = len(currentHandH)
+            # update table history with player history
+            for state in stateChanges:
+                key = list(state.keys())[0]
+
+                if key == 'playersPC':
+                    for el in state[key]:
+                        el[0] = self.pls.index(el[0]) # replace names with indexes
+                        if el[0]: el[1] = None # hide cards of not mine
+
+                if key == 'moveData':
+                    state[key]['pIX'] = self.pls.index(state[key]['pName']) # insert player index
+                    del(state[key]['pName']) # remove player name
+
             selectedMove = self.dMK.mDec(stateChanges, possibleMoves)
 
             return selectedMove, possibleMovesCash[selectedMove]
@@ -138,8 +154,13 @@ class PTable:
 
         for pl in self.players:
             pl.cash = self.startCash
+
+            # update player players names with self on 1st pos
             pls = [pl.name for pl in self.players]
-            pl.dMK.start(pls)
+            pls.remove(pl.name)
+            pl.pls = [pl.name] + pls
+
+            pl.dMK.start()
 
     # puts DMK on table (self)
     def addDMK(
@@ -198,7 +219,7 @@ class PTable:
             ca, cb = self.deck.getCard(), self.deck.getCard()
             pl.hand = ca, cb
             if self.pMsg: print(' ### (pl)%s taken hand %s %s' % (pl.name, PDeck.cts(ca), PDeck.cts(cb)))
-        hHis = [{'playersPC': [(pl.name, pl.hand) for pl in handPlayers]}]
+        hHis = [{'playersPC': [[pl.name, pl.hand] for pl in handPlayers]}]
         self.hands.append(hHis)
 
         while self.state < 5 and len(handPlayers) > 1:

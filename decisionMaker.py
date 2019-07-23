@@ -8,6 +8,7 @@
 """
 
 import numpy as np
+import random
 import tensorflow as tf
 import time
 
@@ -28,7 +29,6 @@ class DecisionMaker:
     ):
 
         self.name = name
-        self.pls = [] # names of all players @table, initialised with start(), self.name always first
         self.nMoves = nMoves
 
         self.lDSTMVwR = []  # list of dicts {'decState': 'move': 'reward':}
@@ -37,7 +37,7 @@ class DecisionMaker:
         self.summWriter = None
 
         self.preflop = True # preflop indicator
-        self.plsHpos = [0,0,0] # positions @table of players from self.pls
+        self.plsHpos = [] # positions @table of players from self.pls
 
         self.repTime = 0
         self.stsV = 1000 # stats interval
@@ -76,14 +76,7 @@ class DecisionMaker:
         }
 
     # starts DMK for new game (table, player)
-    def start(
-            self,
-            pls: list): # list of player names
-
-        self.pls = pls
-        # put self first
-        self.pls.remove(self.name)
-        self.pls = [self.name] + self.pls
+    def start(self): # list of player names
 
         if self.runTB: self.summWriter = tf.summary.FileWriter(logdir='_nnTB/' + self.name, flush_secs=10)
         self.repTime = time.time()
@@ -103,10 +96,11 @@ class DecisionMaker:
         for state in tableStateChanges:
             key = list(state.keys())[0]
 
-            # update myTablePos for new hand
+            # update positions of players @table for new hand
             if key == 'playersPC':
+                self.plsHpos = [0]*len(state[key])
                 for ix in range(len(state[key])):
-                    self.plsHpos[self.pls.index(state[key][ix][0])] = ix
+                    self.plsHpos[state[key][ix][0]] = ix
             # check for preflop >> postflop
             if key == 'newTableCards':
                 if len(state[key]) == 3: self.preflop = False
@@ -140,10 +134,12 @@ class DecisionMaker:
     def mDec(
             self,
             tableStateChanges: list,
-            possibleMoves: list):
+            possibleMoves: list,
+            randomMove=         0.2): # how often sample move from random
 
         decState = self.encState(tableStateChanges)
         probs = self.getProbs(decState)
+        if random.random() < randomMove: probs = [1/self.nMoves] * self.nMoves
 
         probMask = [int(pM) for pM in possibleMoves]
         probs = probs * np.asarray(probMask)
@@ -387,7 +383,7 @@ class BNdmk(DecisionMaker):
             if key == 'playersPC':
                 cards = state[key][self.plsHpos[0]][1]
                 vec = np.zeros(shape=self.wV)
-                vec[0] = self.plsHpos[0] / len(self.pls)
+                vec[0] = self.plsHpos[0]
 
                 inET.append(0)
                 inC.append((PDeck.cti(cards[0]), PDeck.cti(cards[1]), 52))
@@ -404,7 +400,7 @@ class BNdmk(DecisionMaker):
 
             if key == 'moveData':
                 vec = np.zeros(shape=self.wV)
-                vec[0] = self.pls.index(state[key]['pName']) / len(self.pls)
+                vec[0] = state[key]['pIX']
                 vec[1] = state[key]['tBCash'] / 1500
                 vec[2] = state[key]['pBCash'] / 500
                 vec[3] = state[key]['pBCHandCash'] / 500
@@ -659,7 +655,7 @@ class SNdmk(DecisionMaker):
 
             if key == 'moveData':
 
-                who = self.pls.index(state[key]['pName'])  # who moved
+                who = state[key]['pIX'] # who moved
                 if who: # my index is 0, so do not include my moves
 
                     inMT.append(state[key]['plMove'][0])  # move type
@@ -683,8 +679,8 @@ class SNdmk(DecisionMaker):
 
         inC = [] + self.myCards
         while len(inC) < 7: inC.append(52) # pad cards
-        while len(inMT) < 2*(len(self.pls)-1): inMT.append(4) # pad moves
-        while len(inV) < 2*(len(self.pls)-1): inV.append(np.zeros(shape=self.wV)) # pad vectors
+        while len(inMT) < 2*(len(self.plsHpos)-1): inMT.append(4) # pad moves
+        while len(inV) < 2*(len(self.plsHpos)-1): inV.append(np.zeros(shape=self.wV)) # pad vectors
         nnInput = [[inC]], [[inMT]], [[inV]]
         return nnInput
 
