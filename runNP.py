@@ -38,18 +38,18 @@ if __name__ == "__main__":
     pTable = PTable(
         pMsg=       False,
         verbLev=    0)
-    dMKa = SNdmk(
+    dMKa = BNdmk(
         session=    session,
-        name=       'dMKa_%s'%time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3],
-        randMove=   0)
-    dMKb = BNdmk(
+        name=       'bMKa_%s'%time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3],
+        randMove=   0.1)
+    dMKb = SNdmk(
         session=    session,
-        name=       'dMKb_%s'%time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3],
+        name=       'sMKb_%s'%time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3],
         randMove=   0.2)
-    dMKc = BNdmk(
+    dMKc = SNdmk(
         session=    session,
-        name=       'dMKc_%s'%time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3],
-        randMove=   0.5)
+        name=       'sMKc_%s'%time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3],
+        randMove=   0.3)
     pTable.addDMK(dMKa)
     pTable.addDMK(dMKb)
     pTable.addDMK(dMKc)
@@ -57,7 +57,7 @@ if __name__ == "__main__":
     for _ in range(1):
         print()
         n = 0
-        while n < 500000:
+        while n < 1e6:
             n += 1
             pTable.runHand()
             if n % 1000 == 0:
