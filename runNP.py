@@ -37,12 +37,22 @@ if __name__ == "__main__":
 
     pTable = PTable(
         pMsg=       False,
-        verbLev=    0
-    )
-    dMKa = SNdmk(session, 'dMKa_%s'%time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3])
-    dMKb = BNdmk(session, 'dMKb_%s'%time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3])
+        verbLev=    0)
+    dMKa = SNdmk(
+        session=    session,
+        name=       'dMKa_%s'%time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3],
+        randMove=   0)
+    dMKb = BNdmk(
+        session=    session,
+        name=       'dMKb_%s'%time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3],
+        randMove=   0.2)
+    dMKc = BNdmk(
+        session=    session,
+        name=       'dMKc_%s'%time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3],
+        randMove=   0.5)
     pTable.addDMK(dMKa)
     pTable.addDMK(dMKb)
+    pTable.addDMK(dMKc)
 
     for _ in range(1):
         print()
@@ -52,5 +62,6 @@ if __name__ == "__main__":
             pTable.runHand()
             if n % 1000 == 0:
                 #print(dMKa.sts['$'][0], n)
-                print(dMKa.sts['$'][0], dMKb.sts['$'][0], n)
+                #print(dMKa.sts['$'][0], dMKb.sts['$'][0], n)
+                print(dMKa.sts['$'][0], dMKb.sts['$'][0], dMKc.sts['$'][0], n)
         #dMKa.resetME(newName='dMKa_%s'% time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3])

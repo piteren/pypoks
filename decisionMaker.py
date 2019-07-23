@@ -23,13 +23,14 @@ class DecisionMaker:
 
     def __init__(
             self,
-            name :str,          # name should be unique to recognize DMK
+            name :str,          # name should be unique (@table)
             nMoves=     4,      # number of (all) moves supported by DM, has to match table/player
-            runTB=      True#False
-    ):
+            randMove=   0.2,    # how often move will be sampled from random
+            runTB=      False):
 
         self.name = name
         self.nMoves = nMoves
+        self.randMove = randMove
 
         self.lDSTMVwR = []  # list of dicts {'decState': 'move': 'reward':}
 
@@ -134,12 +135,11 @@ class DecisionMaker:
     def mDec(
             self,
             tableStateChanges: list,
-            possibleMoves: list,
-            randomMove=         0.2): # how often sample move from random
+            possibleMoves: list): # how often sample move from random
 
         decState = self.encState(tableStateChanges)
         probs = self.getProbs(decState)
-        if random.random() < randomMove: probs = [1/self.nMoves] * self.nMoves
+        if random.random() < self.randMove: probs = [1/self.nMoves] * self.nMoves
 
         probMask = [int(pM) for pM in possibleMoves]
         probs = probs * np.asarray(probMask)
@@ -231,9 +231,14 @@ class BNdmk(DecisionMaker):
     def __init__(
             self,
             session :tf.compat.v1.Session,
-            name=   None):
+            name=       None,
+            randMove=   0.2):
 
-        super().__init__(name, runTB=True)
+        super().__init__(
+            name=       name,
+            randMove=   randMove,
+            runTB=      True)
+
         self.session = session
 
         self.wET = 8 # event type emb width
@@ -489,9 +494,14 @@ class SNdmk(DecisionMaker):
     def __init__(
             self,
             session :tf.compat.v1.Session,
-            name=   None):
+            name=       None,
+            randMove=   0.2):
 
-        super().__init__(name, runTB=True)
+        super().__init__(
+            name=       name,
+            randMove=   randMove,
+            runTB=      True)
+
         self.session = session
 
         self.wC = 16        # card (single) emb width

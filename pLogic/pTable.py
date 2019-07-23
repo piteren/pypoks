@@ -45,10 +45,12 @@ def posNames(nP=3):
     if nP == 9: pNames = ['SB','BB','UTG1','UTG2','MP1','MP2','HJ','CT','BTN']
     return pNames
 
-
+# Poker Table is a single poker game environment
+# table runs hands and asks players for making moves
+# moves are based on hand history
 class PTable:
 
-    # player is a bridge interface between table and DMK
+    # Table Player is a bridge interface between poker table and DMK
     class PPlayer:
 
         def __init__(
@@ -61,14 +63,11 @@ class PTable:
             self.name = self.dMK.name # player takes name after DMK
             self.pls = [] # names of all players @table, initialised with start(), self.name always first
 
+            self.cash = self.table.startCash  # player cash
             self.hand = None
-            self.nhsIX = 0  # next hand state index to update from
-            self.cHandCash = 0  # current hand cash (amount put by player on current hand)
-            self.cRiverCash = 0  # current river cash (amount put by player on current river yet)
-
-            self.cash = 0
-            self.wonLast = 0
-            self.wonTotal = 0
+            self.nhsIX = 0 # next hand state index to update from
+            self.cHandCash = 0 # current hand cash (amount put by player on current hand)
+            self.cRiverCash = 0 # current river cash (amount put by player on current river)
 
         # asks DMK for move decision (having table status ...and any other info)
         def makeMove(self):
@@ -129,10 +128,6 @@ class PTable:
         self.name = name
 
         self.nPlayers = nPlayers
-        self.players = [
-            self.PPlayer(
-                table=  self,
-                dMK=    DecisionMaker('rDMK_%d'%ix)) for ix in range(self.nPlayers)] # generic random table players
 
         self.SB = 2
         self.BB = 5
@@ -149,11 +144,18 @@ class PTable:
 
         if self.verbLev: print('(table)%s created' % self.name)
 
+        self.players = [
+            self.PPlayer(
+                table=self,
+                dMK=DecisionMaker(
+                    name=   'rDMK_%d' % ix,
+                    runTB=  False)
+            ) for ix in range(self.nPlayers)]  # generic random table players
+
     # inits players/DMK for new game
     def _initPlayers(self):
 
         for pl in self.players:
-            pl.cash = self.startCash
 
             # update player players names with self on 1st pos
             pls = [pl.name for pl in self.players]
@@ -248,8 +250,7 @@ class PTable:
                 pl = handPlayers[cmpIX]
                 if pl.cash: # player has cash (not allined yet)
 
-                    plMV = handPlayers[cmpIX].makeMove() # player makes move
-
+                    # before move values
                     mvD = {
                         'tState':       self.state,
                         'tBCash':       self.cash,
@@ -257,14 +258,17 @@ class PTable:
                         'pBCash':       pl.cash,
                         'pBCHandCash':  pl.cHandCash,
                         'pBCRiverCash': pl.cRiverCash,
-                        'bCashToCall':  self.cashToCall,
-                        'plMove':       plMV}
+                        'bCashToCall':  self.cashToCall}
+
+                    plMV = handPlayers[cmpIX].makeMove()  # player makes move
+                    mvD['plMove'] = plMV
 
                     pl.cash -= plMV[1]
                     pl.cHandCash += plMV[1]
                     pl.cRiverCash += plMV[1]
                     self.cash += plMV[1]
 
+                    # cash after move
                     mvD['tACash'] =        self.cash
                     mvD['pACash'] =        pl.cash
                     mvD['pACHandCash'] =   pl.cHandCash
@@ -338,8 +342,6 @@ class PTable:
             pl = self.players[ix]
             myWon = -pl.cHandCash  # netto lost
             if winnersData[ix]['winner']: myWon += prize # add netto winning
-            pl.wonLast = myWon
-            pl.wonTotal += myWon
             winnersData[ix]['won'] = myWon
             if self.pMsg:
                 print(' ### (pl)%s : %d$' % (pl.name, myWon), end='')
