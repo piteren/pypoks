@@ -8,7 +8,7 @@ project objectives:
     - high performance training with multiprocessing
     - add genetic algorithm
     2nd order:
-    - prepare informational project webpage
+    - prepare informational project web page
     - build online demo (game interface for tests/demo)
     - look for supporting entities
     - optional: build HQ classifier for human/AI game decisions
