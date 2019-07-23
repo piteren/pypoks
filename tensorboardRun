@@ -1,2 +1,0 @@
-nohup tensorboard --logdir=~/sshSIX/projects/pypoks/_nnTB &
-nohup tensorboard --logdir=~/projects/pypoks/_nnTB &
