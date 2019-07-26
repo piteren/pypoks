@@ -4,6 +4,7 @@
 
 """
 
+from multiprocessing import Process, Queue
 import numpy as np
 import random
 import tensorflow as tf
@@ -47,6 +48,17 @@ class DecisionMaker:
         self._resetSTS()
         self._resetCSHD()
 
+        self.mmQue = Queue()
+        self.plQues = {}
+        self.proc = Process(target=self._run)
+
+    def _run(self):
+
+        while True:
+            player, stateChanges, possibleMoves = self.mmQue.get()
+            move = self.mDec(stateChanges, possibleMoves)
+            self.plQues[player].put(move)
+
     # resets self.cHSdata
     def _resetCSHD(self):
         self.cHSdata = {
@@ -81,6 +93,7 @@ class DecisionMaker:
 
         if self.runTB: self.summWriter = tf.summary.FileWriter(logdir='_nnTB/' + self.name, flush_secs=10)
         self.repTime = time.time()
+        self.proc.start()
 
     # resets knowledge, stats, name of DMK
     def resetME(self, newName=None):

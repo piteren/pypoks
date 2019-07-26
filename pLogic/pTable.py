@@ -2,19 +2,10 @@
 
  2019 (c) piteren
 
- simplified poker hand algorithm because:
- - no ante
- - constant sb, bb
- - 3 players
- - constant / simplified betting sizes
- - every player starts hand with startCash (no need for advanced win cash distribution)
-
- every played hand generates its history, hand history is a list of events
- player translates table history into player history
-
 """
 
 import copy
+from multiprocessing import Process, Queue
 import random
 
 from pLogic.pDeck import PDeck
@@ -46,8 +37,6 @@ def posNames(nP=3):
     return pNames
 
 # Poker Table is a single poker game environment
-# table runs hands and asks players for making moves
-# moves are based on hand history
 class PTable:
 
     # Table Player is a bridge interface between poker table and DMK
@@ -55,38 +44,41 @@ class PTable:
 
         def __init__(
                 self,
-                table,
                 dMK :DecisionMaker):
 
-            self.table = table
             self.dMK = dMK
+            self.mQue = Queue()
             self.name = self.dMK.name # player takes name after DMK
             self.pls = [] # names of all players @table, initialised with start(), self.name always first
 
-            self.cash = self.table.startCash  # player cash
+            self.cash = 0 # player cash
             self.hand = None
             self.nhsIX = 0 # next hand state index to update from
             self.cHandCash = 0 # current hand cash (amount put by player on current hand)
             self.cRiverCash = 0 # current river cash (amount put by player on current river)
 
         # asks DMK for move decision (having table status ...and any other info)
-        def makeMove(self):
+        def makeMove(
+                self,
+                handH,          # hand history
+                tblCash,        # table cash
+                tblCashTC):     # table cash to call
 
             # calculate possible moves and cash based on table state and hand history
             possibleMoves = [True for x in range(4)]  # by now all
-            if self.table.cashToCall - self.cRiverCash == 0: possibleMoves[1] = False  # cannot call (already called)
-            if self.cash < 2 * self.table.cashToCall: possibleMoves[2] = False  # cannot bet/raise
-            if self.cash == self.table.cashToCall - self.cRiverCash: possibleMoves[1] = False  # cannot call (just allin)
+            if tblCashTC - self.cRiverCash == 0: possibleMoves[1] = False  # cannot call (already called)
+            if self.cash < 2 * tblCashTC: possibleMoves[2] = False  # cannot bet/raise
+            if self.cash == tblCashTC - self.cRiverCash: possibleMoves[1] = False  # cannot call (just allin)
+
             # by now simple hardcoded amounts of cash
             possibleMovesCash = {
                 0: 0,
-                1: self.table.cashToCall - self.cRiverCash,
-                2: 2 * self.table.cashToCall - self.cRiverCash if self.table.cashToCall else self.table.cash // 2,
+                1: tblCashTC - self.cRiverCash,
+                2: 2 * tblCashTC - self.cRiverCash if tblCashTC else tblCash // 2,
                 3: self.cash}
 
-            currentHandH = self.table.hands[-1]
-            stateChanges = copy.deepcopy(currentHandH[self.nhsIX:]) # copy part of history
-            self.nhsIX = len(currentHandH) # update index for next
+            stateChanges = copy.deepcopy(handH[self.nhsIX:]) # copy part of history
+            self.nhsIX = len(handH) # update index for next
 
             # update table history with player history
             for state in stateChanges:
@@ -101,7 +93,11 @@ class PTable:
                     state[key]['pIX'] = self.pls.index(state[key]['pName']) # insert player index
                     del(state[key]['pName']) # remove player name
 
-            selectedMove = self.dMK.mDec(stateChanges, possibleMoves)
+            mmObj = (self, stateChanges, possibleMoves)
+            self.dMK.mmQue.put(mmObj)
+            selectedMove = self.mQue.get()
+
+            # selectedMove = self.dMK.mDec(stateChanges, possibleMoves)
 
             return selectedMove, possibleMovesCash[selectedMove]
 
@@ -146,8 +142,7 @@ class PTable:
 
         self.players = [
             self.PPlayer(
-                table=self,
-                dMK=DecisionMaker(
+                dMK=        DecisionMaker(
                     name=   'rDMK_%d' % ix,
                     runTB=  False)
             ) for ix in range(self.nPlayers)]  # generic random table players
@@ -161,6 +156,8 @@ class PTable:
             pls = [pl.name for pl in self.players]
             pls.remove(pl.name)
             pl.pls = [pl.name] + pls
+
+            pl.dMK.plQues[self] = pl.mQue
 
             pl.dMK.start()
 
@@ -186,6 +183,19 @@ class PTable:
     def runHand(self):
 
         if self.handID < 0: self._initPlayers()
+
+        # reset player data (cash, cards)
+        for pl in self.players:
+            pl.hand = None  # players return cards
+            pl.cash = self.startCash
+            pl.cHandCash = 0
+            pl.cRiverCash = 0
+
+        # reset table data
+        self.cash = 0
+        self.cards = []
+        self.deck.resetDeck()
+        self.state = 0
 
         self.handID += 1
         self.state = 1
@@ -260,7 +270,11 @@ class PTable:
                         'pBCRiverCash': pl.cRiverCash,
                         'bCashToCall':  self.cashToCall}
 
-                    plMV = handPlayers[cmpIX].makeMove()  # player makes move
+                    # player makes move
+                    plMV = handPlayers[cmpIX].makeMove(
+                        handH=      self.hands[-1],
+                        tblCash=    self.cash,
+                        tblCashTC=  self.cashToCall)
                     mvD['plMove'] = plMV
 
                     pl.cash -= plMV[1]
@@ -351,19 +365,8 @@ class PTable:
                 print()
             pl.getReward(myWon)
 
-            # reset player data (cash, cards)
-            pl.hand = None  # players return cards
-            pl.cash = self.startCash
-            pl.cHandCash = 0
-            pl.cRiverCash = 0
-
         hHis.append({'winnersData': winnersData})
 
-        # table reset
-        self.cash = 0
-        self.cards = []
-        self.deck.resetDeck()
-        self.state = 0
         self.players.append(self.players.pop(0)) # rotate table players for next hand
 
         if self.verbLev: print('(table)%s hand finished, table state %s' % (self.name, TBL_STT[self.state]))
