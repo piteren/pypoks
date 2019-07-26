@@ -2,9 +2,6 @@
 
  2019 (c) piteren
 
- TODO:
-  - implement simple algorithmic DMK
-
 """
 
 import numpy as np
@@ -16,6 +13,9 @@ from pUtils.littleTools.littleMethods import shortSCIN
 from pUtils.nnTools.nnBaseElements import defInitializer, layDENSE, numVFloats
 
 from pLogic.pDeck import PDeck
+
+# TODO:
+#   - implement simple algorithmic DMK
 
 
 # basic implementation of DMK (random sampling)
