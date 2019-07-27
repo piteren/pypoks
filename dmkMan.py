@@ -13,15 +13,16 @@ class DMKman:
     def __init__(
             self,
             dmk,
-            players :list):
+            nInst :int):
 
-        iQue = Queue()
-        oQue = Queue()
-        self.dmk = dmk(iQue,oQue)
+        self.iQue = Queue()
+        self.oQue = Queue()
+        self.dmk = dmk(self.iQue, self.oQue)
+        self.nInst = nInst
+        self.manyQues = {ix: Queue() for ix in range(self.nInst)}
 
-        manyQues = {}
-        for ix in range(len(players)):
-            manyQues[ix] = Queue()
-            players[ix].pix = ix
-            players[ix].iQue = iQue
-            players[ix].mQue = manyQues[ix]
+    # collect results and put them on proper mQues
+    def run(self):
+        while True:
+            ix, res = self.oQue.get()
+            self.manyQues[ix].put(res)
