@@ -20,14 +20,18 @@ from pLogic.pDeck import PDeck
 
 
 # basic implementation of DMK (random sampling)
-class DecisionMaker:
+class DecisionMaker(Process):
 
     def __init__(
             self,
             name :str,          # name should be unique (@table)
+            iQue :Queue,        # input que
+            oQue :Queue,        # output que
             nMoves=     4,      # number of (all) moves supported by DM, has to match table/player
             randMove=   0.2,    # how often move will be sampled from random
             runTB=      False):
+
+        super().__init__()
 
         self.name = name
         self.nMoves = nMoves
@@ -48,16 +52,15 @@ class DecisionMaker:
         self._resetSTS()
         self._resetCSHD()
 
-        self.mmQue = Queue()
-        self.plQues = {}
-        self.proc = Process(target=self._run)
+        self.iQue = iQue
+        self.oQue = oQue
 
-    def _run(self):
+    def run(self):
 
         while True:
-            player, stateChanges, possibleMoves = self.mmQue.get()
+            pIX, stateChanges, possibleMoves = self.iQue.get()
             move = self.mDec(stateChanges, possibleMoves)
-            self.plQues[player].put(move)
+            self.oQue.put([pIX, move])
 
     # resets self.cHSdata
     def _resetCSHD(self):
@@ -93,7 +96,7 @@ class DecisionMaker:
 
         if self.runTB: self.summWriter = tf.summary.FileWriter(logdir='_nnTB/' + self.name, flush_secs=10)
         self.repTime = time.time()
-        self.proc.start()
+        self.start()
 
     # resets knowledge, stats, name of DMK
     def resetME(self, newName=None):
@@ -243,16 +246,19 @@ class BNdmk(DecisionMaker):
 
     def __init__(
             self,
-            session :tf.compat.v1.Session,
+            iQue: Queue,
+            oQue: Queue,
             name=       None,
             randMove=   0.2):
 
         super().__init__(
             name=       name,
+            iQue=       iQue,
+            oQue=       oQue,
             randMove=   randMove,
             runTB=      True)
 
-        self.session = session
+        self.session = tf.compat.v1.Session()
 
         self.wET = 8 # event type emb width
         self.wC = 20 # card (single) emb width
@@ -506,16 +512,19 @@ class SNdmk(DecisionMaker):
 
     def __init__(
             self,
-            session :tf.compat.v1.Session,
+            iQue: Queue,
+            oQue: Queue,
             name=       None,
             randMove=   0.2):
 
         super().__init__(
             name=       name,
+            iQue=       iQue,
+            oQue=       oQue,
             randMove=   randMove,
             runTB=      True)
 
-        self.session = session
+        self.session = tf.compat.v1.Session()
 
         self.wC = 16        # card (single) emb width
         self.wMT = 4        # move type emb width
