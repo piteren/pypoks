@@ -2,6 +2,8 @@
 
  2019 (c) piteren
 
+ many processes to one with external sync (loop)
+
 """
 
 from multiprocessing import Process, Queue
