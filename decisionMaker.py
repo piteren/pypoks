@@ -205,7 +205,7 @@ class DecisionMaker:
                     print(' >>> training time: %.1fsec/%d' % (time.time() - self.repTime, 1000))
                     self.repTime = time.time()
 
-                # here custom implementation may update decision alg
+                self.runUpdate()
 
         decState = {
             'newPos':       newPos,
@@ -255,6 +255,9 @@ class DecisionMaker:
         move = np.random.choice(np.arange(self.nMoves), p=probs) # sample from probs
 
         return move
+
+    # runs update of DMK based on moves and rewards
+    def runUpdate(self): pass
 
 # first, base, neural-DMK, LSTM with multi-state to decision
 class BNdmk(DecisionMaker):
