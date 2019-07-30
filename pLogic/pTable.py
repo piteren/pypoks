@@ -49,11 +49,10 @@ class PTable(Process):
             self.dMK = dMK
             self.dmkIX = dMK.getPIX()
             self.name = '%s_%d' % (self.dMK.name, self.dmkIX)  # player takes name after DMK
-
             self.dmkIQue = self.dMK.dmkIQue
             self.dmkMQue = self.dMK.dmkMQues[self.dmkIX]
 
-            # TODO: init ...names
+            # fields below are managed(updated) by table
             self.pls = [] # names of all players @table, initialised with start(), self.name always first
             self.cash = 0 # player cash
             self.hand = None
@@ -73,7 +72,6 @@ class PTable(Process):
             if tblCashTC - self.cRiverCash == 0: possibleMoves[1] = False  # cannot call (already called)
             if self.cash < 2 * tblCashTC: possibleMoves[2] = False  # cannot bet/raise
             if self.cash == tblCashTC - self.cRiverCash: possibleMoves[1] = False  # cannot call (just allin)
-
             # by now simple hardcoded amounts of cash
             possibleMovesCash = {
                 0: 0,
@@ -145,7 +143,8 @@ class PTable(Process):
 
     # runs hands in loop (for sep. process)
     def rHProc(self):
-        while True: self.runHand()
+        while True:
+            self.runHand()
 
     # runs single hand
     def runHand(self):
@@ -164,9 +163,10 @@ class PTable(Process):
         self.deck.resetDeck()
         self.state = 0
 
+        if self.verbLev or self.pMsg: print()
         self.handID += 1
         self.state = 1
-        if self.verbLev: print('\n(table)%s starts new hand, handID %d' % (self.name, self.handID))
+        if self.verbLev: print('(table)%s starts new hand, handID %d' % (self.name, self.handID))
 
         handPlayers = [] + self.players # original order of players for current hand (SB, BB, ..)
         if self.pMsg:
