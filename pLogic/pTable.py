@@ -95,8 +95,7 @@ class PTable(Process):
                     state[key]['pIX'] = self.pls.index(state[key]['pName']) # insert player index
                     del(state[key]['pName']) # remove player name
 
-            decState = self.dMK.encState(self.dmkIX, stateChanges)
-            self.dmkIQue.put([self.dmkIX, decState, possibleMoves])
+            self.dmkIQue.put([self.dmkIX, stateChanges, possibleMoves])
             selectedMove = self.dmkMQue.get()
 
             return selectedMove, possibleMovesCash[selectedMove]
@@ -218,7 +217,7 @@ class PTable(Process):
                     print()
 
             # ask players for moves
-            while len(handPlayers) > 1: # more important condition breaks below
+            while len(handPlayers) > 1: # another important condition breaks in the loop
 
                 if cmpIX == len(handPlayers): cmpIX = 0 # next loop
 

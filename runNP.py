@@ -37,11 +37,11 @@ if __name__ == "__main__":
     session = tf.Session()
     """
 
-    dMKs = [DecisionMaker(name='dmk%d'%ix, nPl=1) for ix in range(3)]
-    tables = [PTable(dMKs=dMKs, name='T_%d'%ix, verbLev=0) for ix in range(1)]
+    dMKs = [DecisionMaker(name='dmk%d'%ix, nPl=5, runTB=True) for ix in range(3)]
+    tables = [PTable(dMKs=dMKs, name='T_%d'%ix, pMsg=False, verbLev=0) for ix in range(5)]
 
-    for dmk in dMKs: dmk.start()
     for tbl in tables: tbl.start()
+    for dmk in dMKs: dmk.start()
 
     """
     for _ in range(1):

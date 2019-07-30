@@ -20,7 +20,7 @@ from pLogic.pDeck import PDeck
 
 
 # basic implementation of DMK (random sampling)
-class DecisionMaker:
+class DecisionMaker(Process):
 
     def __init__(
             self,
@@ -30,6 +30,8 @@ class DecisionMaker:
             randMove=   0.2,    # how often move will be sampled from random
             runTB=      False):
 
+        super().__init__(target=self._dmkRun)
+
         self.name = name
         self.nMoves = nMoves
         self.randMove = randMove
@@ -37,16 +39,15 @@ class DecisionMaker:
         self.dmkIQue = Queue() # DMK input que
         self.dmkMQues = {ix: Queue() for ix in range(nPl)} # DMK output ques
         self.pIX = [ix for ix in range(nPl)]
-        self.proc = Process(target=self._dmkRun)
 
         self.lDSTMVwR = {ix: [] for ix in range(nPl)}  # list of dicts {'decState': 'move': 'reward':}
         self.preflop = {ix: True for ix in range(nPl)} # preflop indicator
         self.plsHpos = {ix: [] for ix in range(nPl)} # positions @table of players from self.pls
 
         self.runTB = runTB
-        self.summWriter = None
+        self.summWriter = tf.summary.FileWriter(logdir='_nnTB/' + self.name, flush_secs=10) if runTB else None
 
-        self.repTime = 0
+        self.repTime = time.time()
         self.stsV = 1000 # stats interval
         self.sts = {} # stats
         self.cHSdata = {} # current hand data for stats
@@ -56,14 +57,9 @@ class DecisionMaker:
     # dmk decisions loop
     def _dmkRun(self):
         while True:
-            pIX, decState, possibleMoves = self.dmkIQue.get()
+            pIX, stateChanges, possibleMoves = self.dmkIQue.get()
+            decState = self.encState(pIX, stateChanges)
             move = self.mDec(decState, possibleMoves)
-
-            # update players hand pos and preflop ind
-            if decState['newPos'] is not None:
-                self.plsHpos[pIX] = decState['newPos']
-            if decState['preflopInd'] is not None:
-                self.preflop[pIX] = decState['preflopInd']
 
             # save state and move (for updates etc.)
             self.lDSTMVwR[pIX].append({
@@ -107,13 +103,6 @@ class DecisionMaker:
             'nAGG':     [0,0],  # n aggressive moves postflop
         }
 
-    # starts DMK for new game (table, player)
-    def start(self): # list of player names
-
-        if self.runTB: self.summWriter = tf.summary.FileWriter(logdir='_nnTB/' + self.name, flush_secs=10)
-        self.repTime = time.time()
-        self.proc.start()
-
     # resets knowledge, stats, name of DMK
     def resetME(self, newName=None):
 
@@ -121,15 +110,13 @@ class DecisionMaker:
         self._resetSTS()
         if self.runTB: self.summWriter = tf.summary.FileWriter(logdir='_nnTB/' + self.name, flush_secs=10)
 
-    # encodes table stateChanges to decState dict (readable by getProbs)
-    # this method is called by table(player) processes
+    # 1. updates some info (pos, pre/postflop tableState) used while making decisions / building stats by DMK
+    # 2. encodes table stateChanges to decState dict (readable by getProbs)
     def encState(
             self,
             pIX :int,
             tableStateChanges :list):
 
-        newPos = None
-        preflopInd = None
         for state in tableStateChanges:
             key = list(state.keys())[0]
 
@@ -138,12 +125,13 @@ class DecisionMaker:
                 newPos = [0]*len(state[key])
                 for ix in range(len(state[key])):
                     newPos[state[key][ix][0]] = ix
-                preflopInd = True
+                self.plsHpos[pIX] = newPos
+                self.preflop[pIX] = True
             # check for preflop >> postflop
-            if key == 'newTableCards' and len(state[key]) == 3: preflopInd = False
-            # get reward
-            if key == 'winnersData':
+            if key == 'newTableCards' and len(state[key]) == 3: self.preflop[pIX] = False
 
+            # get reward and update
+            if key == 'winnersData':
                 myReward = 0
                 for el in state[key]:
                     if el['pIX'] == 0: myReward = el['won']
@@ -151,6 +139,7 @@ class DecisionMaker:
                 if self.lDSTMVwR[pIX]:  # only when there was any decision
                     if self.lDSTMVwR[pIX][-1]['reward'] is None:  # only when last decision was not rewarded yet
                         self.lDSTMVwR[pIX][-1]['reward'] = myReward  # update reward
+                        # TODO: update reward backward
 
                 self.sts['nH'][0] += 1
                 self.sts['nH'][1] += 1
@@ -207,12 +196,8 @@ class DecisionMaker:
 
                 self.runUpdate()
 
-        decState = {
-            'newPos':       newPos,
-            'preflopInd':   preflopInd,
-            'decState':     None}
-
         # custom implementation should add further decState preparation
+        decState = None
         return decState
 
     # returns probabilities of moves
@@ -241,7 +226,7 @@ class DecisionMaker:
     # TODO: prep mDec in tournament mode (no sampling from distribution, but max)
     def mDec(
             self,
-            decState: dict,
+            decState,
             possibleMoves: list): # how often sample move from random
 
         probs = self.getProbs(decState)
