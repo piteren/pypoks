@@ -25,35 +25,25 @@ import time
 import os
 
 from pLogic.pTable import PTable
-from decisionMaker import BNdmk, SNdmk
+from decisionMaker import DecisionMaker, BNdmk, SNdmk
 
 
 if __name__ == "__main__":
 
+    """
     # tf verbosity
     tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
     session = tf.Session()
+    """
 
-    pTable = PTable(
-        pMsg=       False,
-        verbLev=    0)
-    dMKa = BNdmk(
-        session=    session,
-        name=       'bMKa_%s'%time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3],
-        randMove=   0.1)
-    dMKb = SNdmk(
-        session=    session,
-        name=       'sMKb_%s'%time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3],
-        randMove=   0.2)
-    dMKc = SNdmk(
-        session=    session,
-        name=       'sMKc_%s'%time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3],
-        randMove=   0.3)
-    pTable.addDMK(dMKa)
-    pTable.addDMK(dMKb)
-    pTable.addDMK(dMKc)
+    dMKs = [DecisionMaker(name='dmk_%d'%ix) for ix in range(3)]
+    tables = [PTable(dMKs=dMKs, name='T_%d'%ix) for ix in range(50)]
 
+    for dmk in dMKs: dmk.start()
+    for tbl in tables: tbl.start()
+
+    """
     for _ in range(1):
         print()
         n = 0
@@ -65,3 +55,4 @@ if __name__ == "__main__":
                 #print(dMKa.sts['$'][0], dMKb.sts['$'][0], n)
                 print(dMKa.sts['$'][0], dMKb.sts['$'][0], dMKc.sts['$'][0], n)
         #dMKa.resetME(newName='dMKa_%s'% time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3])
+    """

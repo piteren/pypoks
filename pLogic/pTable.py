@@ -37,7 +37,7 @@ def posNames(nP=3):
     return pNames
 
 # Poker Table is a single poker game environment
-class PTable:
+class PTable(Process):
 
     # Table Player is a bridge interface between poker table and DMK
     class PPlayer:
@@ -47,10 +47,14 @@ class PTable:
                 dMK :DecisionMaker):
 
             self.dMK = dMK
-            self.mQue = Queue()
-            self.name = self.dMK.name # player takes name after DMK
-            self.pls = [] # names of all players @table, initialised with start(), self.name always first
+            self.dmkIX = dMK.getPIX()
+            self.name = '%s_%d' % (self.dMK.name, self.dmkIX)  # player takes name after DMK
 
+            self.dmkIQue = self.dMK.dmkIQue
+            self.dmkMQue = self.dMK.dmkMQues[self.dmkIX]
+
+            # TODO: init ...names
+            self.pls = [] # names of all players @table, initialised with start(), self.name always first
             self.cash = 0 # player cash
             self.hand = None
             self.nhsIX = 0 # next hand state index to update from
@@ -87,43 +91,33 @@ class PTable:
                 if key == 'playersPC':
                     for el in state[key]:
                         el[0] = self.pls.index(el[0]) # replace names with indexes
-                        if el[0]: el[1] = None # hide cards of not mine
+                        if el[0]: el[1] = None # hide cards of not mine (just in case)
 
-                if key == 'moveData':
+                if key == 'moveData' or key == 'winnersData':
                     state[key]['pIX'] = self.pls.index(state[key]['pName']) # insert player index
                     del(state[key]['pName']) # remove player name
 
-            mmObj = (self, stateChanges, possibleMoves)
-            self.dMK.mmQue.put(mmObj)
-            selectedMove = self.mQue.get()
-
-            # selectedMove = self.dMK.mDec(stateChanges, possibleMoves)
+            decState = self.dMK.encState(self.dmkIX, stateChanges)
+            self.dmkIQue.put([self.dmkIX, decState, possibleMoves])
+            selectedMove = self.dmkMQue.get()
 
             return selectedMove, possibleMovesCash[selectedMove]
-
-        # called by table to inform player about reward for last hand
-        # reward is forwarded to DMK
-        def getReward(
-                self,
-                reward: int):
-
-            self.nhsIX = 0
-            self.dMK.getReward(reward)
 
 
     def __init__(
             self,
+            dMKs: list,             # list of DMKs, their number defines table size
             name=       'pTable',
-            nPlayers=   3,
             pMsg=       True,
             verbLev=    1):
+
+        super().__init__(target=self.rHProc)
 
         self.verbLev = verbLev
         self.pMsg = pMsg
 
         self.name = name
-
-        self.nPlayers = nPlayers
+        self.nPlayers = len(dMKs)
 
         self.SB = 2
         self.BB = 5
@@ -138,17 +132,7 @@ class PTable:
         self.handID = -1 # int incremented every hand
         self.hands = [] # list of histories of played hands
 
-        if self.verbLev: print('(table)%s created' % self.name)
-
-        self.players = [
-            self.PPlayer(
-                dMK=        DecisionMaker(
-                    name=   'rDMK_%d' % ix,
-                    runTB=  False)
-            ) for ix in range(self.nPlayers)]  # generic random table players
-
-    # inits players/DMK for new game
-    def _initPlayers(self):
+        self.players = [self.PPlayer(dMK) for dMK in dMKs]
 
         for pl in self.players:
 
@@ -157,37 +141,20 @@ class PTable:
             pls.remove(pl.name)
             pl.pls = [pl.name] + pls
 
-            pl.dMK.plQues[self] = pl.mQue
+        if self.verbLev: print('(table)%s created' % self.name)
 
-            pl.dMK.start()
-
-    # puts DMK on table (self)
-    def addDMK(
-            self,
-            dMK: DecisionMaker):
-
-        added = False
-        sPlayers = [] + self.players
-        random.shuffle(sPlayers) # shuffled players for random placement
-        for pl in sPlayers:
-            if type(pl.dMK) is DecisionMaker:
-                pl.dMK = dMK
-                pl.name = dMK.name
-                added = True
-                break
-
-        assert added, 'cannot add DMK, probably no free players!'
-        if self.verbLev: print('(dmk)%s joined (table)%s' % (dMK.name, self.name))
+    # runs hands in loop (for sep. process)
+    def rHProc(self):
+        while True: self.runHand()
 
     # runs single hand
     def runHand(self):
-
-        if self.handID < 0: self._initPlayers()
 
         # reset player data (cash, cards)
         for pl in self.players:
             pl.hand = None  # players return cards
             pl.cash = self.startCash
+            pl.nhsIX = 0
             pl.cHandCash = 0
             pl.cRiverCash = 0
 
@@ -363,7 +330,6 @@ class PTable:
                     if type(winnersData[ix]['fullRank']) is str: print(', mucked hand', end ='')
                     else: print(' with %s'%winnersData[ix]['fullRank'][-1], end='')
                 print()
-            pl.getReward(myWon)
 
         hHis.append({'winnersData': winnersData})
 

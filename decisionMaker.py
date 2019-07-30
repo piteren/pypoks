@@ -20,30 +20,31 @@ from pLogic.pDeck import PDeck
 
 
 # basic implementation of DMK (random sampling)
-class DecisionMaker(Process):
+class DecisionMaker:
 
     def __init__(
             self,
             name :str,          # name should be unique (@table)
-            iQue :Queue,        # input que
-            oQue :Queue,        # output que
+            nPl=        100,    # number of managed players
             nMoves=     4,      # number of (all) moves supported by DM, has to match table/player
             randMove=   0.2,    # how often move will be sampled from random
             runTB=      False):
-
-        super().__init__()
 
         self.name = name
         self.nMoves = nMoves
         self.randMove = randMove
 
-        self.lDSTMVwR = []  # list of dicts {'decState': 'move': 'reward':}
+        self.dmkIQue = Queue() # DMK input que
+        self.dmkMQues = {ix: Queue() for ix in range(nPl)} # DMK output ques
+        self.pIX = [ix for ix in range(nPl)]
+        self.proc = Process(target=self._dmkRun)
+
+        self.lDSTMVwR = {ix: [] for ix in range(nPl)}  # list of dicts {'decState': 'move': 'reward':}
+        self.preflop = {ix: True for ix in range(nPl)} # preflop indicator
+        self.plsHpos = {ix: [] for ix in range(nPl)} # positions @table of players from self.pls
 
         self.runTB = runTB
         self.summWriter = None
-
-        self.preflop = True # preflop indicator
-        self.plsHpos = [] # positions @table of players from self.pls
 
         self.repTime = 0
         self.stsV = 1000 # stats interval
@@ -52,15 +53,30 @@ class DecisionMaker(Process):
         self._resetSTS()
         self._resetCSHD()
 
-        self.iQue = iQue
-        self.oQue = oQue
-
-    def run(self):
-
+    # dmk decisions loop
+    def _dmkRun(self):
         while True:
-            pIX, stateChanges, possibleMoves = self.iQue.get()
-            move = self.mDec(stateChanges, possibleMoves)
-            self.oQue.put([pIX, move])
+            pIX, decState, possibleMoves = self.dmkIQue.get()
+            move = self.mDec(decState, possibleMoves)
+
+            # update players hand pos and preflop ind
+            if decState['newPos'] is not None:
+                self.plsHpos[pIX] = decState['newPos']
+            if decState['preflopInd'] is not None:
+                self.preflop[pIX] = decState['preflopInd']
+
+            # save state and move (for updates etc.)
+            self.lDSTMVwR[pIX].append({
+                'decState': decState,
+                'move':     move,
+                'reward':   None})
+
+            self._updMoveStats(pIX, move) # stats
+
+            self.dmkMQues[pIX].put(move)
+
+    # returns one pIX form
+    def getPIX(self): return self.pIX.pop()
 
     # resets self.cHSdata
     def _resetCSHD(self):
@@ -96,7 +112,7 @@ class DecisionMaker(Process):
 
         if self.runTB: self.summWriter = tf.summary.FileWriter(logdir='_nnTB/' + self.name, flush_secs=10)
         self.repTime = time.time()
-        self.start()
+        self.proc.start()
 
     # resets knowledge, stats, name of DMK
     def resetME(self, newName=None):
@@ -105,24 +121,98 @@ class DecisionMaker(Process):
         self._resetSTS()
         if self.runTB: self.summWriter = tf.summary.FileWriter(logdir='_nnTB/' + self.name, flush_secs=10)
 
-    # encodes table stateChanges to decState object (state readable by getProbs)
+    # encodes table stateChanges to decState dict (readable by getProbs)
+    # this method is called by table(player) processes
     def encState(
             self,
-            tableStateChanges: list):
+            pIX :int,
+            tableStateChanges :list):
 
+        newPos = None
+        preflopInd = None
         for state in tableStateChanges:
             key = list(state.keys())[0]
 
-            # update positions of players @table for new hand
+            # update positions of players @table for new hand, enter preflop
             if key == 'playersPC':
-                self.plsHpos = [0]*len(state[key])
+                newPos = [0]*len(state[key])
                 for ix in range(len(state[key])):
-                    self.plsHpos[state[key][ix][0]] = ix
+                    newPos[state[key][ix][0]] = ix
+                preflopInd = True
             # check for preflop >> postflop
-            if key == 'newTableCards':
-                if len(state[key]) == 3: self.preflop = False
+            if key == 'newTableCards' and len(state[key]) == 3: preflopInd = False
+            # get reward
+            if key == 'winnersData':
 
-        decState = None
+                myReward = 0
+                for el in state[key]:
+                    if el['pIX'] == 0: myReward = el['won']
+
+                if self.lDSTMVwR[pIX]:  # only when there was any decision
+                    if self.lDSTMVwR[pIX][-1]['reward'] is None:  # only when last decision was not rewarded yet
+                        self.lDSTMVwR[pIX][-1]['reward'] = myReward  # update reward
+
+                self.sts['nH'][0] += 1
+                self.sts['nH'][1] += 1
+                self.sts['$'][0] += myReward
+                self.sts['$'][1] += myReward
+
+                # update self.sts with self.cHSdata
+                if self.cHSdata['VPIP']:
+                    self.sts['nVPIP'][0] += 1
+                    self.sts['nVPIP'][1] += 1
+                if self.cHSdata['PFR']:
+                    self.sts['nPFR'][0] += 1
+                    self.sts['nPFR'][1] += 1
+                if self.cHSdata['SH']:
+                    self.sts['nSH'][0] += 1
+                    self.sts['nSH'][1] += 1
+                self.sts['nPM'][0] += self.cHSdata['nPM']
+                self.sts['nPM'][1] += self.cHSdata['nPM']
+                self.sts['nAGG'][0] += self.cHSdata['nAGG']
+                self.sts['nAGG'][1] += self.cHSdata['nAGG']
+                self._resetCSHD()
+
+                # sts reporting procedure
+                def repSTS(V=False):
+
+                    ix, cx = (0, 'T') if not V else (1, 'V')  # interval or total
+
+                    won = tf.Summary(value=[tf.Summary.Value(tag='sts%s/0_won$' % cx, simple_value=self.sts['$'][ix])])
+                    vpip = self.sts['nVPIP'][ix] / self.sts['nH'][ix] * 100
+                    vpip = tf.Summary(value=[tf.Summary.Value(tag='sts%s/1_VPIP' % cx, simple_value=vpip)])
+                    pfr = self.sts['nPFR'][ix] / self.sts['nH'][ix] * 100
+                    pfr = tf.Summary(value=[tf.Summary.Value(tag='sts%s/2_PFR' % cx, simple_value=pfr)])
+                    sh = self.sts['nSH'][ix] / self.sts['nH'][ix] * 100
+                    sh = tf.Summary(value=[tf.Summary.Value(tag='sts%s/4_sh' % cx, simple_value=sh)])
+                    agg = self.sts['nAGG'][ix] / self.sts['nPM'][ix] * 100 if self.sts['nPM'][ix] else 0
+                    agg = tf.Summary(value=[tf.Summary.Value(tag='sts%s/3_AGG' % cx, simple_value=agg)])
+                    self.summWriter.add_summary(won, self.sts['nH'][0])
+                    self.summWriter.add_summary(vpip, self.sts['nH'][0])
+                    self.summWriter.add_summary(pfr, self.sts['nH'][0])
+                    self.summWriter.add_summary(sh, self.sts['nH'][0])
+                    self.summWriter.add_summary(agg, self.sts['nH'][0])
+
+                    # reset interval values
+                    if V:
+                        for key in self.sts.keys():
+                            self.sts[key][1] = 0
+
+                if self.summWriter and self.sts['nH'][1] % self.stsV == 0:
+                    repSTS(True)
+                if self.summWriter and self.sts['nH'][0] % 1000 == 0:
+                    repSTS()
+                    print(' >>> training time: %.1fsec/%d' % (time.time() - self.repTime, 1000))
+                    self.repTime = time.time()
+
+                # here custom implementation may update decision alg
+
+        decState = {
+            'newPos':       newPos,
+            'preflopInd':   preflopInd,
+            'decState':     None}
+
+        # custom implementation should add further decState preparation
         return decState
 
     # returns probabilities of moves
@@ -130,30 +220,30 @@ class DecisionMaker(Process):
             self,
             decState):
 
+        # custom implementation with more than random highly appreciated
         return [1/self.nMoves] * self.nMoves
 
     # updates current hand data for stats based on move performing
     def _updMoveStats(
             self,
-            move):
+            pIX,    # player index
+            move):  # player move
 
         if move == 3: self.cHSdata['SH'] = True
-        if self.preflop:
-            if move == 1 and self.plsHpos[0] != 1 or move > 1: self.cHSdata['VPIP'] = True
+        if self.preflop[pIX]:
+            if move == 1 and self.plsHpos[pIX][0] != 1 or move > 1: self.cHSdata['VPIP'] = True
             if move > 1: self.cHSdata['PFR'] = True
         else:
             self.cHSdata['nPM'] += 1
             if move > 1: self.cHSdata['nAGG'] += 1
 
-
     # makes decision based on stateChanges - selects move from possibleMoves
     # TODO: prep mDec in tournament mode (no sampling from distribution, but max)
     def mDec(
             self,
-            tableStateChanges: list,
+            decState: dict,
             possibleMoves: list): # how often sample move from random
 
-        decState = self.encState(tableStateChanges)
         probs = self.getProbs(decState)
         if random.random() < self.randMove: probs = [1/self.nMoves] * self.nMoves
 
@@ -163,83 +253,8 @@ class DecisionMaker(Process):
         else: probs = [1/self.nMoves] * self.nMoves
 
         move = np.random.choice(np.arange(self.nMoves), p=probs) # sample from probs
-        self._updMoveStats(move)
-
-        # save state and move (for updates etc.)
-        self.lDSTMVwR.append({
-            'decState': decState,
-            'move':     move,
-            'reward':   None})
 
         return move
-
-    # takes reward for last decision
-    # performs after-hand opps (stats etc.)
-    def getReward(
-            self,
-            reward: int):
-
-        if self.lDSTMVwR: # only when there was any decision
-            if self.lDSTMVwR[-1]['reward'] is None: # only when last decision was not rewarded yet
-                self.lDSTMVwR[-1]['reward'] = reward # update reward
-
-        self.sts['nH'][0] += 1
-        self.sts['nH'][1] += 1
-        self.sts['$'][0] += reward
-        self.sts['$'][1] += reward
-
-        # update self.sts with self.cHSdata
-        if self.cHSdata['VPIP']:
-            self.sts['nVPIP'][0] += 1
-            self.sts['nVPIP'][1] += 1
-        if self.cHSdata['PFR']:
-            self.sts['nPFR'][0] += 1
-            self.sts['nPFR'][1] += 1
-        if self.cHSdata['SH']:
-            self.sts['nSH'][0] += 1
-            self.sts['nSH'][1] += 1
-        self.sts['nPM'][0] += self.cHSdata['nPM']
-        self.sts['nPM'][1] += self.cHSdata['nPM']
-        self.sts['nAGG'][0] += self.cHSdata['nAGG']
-        self.sts['nAGG'][1] += self.cHSdata['nAGG']
-        self._resetCSHD()
-
-        # sts reporting procedure
-        def repSTS(V=False):
-
-            ix, cx = (0,'T') if not V else (1,'V') # interval or total
-
-            won = tf.Summary(value=[tf.Summary.Value(tag='sts%s/0_won$'%cx, simple_value=self.sts['$'][ix])])
-            vpip = self.sts['nVPIP'][ix] / self.sts['nH'][ix] * 100
-            vpip = tf.Summary(value=[tf.Summary.Value(tag='sts%s/1_VPIP'%cx, simple_value=vpip)])
-            pfr = self.sts['nPFR'][ix] / self.sts['nH'][ix] * 100
-            pfr = tf.Summary(value=[tf.Summary.Value(tag='sts%s/2_PFR'%cx, simple_value=pfr)])
-            sh = self.sts['nSH'][ix] / self.sts['nH'][ix] * 100
-            sh = tf.Summary(value=[tf.Summary.Value(tag='sts%s/4_sh'%cx, simple_value=sh)])
-            agg = self.sts['nAGG'][ix] / self.sts['nPM'][ix] * 100 if self.sts['nPM'][ix] else 0
-            agg = tf.Summary(value=[tf.Summary.Value(tag='sts%s/3_AGG'%cx, simple_value=agg)])
-            self.summWriter.add_summary(won, self.sts['nH'][0])
-            self.summWriter.add_summary(vpip, self.sts['nH'][0])
-            self.summWriter.add_summary(pfr, self.sts['nH'][0])
-            self.summWriter.add_summary(sh, self.sts['nH'][0])
-            self.summWriter.add_summary(agg, self.sts['nH'][0])
-
-            # reset interval values
-            if V:
-                for key in self.sts.keys():
-                    self.sts[key][1] = 0
-
-        if self.summWriter and self.sts['nH'][1] % self.stsV == 0:
-            repSTS(True)
-        if self.summWriter and self.sts['nH'][0] % 1000 == 0:
-            repSTS()
-            print(' >>> training time: %.1fsec/%d'%(time.time() - self.repTime, 1000))
-            self.repTime = time.time()
-
-
-        self.preflop = True
-
-        # here custom implementation may update decision alg
 
 # first, base, neural-DMK, LSTM with multi-state to decision
 class BNdmk(DecisionMaker):
