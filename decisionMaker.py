@@ -188,14 +188,14 @@ class DecisionMaker(Process):
                     if V:
                         for key in self.sts.keys():
                             self.sts[key][1] = 0
-                print(self.sts['nH'][0])
+                """
                 if self.summWriter and self.sts['nH'][1] % self.stsV == 0:
                     repSTS(True)
                 if self.summWriter and self.sts['nH'][0] % 1000 == 0:
                     repSTS()
                     print(' >>> training time: %.1fsec/%d' % (time.time() - self.repTime, 1000))
                     self.repTime = time.time()
-
+                """
                 self.runUpdate()
 
         # custom implementation should add further decState preparation
