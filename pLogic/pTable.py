@@ -86,12 +86,7 @@ class PTable(Process):
             for state in stateChanges:
                 key = list(state.keys())[0]
 
-                if key == 'playersPC':
-                    for el in state[key]:
-                        el[0] = self.pls.index(el[0]) # replace names with indexes
-                        if el[0]: el[1] = None # hide cards of not mine (just in case)
-
-                if key == 'moveData' or key == 'winnersData':
+                if key == 'moveData':
                     state[key]['pIX'] = self.pls.index(state[key]['pName']) # insert player index
                     del(state[key]['pName']) # remove player name
 
@@ -99,6 +94,30 @@ class PTable(Process):
             selectedMove = self.dmkMQue.get()
 
             return selectedMove, possibleMovesCash[selectedMove]
+
+        # sends DMK table update (without asking for move)
+        def updState(
+                self,
+                handH):
+
+            stateChanges = copy.deepcopy(handH[self.nhsIX:])  # copy part of history
+            self.nhsIX = len(handH)  # update index for next
+
+            # update table history with player history
+            for state in stateChanges:
+                key = list(state.keys())[0]
+
+                if key == 'playersPC':
+                    for el in state[key]:
+                        el[0] = self.pls.index(el[0]) # replace names with indexes
+                        if el[0]: el[1] = None # hide cards of not mine (just in case)
+
+                if key == 'winnersData':
+                    for el in state[key]:
+                        el['pIX'] = self.pls.index(el['pName']) # insert player index
+                        del(el['pName']) # remove player name
+
+            self.dmkIQue.put([self.dmkIX, stateChanges, None])
 
 
     def __init__(
@@ -199,6 +218,7 @@ class PTable(Process):
             if self.pMsg: print(' ### (pl)%s taken hand %s %s' % (pl.name, PDeck.cts(ca), PDeck.cts(cb)))
         hHis = [{'playersPC': [[pl.name, pl.hand] for pl in handPlayers]}]
         self.hands.append(hHis)
+        for pl in self.players: pl.updState(handH=self.hands[-1])
 
         while self.state < 5 and len(handPlayers) > 1:
 
@@ -331,6 +351,7 @@ class PTable(Process):
                 print()
 
         hHis.append({'winnersData': winnersData})
+        for pl in self.players: pl.updState(handH=self.hands[-1])
 
         self.players.append(self.players.pop(0)) # rotate table players for next hand
 

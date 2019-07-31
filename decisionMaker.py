@@ -59,17 +59,19 @@ class DecisionMaker(Process):
         while True:
             pIX, stateChanges, possibleMoves = self.dmkIQue.get()
             decState = self.encState(pIX, stateChanges)
-            move = self.mDec(decState, possibleMoves)
 
-            # save state and move (for updates etc.)
-            self.lDSTMVwR[pIX].append({
-                'decState': decState,
-                'move':     move,
-                'reward':   None})
+            if possibleMoves is not None:
+                move = self.mDec(decState, possibleMoves)
 
-            self._updMoveStats(pIX, move) # stats
+                # save state and move (for updates etc.)
+                self.lDSTMVwR[pIX].append({
+                    'decState': decState,
+                    'move':     move,
+                    'reward':   None})
 
-            self.dmkMQues[pIX].put(move)
+                self._updMoveStats(pIX, move) # stats
+
+                self.dmkMQues[pIX].put(move)
 
     # returns one pIX form
     def getPIX(self): return self.pIX.pop()
@@ -186,7 +188,7 @@ class DecisionMaker(Process):
                     if V:
                         for key in self.sts.keys():
                             self.sts[key][1] = 0
-
+                print(self.sts['nH'][0])
                 if self.summWriter and self.sts['nH'][1] % self.stsV == 0:
                     repSTS(True)
                 if self.summWriter and self.sts['nH'][0] % 1000 == 0:
