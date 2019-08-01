@@ -35,6 +35,11 @@ class DecisionMaker:
         self.randMove = randMove
 
         self.nPl = nPl
+        """
+            variables below are permanently updated (by encState,)
+            store data for FWD and BWD batches
+            keep information needed for stats
+        """
         self.lDSTMVwR = {ix: [] for ix in range(self.nPl)}  # list of dicts {'decState': 'move': 'reward':}
         self.preflop = {ix: True for ix in range(self.nPl)} # preflop indicator
         self.plsHpos = {ix: [] for ix in range(self.nPl)} # positions @table of players from self.pls
@@ -79,15 +84,17 @@ class DecisionMaker:
             'nAGG':     [0,0],  # n aggressive moves postflop
         }
 
+    """
     # resets knowledge, stats, name of DMK
     def resetME(self, newName=None):
 
         if newName: self.name = newName
         self._resetSTS()
         if self.runTB: self.summWriter = tf.summary.FileWriter(logdir='_nnTB/' + self.name, flush_secs=10)
+    """
 
-    # 1. updates some info (pos, pre/postflop tableState) used while making decisions / building stats by DMK
-    # 2. encodes table stateChanges to decState dict (readable by getProbs)
+    # table state encoder (into decState form - readable by DMC.getProbs method)
+    # + updates some info (pos, pre/postflop tableState) in self variables
     def encState(
             self,
             pIX :int,
@@ -103,7 +110,7 @@ class DecisionMaker:
                     newPos[state[key][ix][0]] = ix
                 self.plsHpos[pIX] = newPos
                 self.preflop[pIX] = True
-            # check for preflop >> postflop
+            # enter postflop
             if key == 'newTableCards' and len(state[key]) == 3: self.preflop[pIX] = False
 
             # get reward and update
@@ -162,31 +169,30 @@ class DecisionMaker:
                     if V:
                         for key in self.sts.keys():
                             self.sts[key][1] = 0
-                #"""
                 if self.summWriter and self.sts['nH'][1] % self.stsV == 0:
                     repSTS(True)
                 if self.summWriter and self.sts['nH'][0] % 1000 == 0:
                     repSTS()
                     print(' >>> training time: %.1fsec/%d' % (time.time() - self.repTime, 1000))
                     self.repTime = time.time()
-                #"""
                 self.runUpdate()
 
         # custom implementation should add further decState preparation
         decState = None
         return decState
 
-    # returns probabilities of moves
-    # returns in form of [(pIX,probs)...] or None
+    # returns probabilities of for move in form of [(pIX,probs)...] or None
     def getProbs(
             self,
             pIX,
             decState):
 
-        # custom implementation with:
-        # - more than random
-        # - multi pIX
-        # highly appreciated
+        """
+        here goes custom implementation with:
+         - more than random
+         - multi pIX
+        """
+        # equal probs
         return [(pIX, [1/self.nMoves]*self.nMoves)]
 
     # updates current hand data for stats based on move performing
@@ -240,7 +246,7 @@ class DecisionMaker:
         else: return None
         return pMoves
 
-    # runs update of DMK based on moves and rewards
+    # runs update of DMK based saved decStates, moves and rewards
     def runUpdate(self): pass
 
 # first, base, neural-DMK, LSTM with multi-state to decision
