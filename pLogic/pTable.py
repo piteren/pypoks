@@ -44,16 +44,17 @@ class PTable(Process):
 
         def __init__(
                 self,
-                dMK :DecisionMaker):
+                pAddr :tuple,       # player address in form (dix,pix)
+                iQue :Queue,       # player input que
+                oQue :Queue):      # player output que
 
-            self.dMK = dMK
-            self.dmkIX = dMK.getPIX()
-            self.name = '%s_%d' % (self.dMK.name, self.dmkIX)  # player takes name after DMK
-            self.dmkIQue = self.dMK.dmkIQue
-            self.dmkMQue = self.dMK.dmkMQues[self.dmkIX]
+            self.pAddr = pAddr
+            self.name = 'p%d_%d' % (pAddr[0], pAddr[1])  # player takes name after DMK
+            self.iQue = iQue
+            self.oQue = oQue
 
             # fields below are managed(updated) by table
-            self.pls = [] # names of all players @table, initialised with start(), self.name always first
+            self.pls = [] # names of all players @table, initialised with table constructor
             self.cash = 0 # player cash
             self.hand = None
             self.nhsIX = 0 # next hand state index to update from
@@ -90,8 +91,8 @@ class PTable(Process):
                     state[key]['pIX'] = self.pls.index(state[key]['pName']) # insert player index
                     del(state[key]['pName']) # remove player name
 
-            self.dmkIQue.put([self.dmkIX, stateChanges, possibleMoves])
-            selectedMove = self.dmkMQue.get()
+            self.oQue.put([self.pAddr, stateChanges, possibleMoves])
+            selectedMove = self.iQue.get()
 
             return selectedMove, possibleMovesCash[selectedMove]
 
@@ -117,12 +118,13 @@ class PTable(Process):
                         el['pIX'] = self.pls.index(el['pName']) # insert player index
                         del(el['pName']) # remove player name
 
-            self.dmkIQue.put([self.dmkIX, stateChanges, None])
+            self.oQue.put([self.pAddr, stateChanges, None])
 
 
     def __init__(
             self,
-            dMKs: list,             # list of DMKs, their number defines table size
+            pIQues :dict,           # dict of player input ques, their number defines table size
+            pOQue :Queue,           # players output que
             name=       'pTable',
             pMsg=       True,
             verbLev=    1):
@@ -133,7 +135,7 @@ class PTable(Process):
         self.pMsg = pMsg
 
         self.name = name
-        self.nPlayers = len(dMKs)
+        self.nPlayers = len(pIQues)
 
         self.SB = 2
         self.BB = 5
@@ -148,11 +150,13 @@ class PTable(Process):
         self.handID = -1 # int incremented every hand
         self.hands = [] # list of histories of played hands
 
-        self.players = [self.PPlayer(dMK) for dMK in dMKs]
-
+        self.players = [
+            self.PPlayer(
+                pAddr=  key,
+                iQue=   pIQues[key],
+                oQue=   pOQue) for key in pIQues]
+        # update player players names with self on 1st pos
         for pl in self.players:
-
-            # update player players names with self on 1st pos
             pls = [pl.name for pl in self.players]
             pls.remove(pl.name)
             pl.pls = [pl.name] + pls
@@ -181,10 +185,11 @@ class PTable(Process):
         self.deck.resetDeck()
         self.state = 0
 
-        if self.verbLev or self.pMsg: print()
         self.handID += 1
         self.state = 1
-        if self.verbLev: print('(table)%s starts new hand, handID %d' % (self.name, self.handID))
+        if self.verbLev:
+            if self.handID % 1000 == 0 or self.verbLev == 2:
+                print('(table)%s starts new hand, handID %d' % (self.name, self.handID))
 
         handPlayers = [] + self.players # original order of players for current hand (SB, BB, ..)
         if self.pMsg:
@@ -301,7 +306,7 @@ class PTable(Process):
 
             self.state += 1  # move table to next state
 
-        if self.verbLev: print('(table)%s rivers finished, time to select winners' % self.name)
+        if self.verbLev == 2: print('(table)%s rivers finished, time to select winners' % self.name)
 
         # winners template
         winnersData = []
@@ -355,4 +360,4 @@ class PTable(Process):
 
         self.players.append(self.players.pop(0)) # rotate table players for next hand
 
-        if self.verbLev: print('(table)%s hand finished, table state %s' % (self.name, TBL_STT[self.state]))
+        if self.verbLev == 2: print('(table)%s hand finished, table state %s' % (self.name, TBL_STT[self.state]))

@@ -26,6 +26,7 @@ import os
 
 from pLogic.pTable import PTable
 from decisionMaker import DecisionMaker, BNdmk, SNdmk
+from dmkManager import DMKManager
 
 
 if __name__ == "__main__":
@@ -37,11 +38,13 @@ if __name__ == "__main__":
     session = tf.Session()
     """
 
-    dMKs = [DecisionMaker(name='dmk%d'%ix, nPl=1, runTB=True) for ix in range(3)]
-    tables = [PTable(dMKs=dMKs, name='T_%d'%ix, pMsg=True, verbLev=1) for ix in range(1)]
-
-    for tbl in tables: tbl.start()
-    for dmk in dMKs: dmk.start()
+    dMKs = [DecisionMaker(name='dmk%d'%ix, nPl=10) for ix in range(3)]
+    dmkMan = DMKManager(
+        dMKs=       dMKs,
+        verbLev=    1
+    )
+    dmkMan.runGames()
+    tables = [PTable(dMKs=dMKs, name='T_%d'%ix, pMsg=False, verbLev=2) for ix in range(1)]
 
     """
     for _ in range(1):

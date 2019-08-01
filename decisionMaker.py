@@ -20,7 +20,7 @@ from pLogic.pDeck import PDeck
 
 
 # basic implementation of DMK (random sampling)
-class DecisionMaker(Process):
+class DecisionMaker:
 
     def __init__(
             self,
@@ -30,19 +30,15 @@ class DecisionMaker(Process):
             randMove=   0.2,    # how often move will be sampled from random
             runTB=      False):
 
-        super().__init__(target=self._dmkRun)
-
         self.name = name
         self.nMoves = nMoves
         self.randMove = randMove
 
-        self.dmkIQue = Queue() # DMK input que
-        self.dmkMQues = {ix: Queue() for ix in range(nPl)} # DMK output ques
-        self.pIX = [ix for ix in range(nPl)]
-
-        self.lDSTMVwR = {ix: [] for ix in range(nPl)}  # list of dicts {'decState': 'move': 'reward':}
-        self.preflop = {ix: True for ix in range(nPl)} # preflop indicator
-        self.plsHpos = {ix: [] for ix in range(nPl)} # positions @table of players from self.pls
+        self.nPl = nPl
+        self.lDSTMVwR = {ix: [] for ix in range(self.nPl)}  # list of dicts {'decState': 'move': 'reward':}
+        self.preflop = {ix: True for ix in range(self.nPl)} # preflop indicator
+        self.plsHpos = {ix: [] for ix in range(self.nPl)} # positions @table of players from self.pls
+        self.psblMoves = {ix: [] for ix in range(self.nPl)} # possible moves save
 
         self.runTB = runTB
         self.summWriter = tf.summary.FileWriter(logdir='_nnTB/' + self.name, flush_secs=10) if runTB else None
@@ -53,28 +49,6 @@ class DecisionMaker(Process):
         self.cHSdata = {} # current hand data for stats
         self._resetSTS()
         self._resetCSHD()
-
-    # dmk decisions loop
-    def _dmkRun(self):
-        while True:
-            pIX, stateChanges, possibleMoves = self.dmkIQue.get()
-            decState = self.encState(pIX, stateChanges)
-
-            if possibleMoves is not None:
-                move = self.mDec(decState, possibleMoves)
-
-                # save state and move (for updates etc.)
-                self.lDSTMVwR[pIX].append({
-                    'decState': decState,
-                    'move':     move,
-                    'reward':   None})
-
-                self._updMoveStats(pIX, move) # stats
-
-                self.dmkMQues[pIX].put(move)
-
-    # returns one pIX form
-    def getPIX(self): return self.pIX.pop()
 
     # resets self.cHSdata
     def _resetCSHD(self):
@@ -188,14 +162,14 @@ class DecisionMaker(Process):
                     if V:
                         for key in self.sts.keys():
                             self.sts[key][1] = 0
-                """
+                #"""
                 if self.summWriter and self.sts['nH'][1] % self.stsV == 0:
                     repSTS(True)
                 if self.summWriter and self.sts['nH'][0] % 1000 == 0:
                     repSTS()
                     print(' >>> training time: %.1fsec/%d' % (time.time() - self.repTime, 1000))
                     self.repTime = time.time()
-                """
+                #"""
                 self.runUpdate()
 
         # custom implementation should add further decState preparation
@@ -203,12 +177,17 @@ class DecisionMaker(Process):
         return decState
 
     # returns probabilities of moves
+    # returns in form of [(pIX,probs)...] or None
     def getProbs(
             self,
+            pIX,
             decState):
 
-        # custom implementation with more than random highly appreciated
-        return [1/self.nMoves] * self.nMoves
+        # custom implementation with:
+        # - more than random
+        # - multi pIX
+        # highly appreciated
+        return [(pIX, [1/self.nMoves]*self.nMoves)]
 
     # updates current hand data for stats based on move performing
     def _updMoveStats(
@@ -225,23 +204,41 @@ class DecisionMaker(Process):
             if move > 1: self.cHSdata['nAGG'] += 1
 
     # makes decision based on stateChanges - selects move from possibleMoves
+    # returns in form of [(pIX,move)...] or None
     # TODO: prep mDec in tournament mode (no sampling from distribution, but max)
     def mDec(
             self,
+            pIX :int,
             decState,
-            possibleMoves: list): # how often sample move from random
+            possibleMoves :list):
 
-        probs = self.getProbs(decState)
-        if random.random() < self.randMove: probs = [1/self.nMoves] * self.nMoves
+        pProbsL = self.getProbs(pIX, decState)
+        self.psblMoves[pIX] = possibleMoves # save possible moves
 
-        probMask = [int(pM) for pM in possibleMoves]
-        probs = probs * np.asarray(probMask)
-        if np.sum(probs) > 0: probs = probs / np.sum(probs)
-        else: probs = [1/self.nMoves] * self.nMoves
+        pMoves = []
+        if pProbsL is not None:
+            for pProbs in pProbsL:
+                pIX, probs = pProbs
+                if random.random() < self.randMove: probs = [1/self.nMoves] * self.nMoves
 
-        move = np.random.choice(np.arange(self.nMoves), p=probs) # sample from probs
+                probMask = [int(pM) for pM in self.psblMoves[pIX]]
+                probs = probs * np.asarray(probMask)
+                if np.sum(probs) > 0: probs = probs / np.sum(probs)
+                else: probs = [1/self.nMoves] * self.nMoves
 
-        return move
+                move = np.random.choice(np.arange(self.nMoves), p=probs) # sample from probs
+                pMoves.append((pIX, move))
+
+                # save state and move (for updates etc.)
+                self.lDSTMVwR[pIX].append({
+                    'decState': decState,
+                    'move':     move,
+                    'reward':   None})
+
+                self._updMoveStats(pIX, move)  # stats
+
+        else: return None
+        return pMoves
 
     # runs update of DMK based on moves and rewards
     def runUpdate(self): pass
