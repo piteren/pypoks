@@ -9,7 +9,7 @@ from multiprocessing import Process, Queue
 import random
 
 from pLogic.pDeck import PDeck
-from decisionMaker import DecisionMaker
+from decisionMaker import DMK
 
 # table states
 TBL_STT = {

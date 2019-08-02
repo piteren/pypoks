@@ -20,7 +20,7 @@ from pLogic.pDeck import PDeck
 
 
 # basic implementation of DMK (random sampling)
-class DecisionMaker:
+class DMK:
 
     def __init__(
             self,
@@ -35,15 +35,12 @@ class DecisionMaker:
         self.randMove = randMove
 
         self.nPl = nPl
-        """
-            variables below are permanently updated (by encState,)
-            store data for FWD and BWD batches
-            keep information needed for stats
-        """
+        # variables below store data for FWD and BWD batches and state evaluation, are permanently updated (by encState, runUpdate...)
         self.lDMR = {ix: [] for ix in range(self.nPl)}  # list of dicts {'decState': 'move': 'reward':}
         self.preflop = {ix: True for ix in range(self.nPl)} # preflop indicator
         self.plsHpos = {ix: [] for ix in range(self.nPl)} # positions @table of players from self.pls
         self.psblMoves = {ix: [] for ix in range(self.nPl)} # possible moves save
+        self.nH = 0 # number of hands
 
         self.runTB = runTB
         self.summWriter = tf.summary.FileWriter(logdir='_nnTB/' + self.name, flush_secs=10) if runTB else None
@@ -115,6 +112,12 @@ class DecisionMaker:
 
             # get reward and update
             if key == 'winnersData':
+
+                self.nH += 1
+                if self.nH % 1000 == 0:
+                    print(' >>> running time: %.1fsec/%d' % (time.time() - self.repTime, 1000))
+                    self.repTime = time.time()
+
                 myReward = 0
                 for el in state[key]:
                     if el['pIX'] == 0: myReward = el['won']
@@ -169,12 +172,8 @@ class DecisionMaker:
                     if V:
                         for key in self.sts.keys():
                             self.sts[key][1] = 0
-                if self.summWriter and self.sts['nH'][1] % self.stsV == 0:
-                    repSTS(True)
-                if self.summWriter and self.sts['nH'][0] % 1000 == 0:
-                    repSTS()
-                    print(' >>> training time: %.1fsec/%d' % (time.time() - self.repTime, 1000))
-                    self.repTime = time.time()
+                if self.summWriter and self.sts['nH'][1] % self.stsV == 0:  repSTS(True)
+                if self.summWriter and self.sts['nH'][0] % 1000 == 0:       repSTS()
 
                 self.runUpdate()
 
@@ -263,274 +262,8 @@ class DecisionMaker:
     # runs update of DMK based saved decStates, moves and rewards
     def runUpdate(self): pass
 
-# first, base, neural-DMK, LSTM with multi-state to decision
-class BNdmk(DecisionMaker):
-
-    def __init__(
-            self,
-            iQue: Queue,
-            oQue: Queue,
-            name=       None,
-            randMove=   0.2):
-
-        super().__init__(
-            name=       name,
-            iQue=       iQue,
-            oQue=       oQue,
-            randMove=   randMove,
-            runTB=      True)
-
-        self.session = tf.compat.v1.Session()
-
-        self.wET = 8 # event type emb width
-        self.wC = 20 # card (single) emb width
-        self.wV = 120 # width of values vector
-
-        self.lastFwdState = None # netState after last fwd
-        self.lastUpdState = None # netState after last update
-
-        self._buildGraph()
-        self.session.run(tf.initializers.variables(var_list=self.vars+self.optVars))
-
-    # builds NN graph
-    def _buildGraph(self):
-
-        with tf.variable_scope('bnnDMK_%s'%self.name):
-
-            width = self.wET + self.wC*3 + self.wV
-            cell = tf.contrib.rnn.NASCell(width)
-
-            self.inET =         tf.placeholder( # event type
-                name=           'inET',
-                dtype=          tf.int32,
-                shape=          [None,None]) # [bsz,seq]
-
-            etEMB = tf.get_variable( # event type embeddings
-                name=           'etEMB',
-                shape=          [10,self.wET],
-                dtype=          tf.float32,
-                initializer=    defInitializer())
-
-            self.inC = tf.placeholder( # 3 cards
-                name=           'inC',
-                dtype=          tf.int32,
-                shape=          [None,None,3]) # [bsz,seq,3cards]
-
-            cEMB = tf.get_variable( # cards embeddings
-                name=           'cEMB',
-                shape=          [53,self.wC], # one card for 'no_card'
-                dtype=          tf.float32,
-                initializer=    defInitializer())
-
-            self.inV = tf.placeholder( # event float values
-                name=           'inV',
-                dtype=          tf.float32,
-                shape=          [None,None,self.wV]) # [bsz,seq,vec]
-
-            self.move = tf.placeholder( # "correct" move (class)
-                name=           'move',
-                dtype=          tf.int32,
-                shape=          [None]) # [bsz]
-
-            self.reward = tf.placeholder( # reward for "correct" move
-                name=           'reward',
-                dtype=          tf.float32,
-                shape=          [None]) # [bsz]
-
-            inETemb = tf.nn.embedding_lookup(params=etEMB, ids=self.inET)
-            print(' > inETemb:', inETemb)
-
-            inCemb = tf.nn.embedding_lookup(params=cEMB, ids=self.inC)
-            print(' > inCemb:', inCemb)
-            inCemb = tf.unstack(inCemb, axis=-2)
-            inCemb = tf.concat(inCemb, axis=-1)
-            print(' > inCemb:', inCemb)
-
-            input = tf.concat([inETemb, inCemb, self.inV], axis=-1)
-            denseOut = layDENSE(
-                input=      input,
-                units=      width,
-                activation= tf.nn.relu)
-            input = denseOut['output']
-            input = tf.contrib.layers.layer_norm(
-                    inputs=             input,
-                    begin_norm_axis=    -1,
-                    begin_params_axis=  -1)
-            print(' > input:', input)
-
-            bsz = tf.shape(input)[0]
-            self.inState = tf.placeholder_with_default(
-                input=      tf.zeros(shape=[2,bsz,width]),
-                shape=      [2,None,width],
-                name=       'state')
-
-            # state is a tensor of shape [batch_size, cell_state_size]
-            c, h = tf.unstack(self.inState, axis=0)
-            cellZS = tf.nn.rnn_cell.LSTMStateTuple(c,h)
-            print(' > cell zero state:', cellZS)
-
-            out, state = tf.nn.dynamic_rnn(
-                cell=           cell,
-                inputs=         input,
-                initial_state=  cellZS,
-                dtype=          tf.float32)
-
-            self.finState = tf.stack(state, axis=0)
-            print(' > out:', out)
-            print(' > state:', self.finState)
-
-            denseOut = layDENSE(
-                input=      out[:,-1,:],
-                units=      4,
-                activation= tf.nn.relu)
-            logits = denseOut['output']
-            print(' > logits:', logits)
-
-            self.probs = tf.nn.softmax(logits)
-
-            self.vars = tf.trainable_variables(scope=tf.get_variable_scope().name)
-            print(' ### num of vars %s'%shortSCIN(numVFloats(self.vars)))
-
-            loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
-            self.loss = loss(self.move, logits, sample_weight=self.reward)
-            self.gradients = tf.gradients(self.loss, self.vars)
-            self.gN = tf.global_norm(self.gradients)
-
-            self.gradients, _ = tf.clip_by_global_norm(t_list=self.gradients, clip_norm=1, use_norm=self.gN)
-
-            #optimizer = tf.train.GradientDescentOptimizer(1e-5)
-            optimizer = tf.compat.v1.train.AdamOptimizer(1e-6)
-
-            self.optimizer = optimizer.apply_gradients(zip(self.gradients,self.vars))
-
-            # select optimizer vars
-            self.optVars = []
-            for var in tf.global_variables(scope=tf.get_variable_scope().name):
-                if var not in self.vars: self.optVars.append(var)
-
-
-    def resetME(self, newName=None):
-        super().resetME(newName)
-        self.session.run(tf.initializers.global_variables())
-
-    # prepares state in form of nn input
-    def _encState(
-            self,
-            tableStateChanges: list):
-
-        super()._encState(tableStateChanges)
-
-        inET = []  # list of ints
-        inC = []  # list of (int,int,int)
-        inV = []  # list of vectors
-        for state in tableStateChanges:
-            key = list(state.keys())[0]
-
-            if key == 'playersPC':
-                cards = state[key][self.plsHpos[0]][1]
-                vec = np.zeros(shape=self.wV)
-                vec[0] = self.plsHpos[0]
-
-                inET.append(0)
-                inC.append((PDeck.cti(cards[0]), PDeck.cti(cards[1]), 52))
-                inV.append(vec)
-
-            if key == 'newTableCards':
-                cards = state[key]
-                cards = [PDeck.cti(card) for card in cards]
-                while len(cards) < 3: cards.append(52)
-
-                inET.append(1)
-                inC.append(cards)
-                inV.append(np.zeros(shape=self.wV))
-
-            if key == 'moveData':
-                vec = np.zeros(shape=self.wV)
-                vec[0] = state[key]['pIX']
-                vec[1] = state[key]['tBCash'] / 1500
-                vec[2] = state[key]['pBCash'] / 500
-                vec[3] = state[key]['pBCHandCash'] / 500
-                vec[4] = state[key]['pBCRiverCash'] / 500
-                vec[5] = state[key]['bCashToCall'] / 500
-                vec[6] = state[key]['plMove'][0] / 3
-                vec[7] = state[key]['tACash'] / 1500
-                vec[8] = state[key]['pACash'] / 500
-                vec[9] = state[key]['pACHandCash'] / 500
-                vec[10] = state[key]['pACRiverCash'] / 500
-
-                inET.append(2)
-                inC.append((52, 52, 52))
-                inV.append(vec)
-
-        nnInput = [inET], [inC], [inV]
-        return nnInput
-
-    # runs fwd to get probs (np.array)
-    def _calcProbs(
-            self,
-            decState):
-
-        inET, inC, inV = decState
-        feed = {
-            self.inET:  inET,
-            self.inC:   inC,
-            self.inV:   inV}
-        if self.lastFwdState is not None: feed[self.inState] = self.lastFwdState
-        fetches = [self.probs, self.finState]
-        probs, self.lastFwdState = self.session.run(fetches, feed_dict=feed)
-        return probs[0]
-
-    # runs update of net
-    def runUpdate(self):
-
-        if self.lDMR: # only when there was any decision
-            # reverse update of rewards
-            rew = 0
-            for dec in reversed(self.lDMR):
-                if dec['reward'] is not None:
-                    # rew = upInput[0]/1500
-                    rew = 1 if dec['reward'] > 0 else -1
-                    if dec['reward'] == 0: rew = 0
-                else: dec['reward'] = rew
-            for dec in self.lDMR:
-
-                inET =  dec['decState'][0]
-                inC =   dec['decState'][1]
-                inV =   dec['decState'][2]
-                move =  dec['move']
-                rew =   dec['reward']
-
-                feed = {
-                    self.inET:      inET,
-                    self.inC:       inC,
-                    self.inV:       inV,
-                    self.move:      [move],
-                    self.reward:    [rew]}
-                if self.lastUpdState is not None: feed[self.inState] = self.lastUpdState
-
-                fetches = [self.optimizer, self.loss, self.gN, self.gradients, self.finState]
-                _, loss, gN, grads, self.lastUpdState = self.session.run(fetches, feed_dict=feed)
-                """
-                for gr in grads:
-                    print(type(gr), end=' ')
-                    if type(gr) is np.ndarray: print(gr.shape)
-                    else: print(gr.dense_shape)
-                """
-                #print('loss %.3f gN %.3f' %(loss, gN))
-
-        self.lastFwdState = self.lastUpdState
-        self.lDMR = []
-
-    # takes reward (updates net)
-    def getReward(
-            self,
-            reward: int):
-
-        super().getReward(reward)
-        self.runUpdate()
-
-# second, neural-DMK, LSTM with single-state to decision
-class SNdmk(DecisionMaker):
+# Base-Neural-DMK (LSTM with single-state to decision)
+class BNDMK(DMK):
 
     def __init__(
             self,
@@ -779,7 +512,7 @@ class SNdmk(DecisionMaker):
             fetches = [self.probs, self.finState]
             probs, fwdStates = self.session.run(fetches, feed_dict=feed)
 
-            probs = np.reshape(probs, newshape=[probs.shape[0],probs.shape[-1]]) # TODO: maybe smarter way
+            probs = np.reshape(probs, newshape=(probs.shape[0],probs.shape[-1])) # TODO: maybe smarter way
 
             pProbsL = []
             for ix in range(fwdStates.shape[0]):
@@ -797,18 +530,20 @@ class SNdmk(DecisionMaker):
     # runs update of net
     def runUpdate(self):
 
-        nM = [len(self.lDMR[ix]) for ix in self.lDMR.keys()] # number of saved moves per player (not all rewarded)
+        nM = [len(self.lDMR[ix]) for ix in range(self.nPl)] # number of saved moves per player (not all rewarded)
         avgNM = sum(nM)/len(nM) # avg
 
         # do update
         if avgNM > 100: # TODO: hardcoded value!
-            nR = {ix: 0 for ix in range(self.nPl)} # factual num of rewarded moves
+            print('min med max nM', min(nM), avgNM, max(nM))
+            nR = [0]* self.nPl # factual num of rewarded moves
             for pix in range(self.nPl):
                 for mix in reversed(range(len(self.lDMR[pix]))):
                     if self.lDMR[pix][mix]['reward'] is not None:
                         nR[pix] = mix
                         break
-            minNR = min([nR[k] for k in  nR.keys()])
+            minNR = min(nR)
+            print('min med max nR', minNR, sum(nR)/len(nR), max(nR))
 
             # build batches of data
             inCbatch = []

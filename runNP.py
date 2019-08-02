@@ -24,8 +24,7 @@ import tensorflow as tf
 import time
 import os
 
-from pLogic.pTable import PTable
-from decisionMaker import DecisionMaker, BNdmk, SNdmk
+from decisionMaker import DMK, BNDMK
 from dmkManager import DMKManager
 
 
@@ -34,9 +33,12 @@ if __name__ == "__main__":
     # tf verbosity
     tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+
     session = tf.Session()
 
-    dMKs = [SNdmk(session=session, name='dmk%d'%ix, nPl=30) for ix in range(1)]
+    dMKs = []
+    dMKs.append(BNDMK(session=session, name='BNdmk', nPl=300))
+    dMKs.append(DMK(name='dmk', nPl=300))
     dmkMan = DMKManager(
         dMKs=       dMKs,
         pMsg=       False,
