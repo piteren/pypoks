@@ -14,6 +14,7 @@ class DMKManager:
     def __init__(
             self,
             dMKs :list,
+            pMsg=       False,
             verbLev=    0):
 
         self.verbLev = verbLev
@@ -39,7 +40,9 @@ class DMKManager:
             table = PTable(
                 pIQues=     tpIQues,
                 pOQue=      self.pOQue,
-                name=       'tbl%d'%tix)
+                name=       'tbl%d'%tix,
+                pMsg=       pMsg,
+                verbLev=    self.verbLev)
             self.tables.append(table)
 
     def runGames(self):

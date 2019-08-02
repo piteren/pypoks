@@ -36,24 +36,9 @@ if __name__ == "__main__":
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
     session = tf.Session()
 
-    #dMKs = [DecisionMaker(name='dmk%d'%ix, nPl=10) for ix in range(3)]
-    dMKs = [SNdmk(session=session, name='dmk%d'%ix, nPl=100) for ix in range(3)]
+    dMKs = [SNdmk(session=session, name='dmk%d'%ix, nPl=900) for ix in range(1)]
     dmkMan = DMKManager(
         dMKs=       dMKs,
+        pMsg=       False,
         verbLev=    1)
     dmkMan.runGames()
-
-
-    """
-    for _ in range(1):
-        print()
-        n = 0
-        while n < 1e6:
-            n += 1
-            pTable.runHand()
-            if n % 1000 == 0:
-                #print(dMKa.sts['$'][0], n)
-                #print(dMKa.sts['$'][0], dMKb.sts['$'][0], n)
-                print(dMKa.sts['$'][0], dMKb.sts['$'][0], dMKc.sts['$'][0], n)
-        #dMKa.resetME(newName='dMKa_%s'% time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3])
-    """

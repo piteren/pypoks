@@ -61,6 +61,28 @@ class PTable(Process):
             self.cHandCash = 0 # current hand cash (amount put by player on current hand)
             self.cRiverCash = 0 # current river cash (amount put by player on current river)
 
+        # translates table history into player history
+        def _translateTH(
+                self,
+                stateChanges):
+
+            for state in stateChanges:
+                key = list(state.keys())[0]
+
+                if key == 'playersPC':
+                    for el in state[key]:
+                        el[0] = self.pls.index(el[0]) # replace names with indexes
+                        if el[0]: el[1] = None # hide cards of not mine (just in case)
+
+                if key == 'moveData':
+                    state[key]['pIX'] = self.pls.index(state[key]['pName']) # insert player index
+                    del(state[key]['pName']) # remove player name
+
+                if key == 'winnersData':
+                    for el in state[key]:
+                        el['pIX'] = self.pls.index(el['pName']) # insert player index
+                        del(el['pName']) # remove player name
+
         # asks DMK for move decision (having table status ...and any other info)
         def makeMove(
                 self,
@@ -83,13 +105,7 @@ class PTable(Process):
             stateChanges = copy.deepcopy(handH[self.nhsIX:]) # copy part of history
             self.nhsIX = len(handH) # update index for next
 
-            # update table history with player history
-            for state in stateChanges:
-                key = list(state.keys())[0]
-
-                if key == 'moveData':
-                    state[key]['pIX'] = self.pls.index(state[key]['pName']) # insert player index
-                    del(state[key]['pName']) # remove player name
+            self._translateTH(stateChanges) # update table history with player history
 
             self.oQue.put([self.pAddr, stateChanges, possibleMoves])
             selectedMove = self.iQue.get()
@@ -104,19 +120,7 @@ class PTable(Process):
             stateChanges = copy.deepcopy(handH[self.nhsIX:])  # copy part of history
             self.nhsIX = len(handH)  # update index for next
 
-            # update table history with player history
-            for state in stateChanges:
-                key = list(state.keys())[0]
-
-                if key == 'playersPC':
-                    for el in state[key]:
-                        el[0] = self.pls.index(el[0]) # replace names with indexes
-                        if el[0]: el[1] = None # hide cards of not mine (just in case)
-
-                if key == 'winnersData':
-                    for el in state[key]:
-                        el['pIX'] = self.pls.index(el['pName']) # insert player index
-                        del(el['pName']) # remove player name
+            self._translateTH(stateChanges) # update table history with player history
 
             self.oQue.put([self.pAddr, stateChanges, None])
 

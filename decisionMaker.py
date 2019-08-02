@@ -175,7 +175,8 @@ class DecisionMaker:
                     repSTS()
                     print(' >>> training time: %.1fsec/%d' % (time.time() - self.repTime, 1000))
                     self.repTime = time.time()
-                self.runUpdate()
+                # TODO: not updating by now
+                # self.runUpdate()
 
         # custom implementation should add further decState preparation
         decState = None
@@ -553,12 +554,14 @@ class SNdmk(DecisionMaker):
 
         self._buildGraph()
 
-        zeroState = self.session.run(self.singleZeroState)
+        zeroState = self.session.run(self.singleZeroState)#.tolist()
         self.lastFwdState = {ix: zeroState  for ix in range(self.nPl)} # netState after last fwd
         self.lastUpdState = {ix: zeroState  for ix in range(self.nPl)} # netState after last update
         self.myCards =      {ix: None       for ix in range(self.nPl)} # player+table cards
         self.decStates =    {}
 
+        self.session.run(tf.initializers.variables(var_list=self.vars+self.optVars))
+        self.nHF = 0 # num of forward predictions
 
     # builds NN graph
     def _buildGraph(self):
@@ -606,17 +609,17 @@ class SNdmk(DecisionMaker):
             print(' > inCemb:', inCemb)
             inCemb = tf.unstack(inCemb, axis=-2)
             inCemb = tf.concat(inCemb, axis=-1)
-            print(' > inCemb:', inCemb)
+            print(' > inCemb (flattened):', inCemb)
 
             inMTemb = tf.nn.embedding_lookup(params=mtEMB, ids=self.inMT)
             print(' > inMTemb:', inMTemb)
             inMTemb = tf.unstack(inMTemb, axis=-2)
             inMTemb = tf.concat(inMTemb, axis=-1)
-            print(' > inMTemb:', inMTemb)
+            print(' > inMTemb (flattened):', inMTemb)
 
             inV = tf.unstack(self.inV, axis=-2)
             inV = tf.concat(inV, axis=-1)
-            print(' > inV:', inV)
+            print(' > inV (flattened):', inV)
 
             input = tf.concat([inCemb, inMTemb, inV], axis=-1)
             print(' > input (concatenated):', input) # width = self.wC*3 + (self.wMT + self.wV)*2
@@ -651,9 +654,11 @@ class SNdmk(DecisionMaker):
                 initial_state=  cellZS,
                 dtype=          tf.float32)
 
-            self.finState = tf.stack(state, axis=0)
             print(' > out:', out)
-            print(' > state:', self.finState)
+            print(' > state:', state)
+            state = tf.concat(state, axis=-1)
+            self.finState = tf.reshape(state, shape=[-1,2,self.cellW])
+            print(' > finState:', self.finState)
 
             denseOut = layDENSE(
                 input=      out[:,-1,:],
@@ -712,7 +717,6 @@ class SNdmk(DecisionMaker):
                 self.myCards[pIX] += [PDeck.cti(card) for card in tCards]
 
             if key == 'moveData':
-
                 who = state[key]['pIX'] # who moved
                 if who: # my index is 0, so do not include my moves
 
@@ -751,13 +755,9 @@ class SNdmk(DecisionMaker):
         self.decStates[pIX] = decState
 
         pProbsL = None
-        if len(self.decStates) == self.nPl // 4: # TODO: HARDCODED AMOUNT !!!
-
-            print(' >>>>>>>>>>>>>>>> ', len(self.decStates))
+        if len(self.decStates) == 300: # TODO: HARDCODED AMOUNT !!!
 
             pIXsl = sorted(list(self.decStates.keys())) # sorted list of pIX that will be processed
-
-            print(' >>>>>>>>>>>>>>>> ', pIXsl)
 
             inCbatch = []
             inMTbatch = []
@@ -767,10 +767,8 @@ class SNdmk(DecisionMaker):
                 inCseq, inMTseq, inVseq = self.decStates[pIX]
                 inCbatch.append(inCseq)
                 inMTbatch.append(inMTseq)
-                inVbatch.append(inVbatch)
+                inVbatch.append(inVseq)
                 statesBatch.append(self.lastFwdState[pIX])
-
-            print(' >>>>>>>>>>>>>>>> ', statesBatch)
 
             feed = {
                 self.inC:       inCbatch,
@@ -781,8 +779,6 @@ class SNdmk(DecisionMaker):
             fetches = [self.probs, self.finState]
             probs, fwdStates = self.session.run(fetches, feed_dict=feed)
 
-            print(' >>>>>>>>>>>>>>>> ', probs)
-
             pProbsL = []
             for ix in range(fwdStates.shape[0]):
                 pIX = pIXsl[ix]
@@ -791,11 +787,15 @@ class SNdmk(DecisionMaker):
 
             self.decStates = {}
 
+        if pProbsL:
+            self.nHF += len(pProbsL)
+            print(self, self.nHF)
         return pProbsL
 
     # runs update of net
     def runUpdate(self):
 
+        print(' >>>>>>>>>>>>>>>>>>> SNdmk running update <<<<<<<<<<<<<<<<<<<<<<<<<')
         if self.lDSTMVwR: # only when there was any decision
             # reverse update of rewards
             rew = 0
@@ -833,13 +833,3 @@ class SNdmk(DecisionMaker):
 
         self.lastFwdState = self.lastUpdState
         self.lDSTMVwR = []
-
-    # takes reward (updates net)
-    def getReward(
-            self,
-            reward: int):
-
-        super().getReward(reward)
-        self.myCards = []
-        #self.runUpdate()
-        if self.sts['nH'][0] % 100 == 0: self.runUpdate()
