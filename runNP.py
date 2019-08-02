@@ -37,7 +37,8 @@ if __name__ == "__main__":
     session = tf.Session()
 
     dMKs = []
-    dMKs.append(BNDMK(session=session, name='BNdmk', nPl=300))
+    dMKs.append(BNDMK(session=session, name='dmA_%s'%time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3], nPl=300))
+    dMKs.append(BNDMK(session=session, name='dmB_%s'%time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3], nPl=300))
     dMKs.append(DMK(name='dmk', nPl=300))
     dmkMan = DMKManager(
         dMKs=       dMKs,

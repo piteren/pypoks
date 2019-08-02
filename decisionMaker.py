@@ -48,13 +48,16 @@ class DMK:
         self.repTime = time.time()
         self.stsV = 1000 # stats interval
         self.sts = {} # stats
-        self.cHSdata = {} # current hand data for stats
+        self.cHSdata = {ix: None for ix in range(self.nPl)} # current hand data for stats per player
         self._resetSTS()
-        self._resetCSHD()
+        for pIX in range(self.nPl): self._resetCSHD(pIX)
 
-    # resets self.cHSdata
-    def _resetCSHD(self):
-        self.cHSdata = {
+    # resets self.cHSdata for player
+    def _resetCSHD(
+            self,
+            pIX):
+
+        self.cHSdata[pIX] = {
             'VPIP':     False,
             'PFR':      False,
             'SH':       False,
@@ -70,16 +73,14 @@ class DMK:
           SH - Stacked Hands; %H where player stacked
           AGG - Postflop Aggression Frequency %; (totBet + totRaise) / anyMove *100, only postflop
         """
-        self.sts = {
-                      # [total,interval]
+        self.sts = {  # [total,interval]
             'nH':       [0,0],  # n hands played
             '$':        [0,0],  # $ won
             'nVPIP':    [0,0],  # n hands with VPIP
             'nPFR':     [0,0],  # n hands with PFR
             'nSH':      [0,0],  # n hands stacked
             'nPM':      [0,0],  # n moves postflop
-            'nAGG':     [0,0],  # n aggressive moves postflop
-        }
+            'nAGG':     [0,0]}  # n aggressive moves postflop
 
     """
     # resets knowledge, stats, name of DMK
@@ -127,26 +128,17 @@ class DMK:
                     if self.lDMR[pIX][ix]['reward'] is None: self.lDMR[pIX][ix]['reward'] = myReward  # update reward
                     else: break
 
-                self.sts['nH'][0] += 1
-                self.sts['nH'][1] += 1
-                self.sts['$'][0] += myReward
-                self.sts['$'][1] += myReward
+                for ti in [0,1]:
+                    self.sts['nH'][ti] += 1
+                    self.sts['$'][ti] += myReward
 
-                # update self.sts with self.cHSdata
-                if self.cHSdata['VPIP']:
-                    self.sts['nVPIP'][0] += 1
-                    self.sts['nVPIP'][1] += 1
-                if self.cHSdata['PFR']:
-                    self.sts['nPFR'][0] += 1
-                    self.sts['nPFR'][1] += 1
-                if self.cHSdata['SH']:
-                    self.sts['nSH'][0] += 1
-                    self.sts['nSH'][1] += 1
-                self.sts['nPM'][0] += self.cHSdata['nPM']
-                self.sts['nPM'][1] += self.cHSdata['nPM']
-                self.sts['nAGG'][0] += self.cHSdata['nAGG']
-                self.sts['nAGG'][1] += self.cHSdata['nAGG']
-                self._resetCSHD()
+                    # update self.sts with self.cHSdata
+                    if self.cHSdata[pIX]['VPIP']:    self.sts['nVPIP'][ti] += 1
+                    if self.cHSdata[pIX]['PFR']:     self.sts['nPFR'][ti] += 1
+                    if self.cHSdata[pIX]['SH']:      self.sts['nSH'][ti] += 1
+                    self.sts['nPM'][ti] += self.cHSdata[pIX]['nPM']
+                    self.sts['nAGG'][ti] += self.cHSdata[pIX]['nAGG']
+                self._resetCSHD(pIX)
 
                 # sts reporting procedure
                 def repSTS(V=False):
@@ -201,13 +193,13 @@ class DMK:
             pIX,    # player index
             move):  # player move
 
-        if move == 3: self.cHSdata['SH'] = True
+        if move == 3: self.cHSdata[pIX]['SH'] = True
         if self.preflop[pIX]:
-            if move == 1 and self.plsHpos[pIX][0] != 1 or move > 1: self.cHSdata['VPIP'] = True
-            if move > 1: self.cHSdata['PFR'] = True
+            if move == 1 and self.plsHpos[pIX][0] != 1 or move > 1: self.cHSdata[pIX]['VPIP'] = True
+            if move > 1: self.cHSdata[pIX]['PFR'] = True
         else:
-            self.cHSdata['nPM'] += 1
-            if move > 1: self.cHSdata['nAGG'] += 1
+            self.cHSdata[pIX]['nPM'] += 1
+            if move > 1: self.cHSdata[pIX]['nAGG'] += 1
 
     # makes decisions based on stateChanges - selects move from possibleMoves using calculated probabilities
     # returns decisions in form of [(pIX,move)...] or None
@@ -270,7 +262,7 @@ class BNDMK(DMK):
             session :tf.Session,
             name :str,
             nPl=        100,
-            randMove=   0.2):
+            randMove=   0.1):
 
         super().__init__(
             name=       name,
@@ -413,7 +405,7 @@ class BNDMK(DMK):
             self.gradients, _ = tf.clip_by_global_norm(t_list=self.gradients, clip_norm=1, use_norm=self.gN)
 
             #optimizer = tf.train.GradientDescentOptimizer(1e-5)
-            optimizer = tf.compat.v1.train.AdamOptimizer(1e-6)
+            optimizer = tf.compat.v1.train.AdamOptimizer(1e-3)
 
             self.optimizer = optimizer.apply_gradients(zip(self.gradients,self.vars))
 
@@ -531,7 +523,7 @@ class BNDMK(DMK):
     def runUpdate(self):
 
         nM = [len(self.lDMR[ix]) for ix in range(self.nPl)] # number of saved moves per player (not all rewarded)
-        avgNM = sum(nM)/len(nM) # avg
+        avgNM = int(sum(nM)/len(nM)) # avg
 
         # do update
         if avgNM > 100: # TODO: hardcoded value!
@@ -542,8 +534,10 @@ class BNDMK(DMK):
                     if self.lDMR[pix][mix]['reward'] is not None:
                         nR[pix] = mix
                         break
-            minNR = min(nR)
-            print('min med max nR', minNR, sum(nR)/len(nR), max(nR))
+            avgNR = int(sum(nR)/len(nR))
+            print('min med max nR', min(nR), avgNR, max(nR))
+            uPIX = [ix for ix in range(self.nPl) if nR[ix] >= avgNR]
+            print('len(uPIX)', len(uPIX))
 
             # build batches of data
             inCbatch = []
@@ -551,13 +545,13 @@ class BNDMK(DMK):
             inVbatch = []
             moveBatch = []
             rewBatch = []
-            for pix in range(self.nPl):
+            for pix in uPIX:
                 inCseq = []
                 inMTseq = []
                 inVseq = []
                 moveSeq = []
                 rewSeq = []
-                for nM in range(minNR):
+                for nM in range(avgNR):
                     mDict = self.lDMR[pix][nM]
                     decState = mDict['decState']
                     inCseq += decState[0]
@@ -572,7 +566,7 @@ class BNDMK(DMK):
                 inVbatch.append(inVseq)
                 moveBatch.append(moveSeq)
                 rewBatch.append(rewSeq)
-            statesBatch = [self.lastUpdState[ix] for ix in range(self.nPl)]  # build directly from dict of Upd states
+            statesBatch = [self.lastUpdState[ix] for ix in uPIX]  # build directly from dict of Upd states
 
             """
             inCbatch = np.asarray(inCbatch)
@@ -601,6 +595,7 @@ class BNDMK(DMK):
             _, loss, gN, grads, updStates = self.session.run(fetches, feed_dict=feed)
             print('loss %.3f gN %.3f' %(loss, gN))
 
-            for pIX in range(self.nPl):
-                self.lastUpdState[pIX] = updStates[pIX] # save states
-                self.lDMR[pIX] = self.lDMR[pIX][minNR:] # trim
+            for ix in range(len(uPIX)):
+                pIX = uPIX[ix]
+                self.lastUpdState[pIX] = updStates[ix] # save states
+                self.lDMR[pIX] = self.lDMR[pIX][avgNR:] # trim
