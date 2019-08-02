@@ -43,18 +43,15 @@ class DMKManager:
             self.tables.append(table)
 
     def runGames(self):
+
         for tbl in self.tables: tbl.start() # start tables
 
         while True:
             pAddr, stateChanges, possibleMoves = self.pOQue.get() # wait for player data
-            dix, pix = pAddr
-            decState = self.dMKs[dix].encState(pix, stateChanges) # encode table state with DMK encoder
-
-            # this is ask for move
-            if possibleMoves is not None:
-                dec = self.dMKs[dix].mDec(pix, decState, possibleMoves)
-                # got decisions for some players
-                if dec is not None:
-                    for d in dec:
-                        pIX, move = d
-                        self.pIQues[(dix,pIX)].put(move)
+            dix, pix = pAddr # resolve address
+            dec = self.dMKs[dix].procPLData(pAddr, stateChanges, possibleMoves)
+            # split dec among ques
+            if dec is not None:
+                for d in dec:
+                    pIX, move = d
+                    self.pIQues[(dix,pIX)].put(move)

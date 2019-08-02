@@ -31,20 +31,18 @@ from dmkManager import DMKManager
 
 if __name__ == "__main__":
 
-    """
     # tf verbosity
     tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
     session = tf.Session()
-    """
 
-    dMKs = [DecisionMaker(name='dmk%d'%ix, nPl=10) for ix in range(3)]
+    #dMKs = [DecisionMaker(name='dmk%d'%ix, nPl=10) for ix in range(3)]
+    dMKs = [SNdmk(session=session, name='dmk%d'%ix, nPl=100) for ix in range(3)]
     dmkMan = DMKManager(
         dMKs=       dMKs,
-        verbLev=    1
-    )
+        verbLev=    1)
     dmkMan.runGames()
-    tables = [PTable(dMKs=dMKs, name='T_%d'%ix, pMsg=False, verbLev=2) for ix in range(1)]
+
 
     """
     for _ in range(1):

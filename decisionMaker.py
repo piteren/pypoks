@@ -95,7 +95,7 @@ class DecisionMaker:
 
     # table state encoder (into decState form - readable by DMC.getProbs method)
     # + updates some info (pos, pre/postflop tableState) in self variables
-    def encState(
+    def _encState(
             self,
             pIX :int,
             tableStateChanges :list):
@@ -182,7 +182,7 @@ class DecisionMaker:
         return decState
 
     # returns probabilities of for move in form of [(pIX,probs)...] or None
-    def getProbs(
+    def _calcProbs(
             self,
             pIX,
             decState):
@@ -190,7 +190,7 @@ class DecisionMaker:
         """
         here goes custom implementation with:
          - more than random
-         - multi pIX
+         - multi player calculation >> probs will be calculated in batches
         """
         # equal probs
         return [(pIX, [1/self.nMoves]*self.nMoves)]
@@ -209,20 +209,22 @@ class DecisionMaker:
             self.cHSdata['nPM'] += 1
             if move > 1: self.cHSdata['nAGG'] += 1
 
-    # makes decision based on stateChanges - selects move from possibleMoves
-    # returns in form of [(pIX,move)...] or None
+    # makes decisions based on stateChanges - selects move from possibleMoves using calculated probabilities
+    # returns decisions in form of [(pIX,move)...] or None
     # TODO: prep mDec in tournament mode (no sampling from distribution, but max)
-    def mDec(
+    def _makeDec(
             self,
             pIX :int,
             decState,
             possibleMoves :list):
 
-        pProbsL = self.getProbs(pIX, decState)
+        pProbsL = self._calcProbs(pIX, decState)
         self.psblMoves[pIX] = possibleMoves # save possible moves
 
-        pMoves = []
+        # players probabilities list will be returned from time to time, same for decisions
+        decs = None
         if pProbsL is not None:
+            decs = []
             for pProbs in pProbsL:
                 pIX, probs = pProbs
                 if random.random() < self.randMove: probs = [1/self.nMoves] * self.nMoves
@@ -233,7 +235,7 @@ class DecisionMaker:
                 else: probs = [1/self.nMoves] * self.nMoves
 
                 move = np.random.choice(np.arange(self.nMoves), p=probs) # sample from probs
-                pMoves.append((pIX, move))
+                decs.append((pIX, move))
 
                 # save state and move (for updates etc.)
                 self.lDSTMVwR[pIX].append({
@@ -243,8 +245,19 @@ class DecisionMaker:
 
                 self._updMoveStats(pIX, move)  # stats
 
-        else: return None
-        return pMoves
+        return decs
+
+    # takes player data and wraps stateEncoding+makingDecision
+    def procPLData(
+            self,
+            pAddr,
+            stateChanges,
+            possibleMoves):
+
+        dix, pix = pAddr
+        decState = self._encState(pix, stateChanges)  # encode table state with DMK encoder
+        decs = self._makeDec(pix, decState, possibleMoves) if possibleMoves is not None else None
+        return decs
 
     # runs update of DMK based saved decStates, moves and rewards
     def runUpdate(self): pass
@@ -400,11 +413,11 @@ class BNdmk(DecisionMaker):
         self.session.run(tf.initializers.global_variables())
 
     # prepares state in form of nn input
-    def encState(
+    def _encState(
             self,
             tableStateChanges: list):
 
-        super().encState(tableStateChanges)
+        super()._encState(tableStateChanges)
 
         inET = []  # list of ints
         inC = []  # list of (int,int,int)
@@ -452,7 +465,7 @@ class BNdmk(DecisionMaker):
         return nnInput
 
     # runs fwd to get probs (np.array)
-    def getProbs(
+    def _calcProbs(
             self,
             decState):
 
@@ -520,31 +533,32 @@ class SNdmk(DecisionMaker):
 
     def __init__(
             self,
-            iQue: Queue,
-            oQue: Queue,
-            name=       None,
+            session :tf.Session,
+            name :str,
+            nPl=        100,
             randMove=   0.2):
 
         super().__init__(
             name=       name,
-            iQue=       iQue,
-            oQue=       oQue,
+            nPl=        nPl,
             randMove=   randMove,
             runTB=      True)
 
-        self.session = tf.compat.v1.Session()
+        self.session = session
 
         self.wC = 16        # card (single) emb width
         self.wMT = 4        # move type emb width
         self.wV = 11        # values vector width, holds position @table and cash values
         self.cellW = 188    # cell width
 
-        self.lastFwdState = None # netState after last fwd
-        self.lastUpdState = None # netState after last update
-        self.myCards = []
-
         self._buildGraph()
-        self.session.run(tf.initializers.variables(var_list=self.vars+self.optVars))
+
+        zeroState = self.session.run(self.singleZeroState)
+        self.lastFwdState = {ix: zeroState  for ix in range(self.nPl)} # netState after last fwd
+        self.lastUpdState = {ix: zeroState  for ix in range(self.nPl)} # netState after last update
+        self.myCards =      {ix: None       for ix in range(self.nPl)} # player+table cards
+        self.decStates =    {}
+
 
     # builds NN graph
     def _buildGraph(self):
@@ -581,12 +595,12 @@ class SNdmk(DecisionMaker):
             self.move = tf.placeholder( # "correct" move (class)
                 name=           'move',
                 dtype=          tf.int32,
-                shape=          [None]) # [bsz]
+                shape=          [None,None]) # [bsz,seq]
 
             self.reward = tf.placeholder( # reward for "correct" move
                 name=           'reward',
                 dtype=          tf.float32,
-                shape=          [None]) # [bsz]
+                shape=          [None,None]) # [bsz,seq]
 
             inCemb = tf.nn.embedding_lookup(params=cEMB, ids=self.inC)
             print(' > inCemb:', inCemb)
@@ -618,13 +632,15 @@ class SNdmk(DecisionMaker):
             print(' > input (dense+LN):', input)
 
             bsz = tf.shape(input)[0]
-            self.inState = tf.placeholder_with_default(
-                input=      tf.zeros(shape=[2,bsz,self.cellW]),
-                shape=      [2,None,self.cellW],
-                name=       'state')
+            self.inState = tf.placeholder(
+                name=       'state',
+                dtype=      tf.float32,
+                shape=      [None,2,self.cellW])
+
+            self.singleZeroState = tf.zeros(shape=[2,self.cellW])
 
             # state is a tensor of shape [batch_size, cell_state_size]
-            c, h = tf.unstack(self.inState, axis=0)
+            c, h = tf.unstack(self.inState, axis=1)
             cellZS = tf.nn.rnn_cell.LSTMStateTuple(c,h)
             print(' > cell zero state:', cellZS)
 
@@ -668,17 +684,19 @@ class SNdmk(DecisionMaker):
             for var in tf.global_variables(scope=tf.get_variable_scope().name):
                 if var not in self.vars: self.optVars.append(var)
 
-
+    """
     def resetME(self, newName=None):
         super().resetME(newName)
-        self.session.run(tf.initializers.global_variables())
+        self.session.run(tf.initializers.global_variables()
+    """
 
     # prepares state in form of nn input
-    def encState(
+    def _encState(
             self,
+            pIX: int,
             tableStateChanges: list):
 
-        super().encState(tableStateChanges)
+        super()._encState(pIX, tableStateChanges)
 
         inMT = []  # list of moves (2)
         inV = []  # list of vectors (2)
@@ -686,12 +704,12 @@ class SNdmk(DecisionMaker):
             key = list(state.keys())[0]
 
             if key == 'playersPC':
-                myCards = state[key][self.plsHpos[0]][1]
-                self.myCards = [PDeck.cti(card) for card in myCards]
+                myCards = state[key][self.plsHpos[pIX][0]][1]
+                self.myCards[pIX] = [PDeck.cti(card) for card in myCards]
 
             if key == 'newTableCards':
                 tCards = state[key]
-                self.myCards += [PDeck.cti(card) for card in tCards]
+                self.myCards[pIX] += [PDeck.cti(card) for card in tCards]
 
             if key == 'moveData':
 
@@ -703,7 +721,7 @@ class SNdmk(DecisionMaker):
                     vec = np.zeros(shape=self.wV)
 
                     vec[0] = who
-                    vec[1] = self.plsHpos[who] # what position
+                    vec[1] = self.plsHpos[pIX][who] # what position
 
                     vec[2] = state[key]['tBCash'] / 1500
                     vec[3] = state[key]['pBCash'] / 500
@@ -717,27 +735,63 @@ class SNdmk(DecisionMaker):
 
                     inV.append(vec)
 
-        inC = [] + self.myCards
+        inC = [] + self.myCards[pIX]
         while len(inC) < 7: inC.append(52) # pad cards
-        while len(inMT) < 2*(len(self.plsHpos)-1): inMT.append(4) # pad moves
-        while len(inV) < 2*(len(self.plsHpos)-1): inV.append(np.zeros(shape=self.wV)) # pad vectors
-        nnInput = [[inC]], [[inMT]], [[inV]]
+        while len(inMT) < 2*(len(self.plsHpos[pIX])-1): inMT.append(4) # pad moves
+        while len(inV) < 2*(len(self.plsHpos[pIX])-1): inV.append(np.zeros(shape=self.wV)) # pad vectors
+        nnInput = [inC], [inMT], [inV] # seq of values (seq because of shape)
         return nnInput
 
-    # runs fwd to get probs (np.array)
-    def getProbs(
+    # calculates probs with NN for batches
+    def _calcProbs(
             self,
+            pIX,
             decState):
 
-        inC, inMT, inV = decState
-        feed = {
-            self.inC:   inC,
-            self.inMT:  inMT,
-            self.inV:   inV}
-        if self.lastFwdState is not None: feed[self.inState] = self.lastFwdState
-        fetches = [self.probs, self.finState]
-        probs, self.lastFwdState = self.session.run(fetches, feed_dict=feed)
-        return probs[0]
+        self.decStates[pIX] = decState
+
+        pProbsL = None
+        if len(self.decStates) == self.nPl // 4: # TODO: HARDCODED AMOUNT !!!
+
+            print(' >>>>>>>>>>>>>>>> ', len(self.decStates))
+
+            pIXsl = sorted(list(self.decStates.keys())) # sorted list of pIX that will be processed
+
+            print(' >>>>>>>>>>>>>>>> ', pIXsl)
+
+            inCbatch = []
+            inMTbatch = []
+            inVbatch = []
+            statesBatch = []
+            for pIX in pIXsl:
+                inCseq, inMTseq, inVseq = self.decStates[pIX]
+                inCbatch.append(inCseq)
+                inMTbatch.append(inMTseq)
+                inVbatch.append(inVbatch)
+                statesBatch.append(self.lastFwdState[pIX])
+
+            print(' >>>>>>>>>>>>>>>> ', statesBatch)
+
+            feed = {
+                self.inC:       inCbatch,
+                self.inMT:      inMTbatch,
+                self.inV:       inVbatch,
+                self.inState:   statesBatch}
+
+            fetches = [self.probs, self.finState]
+            probs, fwdStates = self.session.run(fetches, feed_dict=feed)
+
+            print(' >>>>>>>>>>>>>>>> ', probs)
+
+            pProbsL = []
+            for ix in range(fwdStates.shape[0]):
+                pIX = pIXsl[ix]
+                pProbsL.append((pIX,probs[ix]))
+                self.lastFwdState[pIX] = fwdStates[ix]
+
+            self.decStates = {}
+
+        return pProbsL
 
     # runs update of net
     def runUpdate(self):
