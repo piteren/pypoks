@@ -40,7 +40,7 @@ class DecisionMaker:
             store data for FWD and BWD batches
             keep information needed for stats
         """
-        self.lDSTMVwR = {ix: [] for ix in range(self.nPl)}  # list of dicts {'decState': 'move': 'reward':}
+        self.lDMR = {ix: [] for ix in range(self.nPl)}  # list of dicts {'decState': 'move': 'reward':}
         self.preflop = {ix: True for ix in range(self.nPl)} # preflop indicator
         self.plsHpos = {ix: [] for ix in range(self.nPl)} # positions @table of players from self.pls
         self.psblMoves = {ix: [] for ix in range(self.nPl)} # possible moves save
@@ -119,10 +119,10 @@ class DecisionMaker:
                 for el in state[key]:
                     if el['pIX'] == 0: myReward = el['won']
 
-                if self.lDSTMVwR[pIX]:  # only when there was any decision
-                    if self.lDSTMVwR[pIX][-1]['reward'] is None:  # only when last decision was not rewarded yet
-                        self.lDSTMVwR[pIX][-1]['reward'] = myReward  # update reward
-                        # TODO: update reward backward
+                # update reward backward
+                for ix in reversed(range(len(self.lDMR[pIX]))):
+                    if self.lDMR[pIX][ix]['reward'] is None: self.lDMR[pIX][ix]['reward'] = myReward  # update reward
+                    else: break
 
                 self.sts['nH'][0] += 1
                 self.sts['nH'][1] += 1
@@ -175,8 +175,8 @@ class DecisionMaker:
                     repSTS()
                     print(' >>> training time: %.1fsec/%d' % (time.time() - self.repTime, 1000))
                     self.repTime = time.time()
-                # TODO: not updating by now
-                # self.runUpdate()
+
+                self.runUpdate()
 
         # custom implementation should add further decState preparation
         decState = None
@@ -239,7 +239,7 @@ class DecisionMaker:
                 decs.append((pIX, move))
 
                 # save state and move (for updates etc.)
-                self.lDSTMVwR[pIX].append({
+                self.lDMR[pIX].append({
                     'decState': decState,
                     'move':     move,
                     'reward':   None})
@@ -483,16 +483,16 @@ class BNdmk(DecisionMaker):
     # runs update of net
     def runUpdate(self):
 
-        if self.lDSTMVwR: # only when there was any decision
+        if self.lDMR: # only when there was any decision
             # reverse update of rewards
             rew = 0
-            for dec in reversed(self.lDSTMVwR):
+            for dec in reversed(self.lDMR):
                 if dec['reward'] is not None:
                     # rew = upInput[0]/1500
                     rew = 1 if dec['reward'] > 0 else -1
                     if dec['reward'] == 0: rew = 0
                 else: dec['reward'] = rew
-            for dec in self.lDSTMVwR:
+            for dec in self.lDMR:
 
                 inET =  dec['decState'][0]
                 inC =   dec['decState'][1]
@@ -519,7 +519,7 @@ class BNdmk(DecisionMaker):
                 #print('loss %.3f gN %.3f' %(loss, gN))
 
         self.lastFwdState = self.lastUpdState
-        self.lDSTMVwR = []
+        self.lDMR = []
 
     # takes reward (updates net)
     def getReward(
@@ -661,7 +661,7 @@ class SNdmk(DecisionMaker):
             print(' > finState:', self.finState)
 
             denseOut = layDENSE(
-                input=      out[:,-1,:],
+                input=      out,
                 units=      4,
                 activation= tf.nn.relu)
             logits = denseOut['output']
@@ -755,7 +755,7 @@ class SNdmk(DecisionMaker):
         self.decStates[pIX] = decState
 
         pProbsL = None
-        if len(self.decStates) == 300: # TODO: HARDCODED AMOUNT !!!
+        if len(self.decStates) == self.nPl // 3: # TODO: hardcoded amount!
 
             pIXsl = sorted(list(self.decStates.keys())) # sorted list of pIX that will be processed
 
@@ -779,6 +779,8 @@ class SNdmk(DecisionMaker):
             fetches = [self.probs, self.finState]
             probs, fwdStates = self.session.run(fetches, feed_dict=feed)
 
+            probs = np.reshape(probs, newshape=[probs.shape[0],probs.shape[-1]]) # TODO: maybe smarter way
+
             pProbsL = []
             for ix in range(fwdStates.shape[0]):
                 pIX = pIXsl[ix]
@@ -789,47 +791,81 @@ class SNdmk(DecisionMaker):
 
         if pProbsL:
             self.nHF += len(pProbsL)
-            print(self, self.nHF)
+            #print(self, self.nHF)
         return pProbsL
 
     # runs update of net
     def runUpdate(self):
 
-        print(' >>>>>>>>>>>>>>>>>>> SNdmk running update <<<<<<<<<<<<<<<<<<<<<<<<<')
-        if self.lDSTMVwR: # only when there was any decision
-            # reverse update of rewards
-            rew = 0
-            for dec in reversed(self.lDSTMVwR):
-                if dec['reward'] is not None:
-                    # rew = upInput[0]/1500
-                    rew = 1 if dec['reward'] > 0 else -1
-                    if dec['reward'] == 0: rew = 0
-                else: dec['reward'] = rew
-            for dec in self.lDSTMVwR:
+        nM = [len(self.lDMR[ix]) for ix in self.lDMR.keys()] # number of saved moves per player (not all rewarded)
+        avgNM = sum(nM)/len(nM) # avg
 
-                inC =   dec['decState'][0]
-                inMT =  dec['decState'][1]
-                inV =   dec['decState'][2]
-                move =  dec['move']
-                rew =   dec['reward']
+        # do update
+        if avgNM > 100: # TODO: hardcoded value!
+            nR = {ix: 0 for ix in range(self.nPl)} # factual num of rewarded moves
+            for pix in range(self.nPl):
+                for mix in reversed(range(len(self.lDMR[pix]))):
+                    if self.lDMR[pix][mix]['reward'] is not None:
+                        nR[pix] = mix
+                        break
+            minNR = min([nR[k] for k in  nR.keys()])
 
-                feed = {
-                    self.inC:       inC,
-                    self.inMT:      inMT,
-                    self.inV:       inV,
-                    self.move:      [move],
-                    self.reward:    [rew]}
-                if self.lastUpdState is not None: feed[self.inState] = self.lastUpdState
+            # build batches of data
+            inCbatch = []
+            inMTbatch = []
+            inVbatch = []
+            moveBatch = []
+            rewBatch = []
+            for pix in range(self.nPl):
+                inCseq = []
+                inMTseq = []
+                inVseq = []
+                moveSeq = []
+                rewSeq = []
+                for nM in range(minNR):
+                    mDict = self.lDMR[pix][nM]
+                    decState = mDict['decState']
+                    inCseq += decState[0]
+                    inMTseq += decState[1]
+                    inVseq += decState[2]
+                    moveSeq.append(mDict['move'])
+                    rew = 1 if mDict['reward'] > 0 else -1
+                    if mDict['reward'] == 0: rew = 0
+                    rewSeq.append(rew)
+                inCbatch.append(inCseq)
+                inMTbatch.append(inMTseq)
+                inVbatch.append(inVseq)
+                moveBatch.append(moveSeq)
+                rewBatch.append(rewSeq)
+            statesBatch = [self.lastUpdState[ix] for ix in range(self.nPl)]  # build directly from dict of Upd states
 
-                fetches = [self.optimizer, self.loss, self.gN, self.gradients, self.finState]
-                _, loss, gN, grads, self.lastUpdState = self.session.run(fetches, feed_dict=feed)
-                """
-                for gr in grads:
-                    print(type(gr), end=' ')
-                    if type(gr) is np.ndarray: print(gr.shape)
-                    else: print(gr.dense_shape)
-                """
-                #print('loss %.3f gN %.3f' %(loss, gN))
+            """
+            inCbatch = np.asarray(inCbatch)
+            inMTbatch = np.asarray(inMTbatch)
+            inVbatch = np.asarray(inVbatch)
+            moveBatch = np.asarray(moveBatch)
+            rewBatch = np.asarray(rewBatch)
+            statesBatch = np.asarray(statesBatch)
+            print(inCbatch.shape)
+            print(inMTbatch.shape)
+            print(inVbatch.shape)
+            print(moveBatch.shape)
+            print(rewBatch.shape)
+            print(statesBatch.shape)
+            """
 
-        self.lastFwdState = self.lastUpdState
-        self.lDSTMVwR = []
+            feed = {
+                self.inC:       inCbatch,
+                self.inMT:      inMTbatch,
+                self.inV:       inVbatch,
+                self.move:      moveBatch,
+                self.reward:    rewBatch,
+                self.inState:   statesBatch}
+
+            fetches = [self.optimizer, self.loss, self.gN, self.gradients, self.finState]
+            _, loss, gN, grads, updStates = self.session.run(fetches, feed_dict=feed)
+            print('loss %.3f gN %.3f' %(loss, gN))
+
+            for pIX in range(self.nPl):
+                self.lastUpdState[pIX] = updStates[pIX] # save states
+                self.lDMR[pIX] = self.lDMR[pIX][minNR:] # trim

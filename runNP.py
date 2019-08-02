@@ -36,7 +36,7 @@ if __name__ == "__main__":
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
     session = tf.Session()
 
-    dMKs = [SNdmk(session=session, name='dmk%d'%ix, nPl=900) for ix in range(1)]
+    dMKs = [SNdmk(session=session, name='dmk%d'%ix, nPl=30) for ix in range(1)]
     dmkMan = DMKManager(
         dMKs=       dMKs,
         pMsg=       False,
