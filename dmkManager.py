@@ -2,6 +2,9 @@
 
  2019 (c) piteren
 
+ DMK Manager connects DMKs with tables
+ - takes list of DMK, puts their players on tables and runs game
+
 """
 
 from multiprocessing import Queue
@@ -20,13 +23,14 @@ class DMKManager:
         self.verbLev = verbLev
         self.dMKs = dMKs
 
+        # prepare player addresses
         pAddr = []
         for dix in range(len(dMKs)):
             for pix in range(dMKs[dix].nPl):
                 pAddr.append((dix,pix))
 
-        self.pOQue = Queue() # players(table) output que (one common 4 all)
-        self.pIQues = {pA: Queue() for pA in pAddr} # player(table) input ques
+        self.pOQue = Queue() # players(table) output que (1 4 all)
+        self.pIQues = {pA: Queue() for pA in pAddr} # player(table) input ques (1 per player)
 
         tplCount = 3 # hardcoded number of players per table
         nTables = len(self.pIQues) // tplCount

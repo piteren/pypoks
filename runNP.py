@@ -24,7 +24,7 @@ import tensorflow as tf
 import time
 import os
 
-from decisionMaker import DMK, BNDMK
+from decisionMaker import DMK, BNDMK, nGraphFN
 from dmkManager import DMKManager
 
 
@@ -36,12 +36,20 @@ if __name__ == "__main__":
 
     session = tf.Session()
 
-    dMKs = []
-    dMKs.append(BNDMK(session=session, name='dmA_%s'%time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3], nPl=300))
-    dMKs.append(BNDMK(session=session, name='dmB_%s'%time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3], nPl=300))
-    dMKs.append(DMK(name='dmk', nPl=300))
+    gfdl = []
+    gfdl.append(nGraphFN(scope='dmA_%s' % time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3]))
+    gfdl.append(nGraphFN(scope='dmB_%s' % time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3]))
+    gfdl.append(nGraphFN(scope='dmC_%s' % time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3]))
+    gfdl.append(nGraphFN(scope='dmD_%s' % time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3]))
+    gfdl.append(nGraphFN(scope='dmE_%s' % time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3], optAda=False))
+    gfdl.append(nGraphFN(scope='dmF_%s' % time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3], optAda=False))
+    gfdl.append(nGraphFN(scope='dmG_%s' % time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3], optAda=False))
+    gfdl.append(nGraphFN(scope='dmH_%s' % time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3], optAda=False))
+
+    dMKs = [BNDMK(session=session, gFND=gfd, nPl=150) for gfd in gfdl]
+    #dMKs.append(DMK(name='dmk', nPl=300))
     dmkMan = DMKManager(
         dMKs=       dMKs,
         pMsg=       False,
-        verbLev=    1)
+        verbLev=    0)
     dmkMan.runGames()

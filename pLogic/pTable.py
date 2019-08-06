@@ -112,7 +112,7 @@ class PTable(Process):
 
             return selectedMove, possibleMovesCash[selectedMove]
 
-        # sends DMK table update (without asking for move)
+        # sends DMK table update (without asking for move - possibleMoves==None)
         def updState(
                 self,
                 handH):
@@ -131,7 +131,7 @@ class PTable(Process):
             pOQue :Queue,           # players output que
             name=       'pTable',
             pMsg=       True,
-            verbLev=    1):
+            verbLev=    0):
 
         super().__init__(target=self.rHProc)
 
@@ -165,12 +165,11 @@ class PTable(Process):
             pls.remove(pl.name)
             pl.pls = [pl.name] + pls
 
-        if self.verbLev: print('(table)%s created' % self.name)
+        if self.verbLev: print('T(%s) created' % self.name)
 
     # runs hands in loop (for sep. process)
     def rHProc(self):
-        while True:
-            self.runHand()
+        while True: self.runHand()
 
     # runs single hand
     def runHand(self):
@@ -192,28 +191,28 @@ class PTable(Process):
         self.handID += 1
         self.state = 1
         if self.verbLev:
-            if self.handID % 1000 == 0 or self.verbLev == 2:
-                print('(table)%s starts new hand, handID %d' % (self.name, self.handID))
+            if self.handID % 1000 == 0 or self.verbLev > 1:
+                print('\nT(%s) starts new hand, handID %d' % (self.name, self.handID))
 
         handPlayers = [] + self.players # original order of players for current hand (SB, BB, ..)
         if self.pMsg:
-            print(' ### (table)%s hand players:' % self.name)
+            print(' ### T(%s) hand players:' % self.name)
             pNames = posNames(self.nPlayers)
             for ix in range(self.nPlayers):
                 pl = handPlayers[ix]
-                print(' ### (pl)%s @ %s' % (pl.name, pNames[ix]))
+                print(' ### P(%s) @ %s' % (pl.name, pNames[ix]))
 
         # put blinds on table
         handPlayers[0].cash -= self.SB
         handPlayers[0].cHandCash = self.SB
         handPlayers[0].cRiverCash = self.SB
         self.cash += self.SB
-        if self.pMsg: print(' ### (pl)%s put SB %d$' % (handPlayers[0].name, self.SB))
+        if self.pMsg: print(' ### P(%s) put SB %d$' % (handPlayers[0].name, self.SB))
         handPlayers[1].cash -= self.BB
         handPlayers[1].cHandCash = self.BB
         handPlayers[1].cRiverCash = self.BB
         self.cash += self.BB
-        if self.pMsg: print(' ### (pl)%s put BB %d$' % (handPlayers[1].name, self.BB))
+        if self.pMsg: print(' ### P(%s) put BB %d$' % (handPlayers[1].name, self.BB))
         self.cashToCall = self.BB
         # by now blinds info is not needed for hand history
 
@@ -224,14 +223,14 @@ class PTable(Process):
         for pl in handPlayers:
             ca, cb = self.deck.getCard(), self.deck.getCard()
             pl.hand = ca, cb
-            if self.pMsg: print(' ### (pl)%s taken hand %s %s' % (pl.name, PDeck.cts(ca), PDeck.cts(cb)))
+            if self.pMsg: print(' ### P(%s) taken hand %s %s' % (pl.name, PDeck.cts(ca), PDeck.cts(cb)))
         hHis = [{'playersPC': [[pl.name, pl.hand] for pl in handPlayers]}]
         self.hands.append(hHis)
         for pl in self.players: pl.updState(handH=self.hands[-1])
 
         while self.state < 5 and len(handPlayers) > 1:
 
-            if self.pMsg: print(' ### (table)%s state %s' % (self.name, TBL_STT[self.state]))
+            if self.pMsg: print(' ### T(%s) state %s' % (self.name, TBL_STT[self.state]))
 
             # manage table cards
             newTableCards = []
@@ -241,7 +240,7 @@ class PTable(Process):
                 self.cards += newTableCards
                 hHis.append({'newTableCards': newTableCards})
                 if self.pMsg:
-                    print(' ### (table)%s cards: '%self.name, end='')
+                    print(' ### T(%s) cards: '%self.name, end='')
                     for card in self.cards: print(PDeck.cts(card), end=' ')
                     print()
 
@@ -289,7 +288,7 @@ class PTable(Process):
                         clcIX = cmpIX - 1 if cmpIX > 0 else len(handPlayers) - 1 # player before in loop
                     mvD['aCashToCall'] = self.cashToCall
 
-                    if self.pMsg: print(' ### (pl)%s had %4d$, moved %s with %4d$, now: tableCash %4d$ toCall %4d$' % (pl.name, mvD['pBCash'], TBL_MOV[plMV[0]], plMV[1], self.cash, self.cashToCall))
+                    if self.pMsg: print(' ### P(%s) had %4d$, moved %s with %4d$, now: tableCash %4d$ toCall %4d$' % (pl.name, mvD['pBCash'], TBL_MOV[plMV[0]], plMV[1], self.cash, self.cashToCall))
 
                     if plMV[0] == 0 and self.cashToCall > pl.cRiverCash:
                         playerFolded = True
@@ -310,7 +309,7 @@ class PTable(Process):
 
             self.state += 1  # move table to next state
 
-        if self.verbLev == 2: print('(table)%s rivers finished, time to select winners' % self.name)
+        if self.verbLev > 1: print('T(%s) rivers finished, time to select winners' % self.name)
 
         # winners template
         winnersData = []
@@ -353,7 +352,7 @@ class PTable(Process):
             if winnersData[ix]['winner']: myWon += prize # add netto winning
             winnersData[ix]['won'] = myWon
             if self.pMsg:
-                print(' ### (pl)%s : %d$' % (pl.name, myWon), end='')
+                print(' ### P(%s) : %d$' % (pl.name, myWon), end='')
                 if winnersData[ix]['fullRank']:
                     if type(winnersData[ix]['fullRank']) is str: print(', mucked hand', end ='')
                     else: print(' with %s'%winnersData[ix]['fullRank'][-1], end='')
@@ -364,4 +363,8 @@ class PTable(Process):
 
         self.players.append(self.players.pop(0)) # rotate table players for next hand
 
-        if self.verbLev == 2: print('(table)%s hand finished, table state %s' % (self.name, TBL_STT[self.state]))
+        if self.verbLev > 1: print('T(%s) hand finished'%self.name)
+
+        if self.verbLev > 2:
+            print('HandHistory:')
+            for el in self.hands[-1]: print(el)

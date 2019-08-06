@@ -16,6 +16,3 @@ https://www.datacamp.com/community/tutorials/python-probability-tutorial
 
 http://www.pokerology.com/lessons/math-and-probability/
 
-
-RuntimeError: Queue objects should only be shared between processes through inheritance
-https://stackoverflow.com/questions/29970084/sharing-many-queues-among-processes-in-python/30039159

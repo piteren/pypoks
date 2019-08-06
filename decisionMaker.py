@@ -12,6 +12,7 @@ import time
 
 from pUtils.littleTools.littleMethods import shortSCIN
 from pUtils.nnTools.nnBaseElements import defInitializer, layDENSE, numVFloats
+from pUtils.nnTools.nnEncoders import encDR
 
 from pLogic.pDeck import PDeck
 
@@ -115,9 +116,11 @@ class DMK:
             if key == 'winnersData':
 
                 self.nH += 1
+                """
                 if self.nH % 1000 == 0:
-                    print(' >>> running time: %.1fsec/%d' % (time.time() - self.repTime, 1000))
+                    print(' >>> DMK speed: %.1fsec/%d hands' % (time.time() - self.repTime, 1000))
                     self.repTime = time.time()
+                """
 
                 myReward = 0
                 for el in state[key]:
@@ -260,159 +263,43 @@ class BNDMK(DMK):
     def __init__(
             self,
             session :tf.Session,
-            name :str,
+            gFND,                # graph function dictionary
             nPl=        100,
             randMove=   0.1):
 
         super().__init__(
-            name=       name,
+            name=       gFND['scope'],
             nPl=        nPl,
             randMove=   randMove,
             runTB=      True)
 
         self.session = session
 
-        self.wC = 16        # card (single) emb width
-        self.wMT = 4        # move type emb width
-        self.wV = 11        # values vector width, holds position @table and cash values
-        self.cellW = 188    # cell width
+        self.inC =          gFND['inC']
+        self.inMT =         gFND['inMT']
+        self.inV =          gFND['inV']
+        self.wV =           gFND['wV']
+        self.move =         gFND['move']
+        self.reward =       gFND['reward']
+        self.inState =      gFND['inState']
+        singleZeroState =   gFND['singleZeroState']
+        self.probs =        gFND['probs']
+        self.finState =     gFND['finState']
+        self.optimizer =    gFND['optimizer']
+        self.loss =         gFND['loss']
+        self.gN =           gFND['gN']
+        self.gradients =    gFND['gradients']
+        self.vars =         gFND['vars']
+        self.optVars =      gFND['optVars']
 
-        self._buildGraph()
 
-        zeroState = self.session.run(self.singleZeroState)#.tolist()
+        zeroState = self.session.run(singleZeroState)
         self.lastFwdState = {ix: zeroState  for ix in range(self.nPl)} # netState after last fwd
         self.lastUpdState = {ix: zeroState  for ix in range(self.nPl)} # netState after last update
         self.myCards =      {ix: None       for ix in range(self.nPl)} # player+table cards
         self.decStates =    {}
 
         self.session.run(tf.initializers.variables(var_list=self.vars+self.optVars))
-        self.nHF = 0 # num of forward predictions
-
-    # builds NN graph
-    def _buildGraph(self):
-
-        with tf.variable_scope('snnDMK_%s'%self.name):
-
-            self.inC = tf.placeholder( # 3 cards
-                name=           'inC',
-                dtype=          tf.int32,
-                shape=          [None,None,7]) # [bsz,seq,7cards]
-
-            cEMB = tf.get_variable( # cards embeddings
-                name=           'cEMB',
-                shape=          [53,self.wC], # one card for 'no_card'
-                dtype=          tf.float32,
-                initializer=    defInitializer())
-
-            self.inMT =         tf.placeholder( # event type
-                name=           'inMT',
-                dtype=          tf.int32,
-                shape=          [None,None,4]) # [bsz,seq,2*2oppon]
-
-            mtEMB = tf.get_variable( # event type embeddings
-                name=           'mtEMB',
-                shape=          [5,self.wMT], # 4 moves + no_move
-                dtype=          tf.float32,
-                initializer=    defInitializer())
-
-            self.inV = tf.placeholder( # event float values
-                name=           'inV',
-                dtype=          tf.float32,
-                shape=          [None,None,4,self.wV]) # [bsz,seq,2*2,vec]
-
-            self.move = tf.placeholder( # "correct" move (class)
-                name=           'move',
-                dtype=          tf.int32,
-                shape=          [None,None]) # [bsz,seq]
-
-            self.reward = tf.placeholder( # reward for "correct" move
-                name=           'reward',
-                dtype=          tf.float32,
-                shape=          [None,None]) # [bsz,seq]
-
-            inCemb = tf.nn.embedding_lookup(params=cEMB, ids=self.inC)
-            print(' > inCemb:', inCemb)
-            inCemb = tf.unstack(inCemb, axis=-2)
-            inCemb = tf.concat(inCemb, axis=-1)
-            print(' > inCemb (flattened):', inCemb)
-
-            inMTemb = tf.nn.embedding_lookup(params=mtEMB, ids=self.inMT)
-            print(' > inMTemb:', inMTemb)
-            inMTemb = tf.unstack(inMTemb, axis=-2)
-            inMTemb = tf.concat(inMTemb, axis=-1)
-            print(' > inMTemb (flattened):', inMTemb)
-
-            inV = tf.unstack(self.inV, axis=-2)
-            inV = tf.concat(inV, axis=-1)
-            print(' > inV (flattened):', inV)
-
-            input = tf.concat([inCemb, inMTemb, inV], axis=-1)
-            print(' > input (concatenated):', input) # width = self.wC*3 + (self.wMT + self.wV)*2
-            denseOut = layDENSE(
-                input=      input,
-                units=      self.cellW,
-                activation= tf.nn.relu)
-            input = denseOut['output']
-            input = tf.contrib.layers.layer_norm(
-                    inputs=             input,
-                    begin_norm_axis=    -1,
-                    begin_params_axis=  -1)
-            print(' > input (dense+LN):', input)
-
-            bsz = tf.shape(input)[0]
-            self.inState = tf.placeholder(
-                name=       'state',
-                dtype=      tf.float32,
-                shape=      [None,2,self.cellW])
-
-            self.singleZeroState = tf.zeros(shape=[2,self.cellW])
-
-            # state is a tensor of shape [batch_size, cell_state_size]
-            c, h = tf.unstack(self.inState, axis=1)
-            cellZS = tf.nn.rnn_cell.LSTMStateTuple(c,h)
-            print(' > cell zero state:', cellZS)
-
-            cell = tf.contrib.rnn.NASCell(self.cellW)
-            out, state = tf.nn.dynamic_rnn(
-                cell=           cell,
-                inputs=         input,
-                initial_state=  cellZS,
-                dtype=          tf.float32)
-
-            print(' > out:', out)
-            print(' > state:', state)
-            state = tf.concat(state, axis=-1)
-            self.finState = tf.reshape(state, shape=[-1,2,self.cellW])
-            print(' > finState:', self.finState)
-
-            denseOut = layDENSE(
-                input=      out,
-                units=      4,
-                activation= tf.nn.relu)
-            logits = denseOut['output']
-            print(' > logits:', logits)
-
-            self.probs = tf.nn.softmax(logits)
-
-            self.vars = tf.trainable_variables(scope=tf.get_variable_scope().name)
-            print(' ### num of vars %s'%shortSCIN(numVFloats(self.vars)))
-
-            loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
-            self.loss = loss(self.move, logits, sample_weight=self.reward)
-            self.gradients = tf.gradients(self.loss, self.vars)
-            self.gN = tf.global_norm(self.gradients)
-
-            self.gradients, _ = tf.clip_by_global_norm(t_list=self.gradients, clip_norm=1, use_norm=self.gN)
-
-            #optimizer = tf.train.GradientDescentOptimizer(1e-5)
-            optimizer = tf.compat.v1.train.AdamOptimizer(1e-3)
-
-            self.optimizer = optimizer.apply_gradients(zip(self.gradients,self.vars))
-
-            # select optimizer vars
-            self.optVars = []
-            for var in tf.global_variables(scope=tf.get_variable_scope().name):
-                if var not in self.vars: self.optVars.append(var)
 
     """
     def resetME(self, newName=None):
@@ -445,7 +332,7 @@ class BNDMK(DMK):
                 who = state[key]['pIX'] # who moved
                 if who: # my index is 0, so do not include my moves
 
-                    inMT.append(state[key]['plMove'][0])  # move type
+                    inMT.append(int(state[key]['plMove'][0]))  # move type
 
                     vec = np.zeros(shape=self.wV)
 
@@ -469,6 +356,15 @@ class BNDMK(DMK):
         while len(inMT) < 2*(len(self.plsHpos[pIX])-1): inMT.append(4) # pad moves
         while len(inV) < 2*(len(self.plsHpos[pIX])-1): inV.append(np.zeros(shape=self.wV)) # pad vectors
         nnInput = [inC], [inMT], [inV] # seq of values (seq because of shape)
+        """
+        print()
+        for el in nnInput:
+            ls = el[0]
+            if type(ls[0]) is np.ndarray:
+                for e in ls:
+                    print(e.tolist())
+            else: print(ls)
+        #"""
         return nnInput
 
     # calculates probs with NN for batches
@@ -514,20 +410,19 @@ class BNDMK(DMK):
 
             self.decStates = {}
 
-        if pProbsL:
-            self.nHF += len(pProbsL)
-            #print(self, self.nHF)
         return pProbsL
 
     # runs update of net
     def runUpdate(self):
 
+        updFREQ = 50 # TODO: hardcoded value!
+
         nM = [len(self.lDMR[ix]) for ix in range(self.nPl)] # number of saved moves per player (not all rewarded)
         avgNM = int(sum(nM)/len(nM)) # avg
 
         # do update
-        if avgNM > 100: # TODO: hardcoded value!
-            print('min med max nM', min(nM), avgNM, max(nM))
+        if avgNM > updFREQ:
+            #print('min med max nM', min(nM), avgNM, max(nM))
             nR = [0]* self.nPl # factual num of rewarded moves
             for pix in range(self.nPl):
                 for mix in reversed(range(len(self.lDMR[pix]))):
@@ -535,9 +430,9 @@ class BNDMK(DMK):
                         nR[pix] = mix
                         break
             avgNR = int(sum(nR)/len(nR))
-            print('min med max nR', min(nR), avgNR, max(nR))
+            #print('min med max nR', min(nR), avgNR, max(nR))
             uPIX = [ix for ix in range(self.nPl) if nR[ix] >= avgNR]
-            print('len(uPIX)', len(uPIX))
+            #print('len(uPIX)', len(uPIX))
 
             # build batches of data
             inCbatch = []
@@ -558,8 +453,11 @@ class BNDMK(DMK):
                     inMTseq += decState[1]
                     inVseq += decState[2]
                     moveSeq.append(mDict['move'])
-                    rew = 1 if mDict['reward'] > 0 else -1
-                    if mDict['reward'] == 0: rew = 0
+
+                    #rew = 1 if mDict['reward'] > 0 else -1
+                    #if mDict['reward'] == 0: rew = 0
+                    rew = mDict['reward']
+
                     rewSeq.append(rew)
                 inCbatch.append(inCseq)
                 inMTbatch.append(inMTseq)
@@ -591,11 +489,166 @@ class BNDMK(DMK):
                 self.reward:    rewBatch,
                 self.inState:   statesBatch}
 
-            fetches = [self.optimizer, self.loss, self.gN, self.gradients, self.finState]
-            _, loss, gN, grads, updStates = self.session.run(fetches, feed_dict=feed)
-            print('loss %.3f gN %.3f' %(loss, gN))
+            fetches = [self.optimizer, self.loss, self.gN, self.finState]
+            _, loss, gN, updStates = self.session.run(fetches, feed_dict=feed)
 
             for ix in range(len(uPIX)):
                 pIX = uPIX[ix]
                 self.lastUpdState[pIX] = updStates[ix] # save states
                 self.lDMR[pIX] = self.lDMR[pIX][avgNR:] # trim
+
+            print('%s :: loss %.3f gN %.3f' % (self.name, loss, gN))
+            if self.summWriter:
+                losssum = tf.Summary(value=[tf.Summary.Value(tag='gph/loss', simple_value=loss)])
+                gNsum = tf.Summary(value=[tf.Summary.Value(tag='gph/gN', simple_value=gN)])
+                self.summWriter.add_summary(losssum, self.sts['nH'][0])
+                self.summWriter.add_summary(gNsum, self.sts['nH'][0])
+
+
+def nGraphFN(
+        scope :str,
+        wC=         16,     # card (single) emb width
+        wMT=        1,      # move type emb width
+        wV=         11,     # values vector width, holds player move data(type, pos, cash)
+        nDR=        3,      # num of encDR lay
+        cellW=      1024,   # cell width
+        optAda=     True,
+        lR=         1e-4):
+
+    with tf.variable_scope(scope):
+
+        inC = tf.placeholder(  # 3 cards
+            name=           'inC',
+            dtype=          tf.int32,
+            shape=          [None, None, 7])  # [bsz,seq,7cards]
+
+        cEMB = tf.get_variable(  # cards embeddings
+            name=           'cEMB',
+            shape=          [53, wC],  # one card for 'no_card'
+            dtype=          tf.float32,
+            initializer=    defInitializer())
+
+        inMT = tf.placeholder(  # event type
+            name=           'inMT',
+            dtype=          tf.int32,
+            shape=          [None, None, 4])  # [bsz,seq,2*2oppon]
+
+        mtEMB = tf.get_variable(  # event type embeddings
+            name=           'mtEMB',
+            shape=          [5, wMT],  # 4 moves + no_move
+            dtype=          tf.float32,
+            initializer=    defInitializer())
+
+        inV = tf.placeholder(  # event float values
+            name=           'inV',
+            dtype=          tf.float32,
+            shape=          [None, None, 4, wV])  # [bsz,seq,2*2,vec]
+
+        move = tf.placeholder(  # "correct" move (class)
+            name=           'move',
+            dtype=          tf.int32,
+            shape=          [None, None])  # [bsz,seq]
+
+        reward = tf.placeholder(  # reward for "correct" move
+            name=           'reward',
+            dtype=          tf.float32,
+            shape=          [None, None])  # [bsz,seq]
+
+        inCemb = tf.nn.embedding_lookup(params=cEMB, ids=inC)
+        print(' > inCemb:', inCemb)
+        inCemb = tf.unstack(inCemb, axis=-2)
+        inCemb = tf.concat(inCemb, axis=-1)
+        print(' > inCemb (flattened):', inCemb)
+
+        inMTemb = tf.nn.embedding_lookup(params=mtEMB, ids=inMT)
+        print(' > inMTemb:', inMTemb)
+        inMTemb = tf.unstack(inMTemb, axis=-2)
+        inMTemb = tf.concat(inMTemb, axis=-1)
+        print(' > inMTemb (flattened):', inMTemb)
+
+        inVec = tf.unstack(inV, axis=-2)
+        inVec = tf.concat(inVec, axis=-1)
+        print(' > inV (flattened):', inVec)
+
+        input = tf.concat([inCemb, inMTemb, inVec], axis=-1)
+        print(' > input (concatenated):', input)  # width = self.wC*3 + (self.wMT + self.wV)*2
+
+        encDRout = encDR(
+            input=      input,
+            nLayers=    nDR,
+            layWidth=   cellW,
+            nHL=        0,
+            verbLev=    1)
+        input = encDRout['output']
+
+        inState = tf.placeholder(
+            name=           'state',
+            dtype=          tf.float32,
+            shape=          [None, 2, cellW])
+
+        singleZeroState = tf.zeros(shape=[2, cellW])
+
+        # state is a tensor of shape [batch_size, cell_state_size]
+        c, h = tf.unstack(inState, axis=1)
+        cellZS = tf.nn.rnn_cell.LSTMStateTuple(c, h)
+        print(' > cell zero state:', cellZS)
+
+        cell = tf.contrib.rnn.NASCell(cellW)
+        out, state = tf.nn.dynamic_rnn(
+            cell=           cell,
+            inputs=         input,
+            initial_state=  cellZS,
+            dtype=          tf.float32)
+
+        print(' > out:', out)
+        print(' > state:', state)
+        state = tf.concat(state, axis=-1)
+        finState = tf.reshape(state, shape=[-1, 2, cellW])
+        print(' > finState:', finState)
+
+        denseOut = layDENSE(
+            input=out,
+            units=4,
+            activation=tf.nn.relu)
+        logits = denseOut['output']
+        print(' > logits:', logits)
+
+        probs = tf.nn.softmax(logits)
+
+        vars = tf.trainable_variables(scope=tf.get_variable_scope().name)
+        print(' ### num of vars %s' % shortSCIN(numVFloats(vars)))
+
+        loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
+        rew = tf.tanh(reward/100)*5
+        loss = loss(move, logits, sample_weight=rew)
+        gradients = tf.gradients(loss, vars)
+        gN = tf.global_norm(gradients)
+
+        gradients, _ = tf.clip_by_global_norm(t_list=gradients, clip_norm=1, use_norm=gN)
+
+        optimizer = tf.compat.v1.train.AdamOptimizer(lR) if optAda else tf.train.GradientDescentOptimizer(lR*1000)
+        optimizer = optimizer.apply_gradients(zip(gradients, vars))
+
+        # select optimizer vars
+        optVars = []
+        for var in tf.global_variables(scope=tf.get_variable_scope().name):
+            if var not in vars: optVars.append(var)
+
+        return{
+            'scope':                scope,
+            'inC':                  inC,
+            'inMT':                 inMT,
+            'inV':                  inV,
+            'wV':                   wV,
+            'move':                 move,
+            'reward':               reward,
+            'inState':              inState,
+            'singleZeroState':      singleZeroState,
+            'probs':                probs,
+            'finState':             finState,
+            'optimizer':            optimizer,
+            'loss':                 loss,
+            'gN':                   gN,
+            'gradients':            gradients,
+            'vars':                 vars,
+            'optVars':              optVars}
