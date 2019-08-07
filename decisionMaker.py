@@ -260,7 +260,7 @@ class BNDMK(DMK):
             gFND,               # graph function dictionary
             nPl=        100,
             randMove=   0.1,
-            nH4UP=      600):  # target number of moves 4 1 update
+            nH4UP=      1000):  # target number of moves 4 1 update
 
         super().__init__(
             name=       gFND['scope'],
@@ -424,80 +424,79 @@ class BNDMK(DMK):
                         nR[pix] = mix
                         break
             avgNR = int(sum(nR)/len(nR))
-            #print('min med max nR', min(nR), avgNR, max(nR))
-            uPIX = [ix for ix in range(self.nPl) if nR[ix] >= avgNR]
-            #print('len(uPIX)', len(uPIX))
-            #print('upd size:',len(uPIX)*avgNR)
+            if avgNR: # exclude 0 case
+                #print('min med max nR', min(nR), avgNR, max(nR))
+                uPIX = [ix for ix in range(self.nPl) if nR[ix] >= avgNR]
+                #print('len(uPIX)', len(uPIX))
+                #print('upd size:',len(uPIX)*avgNR)
 
-            # build batches of data
-            inCbatch = []
-            inMTbatch = []
-            inVbatch = []
-            moveBatch = []
-            rewBatch = []
-            for pix in uPIX:
-                inCseq = []
-                inMTseq = []
-                inVseq = []
-                moveSeq = []
-                rewSeq = []
-                for nM in range(avgNR):
-                    mDict = self.lDMR[pix][nM]
-                    decState = mDict['decState']
-                    inCseq += decState[0]
-                    inMTseq += decState[1]
-                    inVseq += decState[2]
-                    moveSeq.append(mDict['move'])
+                # build batches of data
+                inCbatch = []
+                inMTbatch = []
+                inVbatch = []
+                moveBatch = []
+                rewBatch = []
+                for pix in uPIX:
+                    inCseq = []
+                    inMTseq = []
+                    inVseq = []
+                    moveSeq = []
+                    rewSeq = []
+                    for nM in range(avgNR):
+                        mDict = self.lDMR[pix][nM]
+                        decState = mDict['decState']
+                        inCseq += decState[0]
+                        inMTseq += decState[1]
+                        inVseq += decState[2]
+                        moveSeq.append(mDict['move'])
+                        #rew = 1 if mDict['reward'] > 0 else -1
+                        #if mDict['reward'] == 0: rew = 0
+                        rew = mDict['reward']
+                        rewSeq.append(rew)
+                    inCbatch.append(inCseq)
+                    inMTbatch.append(inMTseq)
+                    inVbatch.append(inVseq)
+                    moveBatch.append(moveSeq)
+                    rewBatch.append(rewSeq)
+                statesBatch = [self.lastUpdState[ix] for ix in uPIX]  # build directly from dict of Upd states
 
-                    #rew = 1 if mDict['reward'] > 0 else -1
-                    #if mDict['reward'] == 0: rew = 0
-                    rew = mDict['reward']
+                """
+                inCbatch = np.asarray(inCbatch)
+                inMTbatch = np.asarray(inMTbatch)
+                inVbatch = np.asarray(inVbatch)
+                moveBatch = np.asarray(moveBatch)
+                rewBatch = np.asarray(rewBatch)
+                statesBatch = np.asarray(statesBatch)
+                print(inCbatch.shape)
+                print(inMTbatch.shape)
+                print(inVbatch.shape)
+                print(moveBatch.shape)
+                print(rewBatch.shape)
+                print(statesBatch.shape)
+                """
 
-                    rewSeq.append(rew)
-                inCbatch.append(inCseq)
-                inMTbatch.append(inMTseq)
-                inVbatch.append(inVseq)
-                moveBatch.append(moveSeq)
-                rewBatch.append(rewSeq)
-            statesBatch = [self.lastUpdState[ix] for ix in uPIX]  # build directly from dict of Upd states
+                feed = {
+                    self.inC:       inCbatch,
+                    self.inMT:      inMTbatch,
+                    self.inV:       inVbatch,
+                    self.move:      moveBatch,
+                    self.reward:    rewBatch,
+                    self.inState:   statesBatch}
 
-            """
-            inCbatch = np.asarray(inCbatch)
-            inMTbatch = np.asarray(inMTbatch)
-            inVbatch = np.asarray(inVbatch)
-            moveBatch = np.asarray(moveBatch)
-            rewBatch = np.asarray(rewBatch)
-            statesBatch = np.asarray(statesBatch)
-            print(inCbatch.shape)
-            print(inMTbatch.shape)
-            print(inVbatch.shape)
-            print(moveBatch.shape)
-            print(rewBatch.shape)
-            print(statesBatch.shape)
-            """
+                fetches = [self.optimizer, self.loss, self.gN, self.finState]
+                _, loss, gN, updStates = self.session.run(fetches, feed_dict=feed)
 
-            feed = {
-                self.inC:       inCbatch,
-                self.inMT:      inMTbatch,
-                self.inV:       inVbatch,
-                self.move:      moveBatch,
-                self.reward:    rewBatch,
-                self.inState:   statesBatch}
+                for ix in range(len(uPIX)):
+                    pIX = uPIX[ix]
+                    self.lastUpdState[pIX] = updStates[ix] # save states
+                    self.lDMR[pIX] = self.lDMR[pIX][avgNR:] # trim
 
-            fetches = [self.optimizer, self.loss, self.gN, self.finState]
-            _, loss, gN, updStates = self.session.run(fetches, feed_dict=feed)
-
-            for ix in range(len(uPIX)):
-                pIX = uPIX[ix]
-                self.lastUpdState[pIX] = updStates[ix] # save states
-                self.lDMR[pIX] = self.lDMR[pIX][avgNR:] # trim
-
-            print('%s :%4d: loss %.3f gN %.3f' % (self.name, len(uPIX)*avgNR, loss, gN))
-            if self.summWriter:
-                losssum = tf.Summary(value=[tf.Summary.Value(tag='gph/loss', simple_value=loss)])
-                gNsum = tf.Summary(value=[tf.Summary.Value(tag='gph/gN', simple_value=gN)])
-                self.summWriter.add_summary(losssum, self.sts['nH'][0])
-                self.summWriter.add_summary(gNsum, self.sts['nH'][0])
+                print('%s :%4d: loss %.3f gN %.3f' % (self.name, len(uPIX)*avgNR, loss, gN))
+                if self.summWriter:
+                    losssum = tf.Summary(value=[tf.Summary.Value(tag='gph/loss', simple_value=loss)])
+                    gNsum = tf.Summary(value=[tf.Summary.Value(tag='gph/gN', simple_value=gN)])
+                    self.summWriter.add_summary(losssum, self.sts['nH'][0])
+                    self.summWriter.add_summary(gNsum, self.sts['nH'][0])
 
 
 def nGraphFN(

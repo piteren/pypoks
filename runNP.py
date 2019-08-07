@@ -30,8 +30,8 @@ from dmkManager import DMKManager
 if __name__ == "__main__":
 
     # tf verbosity
-    #tf.logging.set_verbosity(tf.logging.ERROR)
-    #os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+    tf.logging.set_verbosity(tf.logging.ERROR)
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
     session = tf.Session()
 
@@ -43,7 +43,6 @@ if __name__ == "__main__":
         nGraphFN(scope='dmE_%s' % time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3], optAda=False, lR=5e-2),
         #nGraphFN(scope='dmF_%s' % time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3], optAda=False, lR=1e-2),
     ]
-
 
     dMKs = [BNDMK(session=session, gFND=gfd, nPl=150) for gfd in gfdl]
     dmkMan = DMKManager(
