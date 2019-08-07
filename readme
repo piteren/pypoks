@@ -15,10 +15,24 @@ project objectives:
 
 by now I have build:
 - simple poker environment and quite fast game algorithm
-- simple: random, hardcoded, RNN(LSTM) poker players (deciding algorithms)
+- simple: random, *hardcoded, RNN(LSTM) poker players (deciding algorithms)
 - simple reinforcement procedure that works
 - simple logging with console + TF.TB
 
 but this is just beginning and there are still a lot of exciting things to do...
 
 if you are interested in collaboration please email me: tojestprzedmalpa@gmail.com
+
+
+(19.07.26)
+By now simplified poker game algorithm:
+- no ante
+- constant SB(2), BB(5) and table startCash(500)
+- every hand starts with player cash = table.startCash
+- 3 players on table
+- simplified betting sizes (predefined possible sizes)
+
+Those assumptions imply 4 possible moves: C/F, CLL, B/R, ALL
+
+Table generates hand history (kind of dictionary).
+Table player translates table history into player (perspective) history - replaces players with indexes 0..n, where 0 is always self.d betting sizes (predefined possible sizes)

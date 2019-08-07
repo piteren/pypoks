@@ -16,9 +16,6 @@ from pUtils.nnTools.nnEncoders import encDR
 
 from pLogic.pDeck import PDeck
 
-# TODO:
-#   - implement simple algorithmic DMK
-
 
 # basic implementation of DMK (random sampling)
 class DMK:
@@ -143,32 +140,29 @@ class DMK:
                     self.sts['nAGG'][ti] += self.cHSdata[pIX]['nAGG']
                 self._resetCSHD(pIX)
 
-                # sts reporting procedure
-                def repSTS(V=False):
+                # sts
+                if self.sts['nH'][1] == self.stsV:
 
-                    ix, cx = (0, 'T') if not V else (1, 'V')  # interval or total
-
-                    won = tf.Summary(value=[tf.Summary.Value(tag='sts%s/0_won$' % cx, simple_value=self.sts['$'][ix])])
-                    vpip = self.sts['nVPIP'][ix] / self.sts['nH'][ix] * 100
-                    vpip = tf.Summary(value=[tf.Summary.Value(tag='sts%s/1_VPIP' % cx, simple_value=vpip)])
-                    pfr = self.sts['nPFR'][ix] / self.sts['nH'][ix] * 100
-                    pfr = tf.Summary(value=[tf.Summary.Value(tag='sts%s/2_PFR' % cx, simple_value=pfr)])
-                    sh = self.sts['nSH'][ix] / self.sts['nH'][ix] * 100
-                    sh = tf.Summary(value=[tf.Summary.Value(tag='sts%s/4_sh' % cx, simple_value=sh)])
-                    agg = self.sts['nAGG'][ix] / self.sts['nPM'][ix] * 100 if self.sts['nPM'][ix] else 0
-                    agg = tf.Summary(value=[tf.Summary.Value(tag='sts%s/3_AGG' % cx, simple_value=agg)])
-                    self.summWriter.add_summary(won, self.sts['nH'][0])
-                    self.summWriter.add_summary(vpip, self.sts['nH'][0])
-                    self.summWriter.add_summary(pfr, self.sts['nH'][0])
-                    self.summWriter.add_summary(sh, self.sts['nH'][0])
-                    self.summWriter.add_summary(agg, self.sts['nH'][0])
+                    # reporting
+                    if self.summWriter:
+                        won = tf.Summary(value=[tf.Summary.Value(tag='sts/0_$wonT', simple_value=self.sts['$'][0])])
+                        vpip = self.sts['nVPIP'][1] / self.sts['nH'][1] * 100
+                        vpip = tf.Summary(value=[tf.Summary.Value(tag='sts/1_VPIP', simple_value=vpip)])
+                        pfr = self.sts['nPFR'][1] / self.sts['nH'][1] * 100
+                        pfr = tf.Summary(value=[tf.Summary.Value(tag='sts/2_PFR', simple_value=pfr)])
+                        agg = self.sts['nAGG'][1] / self.sts['nPM'][1] * 100 if self.sts['nPM'][1] else 0
+                        agg = tf.Summary(value=[tf.Summary.Value(tag='sts/3_AGG', simple_value=agg)])
+                        sh = self.sts['nSH'][1] / self.sts['nH'][1] * 100
+                        sh = tf.Summary(value=[tf.Summary.Value(tag='sts/4_sh', simple_value=sh)])
+                        self.summWriter.add_summary(won, self.sts['nH'][0])
+                        self.summWriter.add_summary(vpip, self.sts['nH'][0])
+                        self.summWriter.add_summary(pfr, self.sts['nH'][0])
+                        self.summWriter.add_summary(agg, self.sts['nH'][0])
+                        self.summWriter.add_summary(sh, self.sts['nH'][0])
 
                     # reset interval values
-                    if V:
-                        for key in self.sts.keys():
-                            self.sts[key][1] = 0
-                if self.summWriter and self.sts['nH'][1] % self.stsV == 0:  repSTS(True)
-                if self.summWriter and self.sts['nH'][0] % 1000 == 0:       repSTS()
+                    for key in self.sts.keys():
+                        self.sts[key][1] = 0
 
                 self.runUpdate()
 
@@ -263,9 +257,10 @@ class BNDMK(DMK):
     def __init__(
             self,
             session :tf.Session,
-            gFND,                # graph function dictionary
+            gFND,               # graph function dictionary
             nPl=        100,
-            randMove=   0.1):
+            randMove=   0.1,
+            nH4UP=      600):  # target number of moves 4 1 update
 
         super().__init__(
             name=       gFND['scope'],
@@ -288,10 +283,8 @@ class BNDMK(DMK):
         self.optimizer =    gFND['optimizer']
         self.loss =         gFND['loss']
         self.gN =           gFND['gN']
-        self.gradients =    gFND['gradients']
-        self.vars =         gFND['vars']
-        self.optVars =      gFND['optVars']
-
+        vars =              gFND['vars']
+        optVars =           gFND['optVars']
 
         zeroState = self.session.run(singleZeroState)
         self.lastFwdState = {ix: zeroState  for ix in range(self.nPl)} # netState after last fwd
@@ -299,7 +292,9 @@ class BNDMK(DMK):
         self.myCards =      {ix: None       for ix in range(self.nPl)} # player+table cards
         self.decStates =    {}
 
-        self.session.run(tf.initializers.variables(var_list=self.vars+self.optVars))
+        self.session.run(tf.initializers.variables(var_list=vars+optVars))
+
+        self.nH4UP = nH4UP
 
     """
     def resetME(self, newName=None):
@@ -415,12 +410,11 @@ class BNDMK(DMK):
     # runs update of net
     def runUpdate(self):
 
-        updFREQ = 50 # TODO: hardcoded value!
-
         nM = [len(self.lDMR[ix]) for ix in range(self.nPl)] # number of saved moves per player (not all rewarded)
         avgNM = int(sum(nM)/len(nM)) # avg
 
         # do update
+        updFREQ = self.nH4UP / (self.nPl / 2)
         if avgNM > updFREQ:
             #print('min med max nM', min(nM), avgNM, max(nM))
             nR = [0]* self.nPl # factual num of rewarded moves
@@ -433,6 +427,7 @@ class BNDMK(DMK):
             #print('min med max nR', min(nR), avgNR, max(nR))
             uPIX = [ix for ix in range(self.nPl) if nR[ix] >= avgNR]
             #print('len(uPIX)', len(uPIX))
+            #print('upd size:',len(uPIX)*avgNR)
 
             # build batches of data
             inCbatch = []
@@ -497,7 +492,7 @@ class BNDMK(DMK):
                 self.lastUpdState[pIX] = updStates[ix] # save states
                 self.lDMR[pIX] = self.lDMR[pIX][avgNR:] # trim
 
-            print('%s :: loss %.3f gN %.3f' % (self.name, loss, gN))
+            print('%s :%4d: loss %.3f gN %.3f' % (self.name, len(uPIX)*avgNR, loss, gN))
             if self.summWriter:
                 losssum = tf.Summary(value=[tf.Summary.Value(tag='gph/loss', simple_value=loss)])
                 gNsum = tf.Summary(value=[tf.Summary.Value(tag='gph/gN', simple_value=gN)])
@@ -528,6 +523,12 @@ def nGraphFN(
             dtype=          tf.float32,
             initializer=    defInitializer())
 
+        inCemb = tf.nn.embedding_lookup(params=cEMB, ids=inC)
+        print(' > inCemb:', inCemb)
+        inCemb = tf.unstack(inCemb, axis=-2)
+        inCemb = tf.concat(inCemb, axis=-1)
+        print(' > inCemb (flattened):', inCemb)
+
         inMT = tf.placeholder(  # event type
             name=           'inMT',
             dtype=          tf.int32,
@@ -539,32 +540,16 @@ def nGraphFN(
             dtype=          tf.float32,
             initializer=    defInitializer())
 
-        inV = tf.placeholder(  # event float values
-            name=           'inV',
-            dtype=          tf.float32,
-            shape=          [None, None, 4, wV])  # [bsz,seq,2*2,vec]
-
-        move = tf.placeholder(  # "correct" move (class)
-            name=           'move',
-            dtype=          tf.int32,
-            shape=          [None, None])  # [bsz,seq]
-
-        reward = tf.placeholder(  # reward for "correct" move
-            name=           'reward',
-            dtype=          tf.float32,
-            shape=          [None, None])  # [bsz,seq]
-
-        inCemb = tf.nn.embedding_lookup(params=cEMB, ids=inC)
-        print(' > inCemb:', inCemb)
-        inCemb = tf.unstack(inCemb, axis=-2)
-        inCemb = tf.concat(inCemb, axis=-1)
-        print(' > inCemb (flattened):', inCemb)
-
         inMTemb = tf.nn.embedding_lookup(params=mtEMB, ids=inMT)
         print(' > inMTemb:', inMTemb)
         inMTemb = tf.unstack(inMTemb, axis=-2)
         inMTemb = tf.concat(inMTemb, axis=-1)
         print(' > inMTemb (flattened):', inMTemb)
+
+        inV = tf.placeholder(  # event float values
+            name=           'inV',
+            dtype=          tf.float32,
+            shape=          [None, None, 4, wV])  # [bsz,seq,2*2,vec]
 
         inVec = tf.unstack(inV, axis=-2)
         inVec = tf.concat(inVec, axis=-1)
@@ -607,9 +592,10 @@ def nGraphFN(
         print(' > finState:', finState)
 
         denseOut = layDENSE(
-            input=out,
-            units=4,
-            activation=tf.nn.relu)
+            input=      out,
+            units=      4,
+            #activation= tf.nn.relu,
+            useBias=    False,)
         logits = denseOut['output']
         print(' > logits:', logits)
 
@@ -618,15 +604,32 @@ def nGraphFN(
         vars = tf.trainable_variables(scope=tf.get_variable_scope().name)
         print(' ### num of vars %s' % shortSCIN(numVFloats(vars)))
 
-        loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
-        rew = tf.tanh(reward/100)*5
-        loss = loss(move, logits, sample_weight=rew)
+        move = tf.placeholder(  # "correct" move (class)
+            name=           'move',
+            dtype=          tf.int32,
+            shape=          [None, None])  # [bsz,seq]
+
+        reward = tf.placeholder(  # reward for "correct" move
+            name=           'reward',
+            dtype=          tf.float32,
+            shape=          [None, None])  # [bsz,seq]
+
+        rew = reward/500 # lineary scale rewards
+
+        # this loss is auto averaged with reduction parameter
+        #loss = tf.losses.SparseCategoricalCrossentropy(from_logits=True)
+        #loss = loss(y_true=move, y_pred=logits, sample_weight=rew)
+        loss = tf.losses.sparse_softmax_cross_entropy(
+            labels=     move,
+            logits=     logits,
+            weights=    rew)
+
         gradients = tf.gradients(loss, vars)
         gN = tf.global_norm(gradients)
 
         gradients, _ = tf.clip_by_global_norm(t_list=gradients, clip_norm=1, use_norm=gN)
 
-        optimizer = tf.compat.v1.train.AdamOptimizer(lR) if optAda else tf.train.GradientDescentOptimizer(lR*1000)
+        optimizer = tf.train.AdamOptimizer(lR) if optAda else tf.train.GradientDescentOptimizer(lR)
         optimizer = optimizer.apply_gradients(zip(gradients, vars))
 
         # select optimizer vars
@@ -649,6 +652,5 @@ def nGraphFN(
             'optimizer':            optimizer,
             'loss':                 loss,
             'gN':                   gN,
-            'gradients':            gradients,
             'vars':                 vars,
             'optVars':              optVars}

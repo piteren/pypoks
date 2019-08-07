@@ -345,10 +345,10 @@ class PTable(Process):
                     nWinners += 1
 
         # manage cash and information about
-        prize = self.cash // nWinners
+        prize = self.cash / nWinners
         for ix in range(len(self.players)):
             pl = self.players[ix]
-            myWon = -pl.cHandCash  # netto lost
+            myWon = -pl.cHandCash # netto lost
             if winnersData[ix]['winner']: myWon += prize # add netto winning
             winnersData[ix]['won'] = myWon
             if self.pMsg:

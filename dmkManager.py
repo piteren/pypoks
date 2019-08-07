@@ -3,7 +3,7 @@
  2019 (c) piteren
 
  DMK Manager connects DMKs with tables
- - takes list of DMK, puts their players on tables and runs game
+ - takes list of DMK, puts players on tables and runs game
 
 """
 
@@ -51,7 +51,9 @@ class DMKManager:
 
     def runGames(self):
 
-        for tbl in self.tables: tbl.start() # start tables
+        print('DMKMan running games, starting %d tables...'%len(self.tables))
+        for tbl in self.tables: tbl.start() # start table
+        print('tables started!')
 
         while True:
             pAddr, stateChanges, possibleMoves = self.pOQue.get() # wait for player data
@@ -62,3 +64,4 @@ class DMKManager:
                 for d in dec:
                     pIX, move = d
                     self.pIQues[(dix,pIX)].put(move)
+
