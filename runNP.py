@@ -9,8 +9,6 @@
 
 
  TODO:
-  - better net arch and updates
-  - cards network with embeddings
   - player model:
     - predicts next move
     - predicts player cards
@@ -23,8 +21,9 @@ import tensorflow as tf
 import time
 import os
 
-from decisionMaker import DMK, BNDMK, nGraphFN
+from decisionMaker import DMK, BNDMK
 from dmkManager import DMKManager
+from neuralGraphs import lstmGraphFN, cnnRGraphFN
 
 
 if __name__ == "__main__":
@@ -36,12 +35,12 @@ if __name__ == "__main__":
     session = tf.Session()
 
     gfdl = [
-        nGraphFN(scope='dmA_%s' % time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3], lR=1e-4),
-        nGraphFN(scope='dmB_%s' % time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3], lR=5e-5),
-        nGraphFN(scope='dmC_%s' % time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3], lR=1e-5),
-        nGraphFN(scope='dmD_%s' % time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3], optAda=False, lR=1e-1),
-        nGraphFN(scope='dmE_%s' % time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3], optAda=False, lR=5e-2),
-        #nGraphFN(scope='dmF_%s' % time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3], optAda=False, lR=1e-2),
+        lstmGraphFN(scope='dmA_%s' % time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3],lR=3e-5),
+        cnnRGraphFN(scope='dmB_%s' % time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3],nLay=24,reW=512,lR=1e-5),
+        cnnRGraphFN(scope='dmC_%s' % time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3],nLay=48,reW=256,lR=1e-5),
+        cnnRGraphFN(scope='dmD_%s' % time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3],nLay=12,reW=768,lR=1e-5),
+        cnnRGraphFN(scope='dmE_%s' % time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3],nLay=6,reW=1024,lR=1e-5),
+        cnnRGraphFN(scope='dmF_%s' % time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3],nLay=6,reW=256,lR=1e-5),
     ]
 
     dMKs = [BNDMK(session=session, gFND=gfd, nPl=150) for gfd in gfdl]

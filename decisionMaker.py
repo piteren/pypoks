@@ -10,10 +10,6 @@ import random
 import tensorflow as tf
 import time
 
-from pUtils.littleTools.littleMethods import shortSCIN
-from pUtils.nnTools.nnBaseElements import defInitializer, layDENSE, numVFloats
-from pUtils.nnTools.nnEncoders import encDR
-
 from pLogic.pDeck import PDeck
 
 
@@ -251,7 +247,7 @@ class DMK:
     # runs update of DMK based saved decStates, moves and rewards
     def runUpdate(self): pass
 
-# Base-Neural-DMK (LSTM with single-state to decision)
+# Base-Neural-DMK (for neuralGraph)
 class BNDMK(DMK):
 
     def __init__(
@@ -259,7 +255,7 @@ class BNDMK(DMK):
             session :tf.Session,
             gFND,               # graph function dictionary
             nPl=        100,
-            randMove=   0.1,
+            randMove=   0.01,
             nH4UP=      1000):  # target number of moves 4 1 update
 
         super().__init__(
@@ -497,159 +493,3 @@ class BNDMK(DMK):
                     gNsum = tf.Summary(value=[tf.Summary.Value(tag='gph/gN', simple_value=gN)])
                     self.summWriter.add_summary(losssum, self.sts['nH'][0])
                     self.summWriter.add_summary(gNsum, self.sts['nH'][0])
-
-
-def nGraphFN(
-        scope :str,
-        wC=         16,     # card (single) emb width
-        wMT=        1,      # move type emb width
-        wV=         11,     # values vector width, holds player move data(type, pos, cash)
-        nDR=        3,      # num of encDR lay
-        cellW=      1024,   # cell width
-        optAda=     True,
-        lR=         1e-4):
-
-    with tf.variable_scope(scope):
-
-        inC = tf.placeholder(  # 3 cards
-            name=           'inC',
-            dtype=          tf.int32,
-            shape=          [None, None, 7])  # [bsz,seq,7cards]
-
-        cEMB = tf.get_variable(  # cards embeddings
-            name=           'cEMB',
-            shape=          [53, wC],  # one card for 'no_card'
-            dtype=          tf.float32,
-            initializer=    defInitializer())
-
-        inCemb = tf.nn.embedding_lookup(params=cEMB, ids=inC)
-        print(' > inCemb:', inCemb)
-        inCemb = tf.unstack(inCemb, axis=-2)
-        inCemb = tf.concat(inCemb, axis=-1)
-        print(' > inCemb (flattened):', inCemb)
-
-        inMT = tf.placeholder(  # event type
-            name=           'inMT',
-            dtype=          tf.int32,
-            shape=          [None, None, 4])  # [bsz,seq,2*2oppon]
-
-        mtEMB = tf.get_variable(  # event type embeddings
-            name=           'mtEMB',
-            shape=          [5, wMT],  # 4 moves + no_move
-            dtype=          tf.float32,
-            initializer=    defInitializer())
-
-        inMTemb = tf.nn.embedding_lookup(params=mtEMB, ids=inMT)
-        print(' > inMTemb:', inMTemb)
-        inMTemb = tf.unstack(inMTemb, axis=-2)
-        inMTemb = tf.concat(inMTemb, axis=-1)
-        print(' > inMTemb (flattened):', inMTemb)
-
-        inV = tf.placeholder(  # event float values
-            name=           'inV',
-            dtype=          tf.float32,
-            shape=          [None, None, 4, wV])  # [bsz,seq,2*2,vec]
-
-        inVec = tf.unstack(inV, axis=-2)
-        inVec = tf.concat(inVec, axis=-1)
-        print(' > inV (flattened):', inVec)
-
-        input = tf.concat([inCemb, inMTemb, inVec], axis=-1)
-        print(' > input (concatenated):', input)  # width = self.wC*3 + (self.wMT + self.wV)*2
-
-        encDRout = encDR(
-            input=      input,
-            nLayers=    nDR,
-            layWidth=   cellW,
-            nHL=        0,
-            verbLev=    1)
-        input = encDRout['output']
-
-        inState = tf.placeholder(
-            name=           'state',
-            dtype=          tf.float32,
-            shape=          [None, 2, cellW])
-
-        singleZeroState = tf.zeros(shape=[2, cellW])
-
-        # state is a tensor of shape [batch_size, cell_state_size]
-        c, h = tf.unstack(inState, axis=1)
-        cellZS = tf.nn.rnn_cell.LSTMStateTuple(c, h)
-        print(' > cell zero state:', cellZS)
-
-        cell = tf.contrib.rnn.NASCell(cellW)
-        out, state = tf.nn.dynamic_rnn(
-            cell=           cell,
-            inputs=         input,
-            initial_state=  cellZS,
-            dtype=          tf.float32)
-
-        print(' > out:', out)
-        print(' > state:', state)
-        state = tf.concat(state, axis=-1)
-        finState = tf.reshape(state, shape=[-1, 2, cellW])
-        print(' > finState:', finState)
-
-        denseOut = layDENSE(
-            input=      out,
-            units=      4,
-            #activation= tf.nn.relu,
-            useBias=    False,)
-        logits = denseOut['output']
-        print(' > logits:', logits)
-
-        probs = tf.nn.softmax(logits)
-
-        vars = tf.trainable_variables(scope=tf.get_variable_scope().name)
-        print(' ### num of vars %s' % shortSCIN(numVFloats(vars)))
-
-        move = tf.placeholder(  # "correct" move (class)
-            name=           'move',
-            dtype=          tf.int32,
-            shape=          [None, None])  # [bsz,seq]
-
-        reward = tf.placeholder(  # reward for "correct" move
-            name=           'reward',
-            dtype=          tf.float32,
-            shape=          [None, None])  # [bsz,seq]
-
-        rew = reward/500 # lineary scale rewards
-
-        # this loss is auto averaged with reduction parameter
-        #loss = tf.losses.SparseCategoricalCrossentropy(from_logits=True)
-        #loss = loss(y_true=move, y_pred=logits, sample_weight=rew)
-        loss = tf.losses.sparse_softmax_cross_entropy(
-            labels=     move,
-            logits=     logits,
-            weights=    rew)
-
-        gradients = tf.gradients(loss, vars)
-        gN = tf.global_norm(gradients)
-
-        gradients, _ = tf.clip_by_global_norm(t_list=gradients, clip_norm=1, use_norm=gN)
-
-        optimizer = tf.train.AdamOptimizer(lR) if optAda else tf.train.GradientDescentOptimizer(lR)
-        optimizer = optimizer.apply_gradients(zip(gradients, vars))
-
-        # select optimizer vars
-        optVars = []
-        for var in tf.global_variables(scope=tf.get_variable_scope().name):
-            if var not in vars: optVars.append(var)
-
-        return{
-            'scope':                scope,
-            'inC':                  inC,
-            'inMT':                 inMT,
-            'inV':                  inV,
-            'wV':                   wV,
-            'move':                 move,
-            'reward':               reward,
-            'inState':              inState,
-            'singleZeroState':      singleZeroState,
-            'probs':                probs,
-            'finState':             finState,
-            'optimizer':            optimizer,
-            'loss':                 loss,
-            'gN':                   gN,
-            'vars':                 vars,
-            'optVars':              optVars}
