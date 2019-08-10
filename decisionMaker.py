@@ -54,7 +54,7 @@ class DMK:
         self.cHSdata[pIX] = {
             'VPIP':     False,
             'PFR':      False,
-            'SH':       False,
+            'PH':       False,
             'nPM':      0,
             'nAGG':     0}
 
@@ -64,7 +64,7 @@ class DMK:
         by now implemented stats:
           VPIP - Voluntarily Put $ in Pot %H; how many hands (%) player put money in pot (SB and BB do not count)
           PFR - Preflop Raise %H; how many hands (%) player raised preflop
-          SH - Stacked Hands; %H where player stacked
+          PH - Passed Hands; %H where player passed
           AGG - Postflop Aggression Frequency %; (totBet + totRaise) / anyMove *100, only postflop
         """
         self.sts = {  # [total,interval]
@@ -72,7 +72,7 @@ class DMK:
             '$':        [0,0],  # $ won
             'nVPIP':    [0,0],  # n hands with VPIP
             'nPFR':     [0,0],  # n hands with PFR
-            'nSH':      [0,0],  # n hands stacked
+            'nPH':      [0,0],  # n hands passed
             'nPM':      [0,0],  # n moves postflop
             'nAGG':     [0,0]}  # n aggressive moves postflop
 
@@ -131,7 +131,7 @@ class DMK:
                     # update self.sts with self.cHSdata
                     if self.cHSdata[pIX]['VPIP']:    self.sts['nVPIP'][ti] += 1
                     if self.cHSdata[pIX]['PFR']:     self.sts['nPFR'][ti] += 1
-                    if self.cHSdata[pIX]['SH']:      self.sts['nSH'][ti] += 1
+                    if self.cHSdata[pIX]['PH']:      self.sts['nPH'][ti] += 1
                     self.sts['nPM'][ti] += self.cHSdata[pIX]['nPM']
                     self.sts['nAGG'][ti] += self.cHSdata[pIX]['nAGG']
                 self._resetCSHD(pIX)
@@ -148,13 +148,13 @@ class DMK:
                         pfr = tf.Summary(value=[tf.Summary.Value(tag='sts/2_PFR', simple_value=pfr)])
                         agg = self.sts['nAGG'][1] / self.sts['nPM'][1] * 100 if self.sts['nPM'][1] else 0
                         agg = tf.Summary(value=[tf.Summary.Value(tag='sts/3_AGG', simple_value=agg)])
-                        sh = self.sts['nSH'][1] / self.sts['nH'][1] * 100
-                        sh = tf.Summary(value=[tf.Summary.Value(tag='sts/4_sh', simple_value=sh)])
+                        ph = self.sts['nPH'][1] / self.sts['nH'][1] * 100
+                        ph = tf.Summary(value=[tf.Summary.Value(tag='sts/4_PH', simple_value=ph)])
                         self.summWriter.add_summary(won, self.sts['nH'][0])
                         self.summWriter.add_summary(vpip, self.sts['nH'][0])
                         self.summWriter.add_summary(pfr, self.sts['nH'][0])
                         self.summWriter.add_summary(agg, self.sts['nH'][0])
-                        self.summWriter.add_summary(sh, self.sts['nH'][0])
+                        self.summWriter.add_summary(ph, self.sts['nH'][0])
 
                     # reset interval values
                     for key in self.sts.keys():
@@ -186,7 +186,7 @@ class DMK:
             pIX,    # player index
             move):  # player move
 
-        if move == 3: self.cHSdata[pIX]['SH'] = True
+        if move == 0: self.cHSdata[pIX]['PH'] = True
         if self.preflop[pIX]:
             if move == 1 and self.plsHpos[pIX][0] != 1 or move > 1: self.cHSdata[pIX]['VPIP'] = True
             if move > 1: self.cHSdata[pIX]['PFR'] = True

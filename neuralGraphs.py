@@ -23,7 +23,8 @@ def lstmGraphFN(
 
     with tf.variable_scope(scope):
 
-        inC = tf.placeholder(  # 3 cards
+        print()
+        inC = tf.placeholder(  # 7 cards
             name=           'inC',
             dtype=          tf.int32,
             shape=          [None, None, 7])  # [bsz,seq,7cards]
@@ -179,7 +180,8 @@ def cnnRGraphFN(
 
     with tf.variable_scope(scope):
 
-        inC = tf.placeholder(  # 3 cards
+        print()
+        inC = tf.placeholder(  # 7 cards
             name=           'inC',
             dtype=          tf.int32,
             shape=          [None, None, 7])  # [bsz,seq,7cards]

@@ -21,29 +21,34 @@ import tensorflow as tf
 import time
 import os
 
-from decisionMaker import DMK, BNDMK
+from decisionMaker import BNDMK
 from dmkManager import DMKManager
 from neuralGraphs import lstmGraphFN, cnnRGraphFN
+
+from pUtils.nnTools.nnBaseElements import loggingSet
 
 
 if __name__ == "__main__":
 
+    loggingSet('_log', customName='pyp', forceLast=True)
+
     # tf verbosity
-    tf.logging.set_verbosity(tf.logging.ERROR)
-    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+    # tf.logging.set_verbosity(tf.logging.ERROR)
+    # os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
     session = tf.Session()
 
     gfdl = [
-        lstmGraphFN(scope='dmA_%s' % time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3],lR=3e-5),
-        cnnRGraphFN(scope='dmB_%s' % time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3],nLay=24,reW=512,lR=1e-5),
-        cnnRGraphFN(scope='dmC_%s' % time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3],nLay=48,reW=256,lR=1e-5),
-        cnnRGraphFN(scope='dmD_%s' % time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3],nLay=12,reW=768,lR=1e-5),
-        cnnRGraphFN(scope='dmE_%s' % time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3],nLay=6,reW=1024,lR=1e-5),
-        cnnRGraphFN(scope='dmF_%s' % time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3],nLay=6,reW=256,lR=1e-5),
+        lstmGraphFN(scope='lA_%s' % time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3],                 lR=7e-6),
+        cnnRGraphFN(scope='cB_%s' % time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3],nLay=24,reW=512, lR=7e-7),
+        #cnnRGraphFN(scope='cC_%s' % time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3],nLay=12,reW=256, lR=7e-7),
+        cnnRGraphFN(scope='cD_%s' % time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3],nLay=8, reW=768, lR=7e-7),
+        #cnnRGraphFN(scope='cE_%s' % time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3],nLay=8, reW=512, lR=7e-7),
+        cnnRGraphFN(scope='cF_%s' % time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3],nLay=4, reW=1024,lR=7e-7),
+        #cnnRGraphFN(scope='cG_%s' % time.strftime("%Y.%m.%d_%H.%M.%S")[5:-3],nLay=4, reW=512, lR=7e-7),
     ]
 
-    dMKs = [BNDMK(session=session, gFND=gfd, nPl=150) for gfd in gfdl]
+    dMKs = [BNDMK(session=session, gFND=gfd, nPl=120) for gfd in gfdl]
     dmkMan = DMKManager(
         dMKs=       dMKs,
         pMsg=       False,

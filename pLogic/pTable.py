@@ -20,12 +20,21 @@ TBL_STT = {
     4:  'river',
     5:  'handFin'}
 
-# table moves
+# table moves 4 limited
+TBL_MOV = {
+    0:  'C/F',
+    1:  'CLL',
+    2:  'BR5',
+    3:  'BR8'}
+
+"""
+# table moves 4 with ALL
 TBL_MOV = {
     0:  'C/F',
     1:  'CLL',
     2:  'B/R',
     3:  'ALL'}
+"""
 
 # returns list of table position names in dependency of num of table players
 def posNames(nP=3):
@@ -83,6 +92,42 @@ class PTable(Process):
                         el['pIX'] = self.pls.index(el['pName']) # insert player index
                         del(el['pName']) # remove player name
 
+        # make move of 4 limited
+        # asks DMK for move decision (having table status ...and any other info)
+        def makeMove(
+                self,
+                handH,          # hand history
+                tblCash,        # table cash
+                tblCashTC):     # table cash to call
+
+            # by now simple hardcoded amounts of cash
+            possibleMovesCash = {
+                0: 0,
+                1: tblCashTC - self.cRiverCash,
+                2: int(tblCashTC*1.5) if tblCashTC else int(0.5*tblCash),
+                3: int(tblCashTC*2) if tblCashTC else int(0.8*tblCash)}
+
+            # calculate possible moves and cash based on table state and hand history
+            possibleMoves = [True]*4 # by now all
+            if tblCashTC == self.cRiverCash: possibleMoves[1] = False  # cannot call (already called)
+            if self.cash <= possibleMovesCash[2]: possibleMoves[3] = False # cannot make higher B/R
+
+            # eventually reduce cash amount for call and smaller bet
+            if self.cash < possibleMovesCash[2]: possibleMovesCash[2] = self.cash
+            if possibleMoves[1] and self.cash < possibleMovesCash[1]: possibleMovesCash[1] = self.cash
+            if possibleMoves[3] and self.cash < possibleMovesCash[3]: possibleMovesCash[3] = self.cash
+
+            stateChanges = copy.deepcopy(handH[self.nhsIX:]) # copy part of history
+            self.nhsIX = len(handH) # update index for next
+
+            self._translateTH(stateChanges) # update table history with player history
+
+            self.oQue.put([self.pAddr, stateChanges, possibleMoves])
+            selectedMove = self.iQue.get()
+
+            return selectedMove, possibleMovesCash[selectedMove]
+
+        """ make move of 4 with ALL
         # asks DMK for move decision (having table status ...and any other info)
         def makeMove(
                 self,
@@ -111,6 +156,7 @@ class PTable(Process):
             selectedMove = self.iQue.get()
 
             return selectedMove, possibleMovesCash[selectedMove]
+        """
 
         # sends DMK table update (without asking for move - possibleMoves==None)
         def updState(
@@ -148,8 +194,9 @@ class PTable(Process):
         self.deck = PDeck()
         self.state = 0
         self.cash = 0 # cash on table
+        self.cashCR = 0 # cash in current river
         self.cards = [] # table cards (max 5)
-        self.cashToCall = 0 # how much player has to put to call (on current river)
+        self.cashToCall = 0 # how much player has to put to call ON CURRENT RIVER
 
         self.handID = -1 # int incremented every hand
         self.hands = [] # list of histories of played hands
@@ -183,7 +230,6 @@ class PTable(Process):
             pl.cRiverCash = 0
 
         # reset table data
-        self.cash = 0
         self.cards = []
         self.deck.resetDeck()
         self.state = 0
@@ -206,12 +252,12 @@ class PTable(Process):
         handPlayers[0].cash -= self.SB
         handPlayers[0].cHandCash = self.SB
         handPlayers[0].cRiverCash = self.SB
-        self.cash += self.SB
         if self.pMsg: print(' ### P(%s) put SB %d$' % (handPlayers[0].name, self.SB))
         handPlayers[1].cash -= self.BB
         handPlayers[1].cHandCash = self.BB
         handPlayers[1].cRiverCash = self.BB
-        self.cash += self.BB
+        self.cash = self.SB + self.BB
+        self.cashCR = self.cash
         if self.pMsg: print(' ### P(%s) put BB %d$' % (handPlayers[1].name, self.BB))
         self.cashToCall = self.BB
         # by now blinds info is not needed for hand history
@@ -275,6 +321,7 @@ class PTable(Process):
                     pl.cHandCash += plMV[1]
                     pl.cRiverCash += plMV[1]
                     self.cash += plMV[1]
+                    self.cashCR += plMV[1]
 
                     # cash after move
                     mvD['tACash'] =        self.cash
@@ -288,7 +335,7 @@ class PTable(Process):
                         clcIX = cmpIX - 1 if cmpIX > 0 else len(handPlayers) - 1 # player before in loop
                     mvD['aCashToCall'] = self.cashToCall
 
-                    if self.pMsg: print(' ### P(%s) had %4d$, moved %s with %4d$, now: tableCash %4d$ toCall %4d$' % (pl.name, mvD['pBCash'], TBL_MOV[plMV[0]], plMV[1], self.cash, self.cashToCall))
+                    if self.pMsg: print(' ### P(%s) had %4d$, moved %s with %4d$ (pCR:%4d$), now: tableCash %4d$ (tCR:%4d$) toCall %4d$' % (pl.name, mvD['pBCash'], TBL_MOV[plMV[0]], plMV[1], pl.cRiverCash, self.cash, self.cashCR, self.cashToCall))
 
                     if plMV[0] == 0 and self.cashToCall > pl.cRiverCash:
                         playerFolded = True
@@ -304,6 +351,7 @@ class PTable(Process):
             # reset for next river
             clcIX = len(handPlayers)-1
             cmpIX = 0
+            self.cashCR = 0
             self.cashToCall = 0
             for pl in self.players: pl.cRiverCash = 0
 
