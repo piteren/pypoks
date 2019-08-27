@@ -2,11 +2,11 @@
 **reinforcement training of AI agent @poker game environment with TF @python
 (solve problem of making good/optimal decisions with very limited observation, many similarities to autonomous driving or stock market trading)**
 
-project objectives:
+project objectives:  
 **1st order:**
 - implement reinforcement agent training with TF (@python)
 - high performance training with multiprocessing
-- add genetic algorithm
+- add genetic algorithm  
 **2nd order:**
 - prepare informational project web page
 - build online demo (game interface for tests/demo)
@@ -26,7 +26,7 @@ if you are interested in collaboration please email me: tojestprzedmalpa@gmail.c
 
 
 
-**\*\*\*\*\* (19.07.26) \*\*\*\*\***
+**\*\*\*\*\* (19.07.26) \*\*\*\*\***  
 By now simplified poker game algorithm:
 * no ante
 * constant SB(2), BB(5) and table startCash(500)
