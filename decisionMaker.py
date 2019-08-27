@@ -102,6 +102,7 @@ class DMK:
                     newPos[state[key][ix][0]] = ix
                 self.plsHpos[pIX] = newPos
                 self.preflop[pIX] = True
+
             # enter postflop
             if key == 'newTableCards' and len(state[key]) == 3: self.preflop[pIX] = False
 
@@ -135,6 +136,8 @@ class DMK:
                     self.sts['nPM'][ti] += self.cHSdata[pIX]['nPM']
                     self.sts['nAGG'][ti] += self.cHSdata[pIX]['nAGG']
                 self._resetCSHD(pIX)
+
+                if  self.sts['nH'][0]%100000 == 0: self.sts['$'][0] = 0 # reset total won every 100K hands
 
                 # sts
                 if self.sts['nH'][1] == self.stsV:
