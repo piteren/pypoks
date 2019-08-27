@@ -1,2 +1,1 @@
-source ~/tensorflow/bin/activate
 nohup tensorboard --logdir=~/projects/pypoks/_nnTB &
