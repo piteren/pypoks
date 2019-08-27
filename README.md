@@ -3,15 +3,15 @@
 (solve problem of making good/optimal decisions with very limited observation, many similarities to autonomous driving or stock market trading)**
 
 project objectives:
-* 1st order:
-** implement reinforcement agent training with TF (@python)
-** high performance training with multiprocessing
-** add genetic algorithm
-* 2nd order:
-** prepare informational project web page
-** build online demo (game interface for tests/demo)
-** look for supporting entities
-    - optional: build HQ classifier for human/AI game decisions
+**1st order:**
+- implement reinforcement agent training with TF (@python)
+- high performance training with multiprocessing
+- add genetic algorithm
+**2nd order:**
+- prepare informational project web page
+- build online demo (game interface for tests/demo)
+- look for supporting entities
+- optional: build HQ classifier for human/AI game decisions
 
 by now I have build:
 * simple poker environment and quite fast game algorithm
