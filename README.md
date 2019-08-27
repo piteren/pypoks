@@ -1,5 +1,3 @@
-# PYPOKS
-
 ![](pypoks.png)
 
 **reinforcement training of AI agent @poker game environment with TF @python**  
@@ -30,7 +28,7 @@ but this is just beginning and there are still a lot of exciting things to do...
 if you are interested in collaboration please email [me](mailto:tojestprzedmalpa@gmail.com)
 
 ***
-#####**(19.07.26)**  
+### **(19.07.26)**  
 
 By now simplified poker game algorithm:
 - no ante
@@ -47,7 +45,7 @@ Table player translates table history into player (perspective) history - replac
 this implementation runs about 10H/s (F+B)
 
 ***
-#####**(19.08.07)**  
+### **(19.08.07)**  
 
 Implemented tables as separate processes with neural DMK supporting many players.
 Each DMK makes decisions with one NN(LSTM) and runs many players on many tables.
