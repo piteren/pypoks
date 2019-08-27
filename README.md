@@ -7,6 +7,7 @@ project objectives:
 - implement reinforcement agent training with TF (@python)
 - high performance training with multiprocessing
 - add genetic algorithm  
+
 **2nd order:**
 - prepare informational project web page
 - build online demo (game interface for tests/demo)
@@ -27,12 +28,13 @@ if you are interested in collaboration please email me: tojestprzedmalpa@gmail.c
 
 
 **\*\*\*\*\* (19.07.26) \*\*\*\*\***  
+
 By now simplified poker game algorithm:
-* no ante
-* constant SB(2), BB(5) and table startCash(500)
-* every hand starts with player cash = table.startCash
-* 3 players on table
-* simplified betting sizes (predefined possible sizes)
+- no ante
+- constant SB(2), BB(5) and table startCash(500)
+- every hand starts with player cash = table.startCash
+- 3 players on table
+- simplified betting sizes (predefined possible sizes)
 
 Those assumptions imply 4 possible moves: C/F, CLL, B/R, ALL
 
@@ -42,7 +44,8 @@ Table player translates table history into player (perspective) history - replac
 this implementation runs about 10H/s (F+B)
 
 
-**\*\*\*\*\* (19.08.07) \*\*\*\*\***
+**\*\*\*\*\* (19.08.07) \*\*\*\*\***  
+
 Implemented tables as separate processes with neural DMK supporting many players.
 Each DMK makes decisions with one NN(LSTM) and runs many players on many tables.
 In forward DMK amkes decision for 1/3 of its players in single pass. In backward runs single batch of 1000 moves
