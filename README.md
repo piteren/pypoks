@@ -3,7 +3,7 @@
 #### (solve problem of making good/optimal decisions with very limited observation, many similarities to autonomous driving or stock market trading)
 
 project objectives:
-*1st order:
+* 1st order:
 ** implement reinforcement agent training with TF (@python)
 ** high performance training with multiprocessing
 ** add genetic algorithm
