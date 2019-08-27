@@ -1,6 +1,6 @@
 # PYPOKS
-## reinforcement training of AI agent @poker game environment with TF @python
-### (solve problem of making good/optimal decisions with very limited observation, many similarities to autonomous driving or stock market trading)
+#### reinforcement training of AI agent @poker game environment with TF @python
+#### (solve problem of making good/optimal decisions with very limited observation, many similarities to autonomous driving or stock market trading)
 
 project objectives:
 *1st order:
