@@ -206,7 +206,7 @@ class PTable(Process):
                 pAddr=  key,
                 iQue=   pIQues[key],
                 oQue=   pOQue) for key in pIQues]
-        # update player players names with self on 1st pos
+        # update players names with self on 1st pos
         for pl in self.players:
             pls = [pl.name for pl in self.players]
             pls.remove(pl.name)

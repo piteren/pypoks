@@ -19,7 +19,7 @@ def lstmGraphFN(
         nDR=        3,      # num of encDR lay
         cellW=      1024,   # cell width
         optAda=     True,
-        lR=         1e-4):
+        lR=         7e-6):
 
     with tf.variable_scope(scope):
 
@@ -176,7 +176,7 @@ def cnnRGraphFN(
         nLay=       24,     # number of CNNR layers
         reW=        512,    # representation width (number of filters)
         optAda=     True,
-        lR=         1e-4):
+        lR=         7e-7):
 
     with tf.variable_scope(scope):
 

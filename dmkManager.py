@@ -9,6 +9,7 @@
 
 from multiprocessing import Queue
 import random
+import time
 
 from pLogic.pTable import PTable
 
@@ -49,18 +50,38 @@ class DMKManager:
                 verbLev=    self.verbLev)
             self.tables.append(table)
 
-    def runGames(self):
+    def runGames(
+            self,
+            nMtoPH=     1,      # None or 0 for no print
+            nMtoReset=  5):     # None or 0 for no reset $
 
         print('DMKMan running games, starting %d tables...'%len(self.tables))
         for tbl in self.tables: tbl.start() # start table
         print('tables started!')
 
+        lPHtime = time.time()
+        lRStime = lPHtime
+
         while True:
             pAddr, stateChanges, possibleMoves = self.pOQue.get() # wait for player data
             dix, pix = pAddr # resolve address
             dec = self.dMKs[dix].procPLData(pAddr, stateChanges, possibleMoves)
+
             # split dec among ques
             if dec is not None:
+
+                """
+                # take random table and print its hand at finish
+                if (time.time()-lPHtime)/60 > nMtoPH:
+                    nT = random.randrange(len(self.tables))
+                    self.tables[nT].printNextHand = True
+                    lPHtime = time.time()
+                """
+
+                if (time.time()-lRStime)/60 > nMtoReset:
+                    for dmk in self.dMKs: dmk.sts['$'][0] = 0
+                    lRStime = time.time()
+
                 for d in dec:
                     pIX, move = d
                     self.pIQues[(dix,pIX)].put(move)

@@ -46,7 +46,7 @@ class DMK:
         self._resetSTS()
         for pIX in range(self.nPl): self._resetCSHD(pIX)
 
-    # resets self.cHSdata for player
+    # resets self.cHSdata for player (per player stats)
     def _resetCSHD(
             self,
             pIX):
@@ -58,7 +58,7 @@ class DMK:
             'nPM':      0,
             'nAGG':     0}
 
-    # resets stats
+    # resets stats (one stats for whole DMK)
     def _resetSTS(self):
         """
         by now implemented stats:
@@ -110,11 +110,6 @@ class DMK:
             if key == 'winnersData':
 
                 self.nH += 1
-                """
-                if self.nH % 1000 == 0:
-                    print(' >>> DMK speed: %.1fsec/%d hands' % (time.time() - self.repTime, 1000))
-                    self.repTime = time.time()
-                """
 
                 myReward = 0
                 for el in state[key]:
@@ -136,8 +131,6 @@ class DMK:
                     self.sts['nPM'][ti] += self.cHSdata[pIX]['nPM']
                     self.sts['nAGG'][ti] += self.cHSdata[pIX]['nAGG']
                 self._resetCSHD(pIX)
-
-                if  self.sts['nH'][0]%100000 == 0: self.sts['$'][0] = 0 # reset total won every 100K hands
 
                 # sts
                 if self.sts['nH'][1] == self.stsV:
