@@ -52,8 +52,8 @@ class DMKManager:
 
     def runGames(
             self,
-            nMtoPH=     1,      # None or 0 for no print
-            nMtoReset=  5):     # None or 0 for no reset $
+            nMtoPH=     5,      # None or 0 for no print
+            nMtoReset=  100):     # None or 0 for no reset $
 
         print('DMKMan running games, starting %d tables...'%len(self.tables))
         for tbl in self.tables: tbl.start() # start table
@@ -70,15 +70,14 @@ class DMKManager:
             # split dec among ques
             if dec is not None:
 
-                """
-                # take random table and print its hand at finish
-                if (time.time()-lPHtime)/60 > nMtoPH:
-                    nT = random.randrange(len(self.tables))
-                    self.tables[nT].printNextHand = True
+                # take random dmk and print one hand
+                if nMtoPH and (time.time()-lPHtime)/60 > nMtoPH:
+                    nD = random.randrange(len(self.dMKs))
+                    self.dMKs[nD].storeNextHand = True
                     lPHtime = time.time()
-                """
 
-                if (time.time()-lRStime)/60 > nMtoReset:
+                # reset user $ won
+                if nMtoReset and (time.time()-lRStime)/60 > nMtoReset:
                     for dmk in self.dMKs: dmk.sts['$'][0] = 0
                     lRStime = time.time()
 

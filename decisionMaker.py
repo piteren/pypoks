@@ -36,6 +36,10 @@ class DMK:
         self.psblMoves = {ix: [] for ix in range(self.nPl)} # possible moves save
         self.nH = 0 # number of hands
 
+        self.storedHand = None
+        self.storeNextHand = False
+        self.storeHandOfPIX = -1
+
         self.runTB = runTB
         self.summWriter = tf.summary.FileWriter(logdir='_nnTB/' + self.name, flush_secs=10) if runTB else None
 
@@ -92,11 +96,22 @@ class DMK:
             pIX :int,
             tableStateChanges :list):
 
+        # update storage
+        if self.storeNextHand and self.storeHandOfPIX == pIX:
+            self.storedHand += tableStateChanges
+
         for state in tableStateChanges:
             key = list(state.keys())[0]
 
             # update positions of players @table for new hand, enter preflop
             if key == 'playersPC':
+
+                # start storage
+                if self.storeNextHand:
+                    if self.storedHand is None:
+                        self.storedHand = tableStateChanges
+                        self.storeHandOfPIX = pIX
+
                 newPos = [0]*len(state[key])
                 for ix in range(len(state[key])):
                     newPos[state[key][ix][0]] = ix
@@ -108,6 +123,13 @@ class DMK:
 
             # get reward and update
             if key == 'winnersData':
+
+                if self.storeNextHand and self.storeHandOfPIX == pIX:
+                    print('\nHand of %s from %s' % (self.name, time.strftime('%H.%M')))
+                    for el in self.storedHand: print(el)
+                    self.storedHand = None
+                    self.storeNextHand = False
+                    self.storeHandOfPIX = -1
 
                 self.nH += 1
 
@@ -483,7 +505,7 @@ class BNDMK(DMK):
                     self.lastUpdState[pIX] = updStates[ix] # save states
                     self.lDMR[pIX] = self.lDMR[pIX][avgNR:] # trim
 
-                print('%s :%4d: loss %.3f gN %.3f' % (self.name, len(uPIX)*avgNR, loss, gN))
+                #print('%s :%4d: loss %.3f gN %.3f' % (self.name, len(uPIX)*avgNR, loss, gN))
                 if self.summWriter:
                     losssum = tf.Summary(value=[tf.Summary.Value(tag='gph/loss', simple_value=loss)])
                     gNsum = tf.Summary(value=[tf.Summary.Value(tag='gph/gN', simple_value=gN)])
