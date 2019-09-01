@@ -7,7 +7,7 @@
 import tensorflow as tf
 
 from pUtils.littleTools.littleMethods import shortSCIN
-from pUtils.nnTools.nnBaseElements import defInitializer, layDENSE, numVFloats
+from pUtils.nnTools.nnBaseElements import defInitializer, layDENSE, numVFloats, gradClipper
 from pUtils.nnTools.nnEncoders import encDR
 
 # base LSTM neural graph
@@ -326,7 +326,7 @@ def cnnRGraphFN(
         gradients = tf.gradients(loss, vars)
         gN = tf.global_norm(gradients)
 
-        gradients, _ = tf.clip_by_global_norm(t_list=gradients, clip_norm=1, use_norm=gN)
+        #gradients, _ = tf.clip_by_global_norm(t_list=gradients, clip_norm=1, use_norm=gN)
 
         optimizer = tf.train.AdamOptimizer(lR) if optAda else tf.train.GradientDescentOptimizer(lR)
         optimizer = optimizer.apply_gradients(zip(gradients, vars))
@@ -353,3 +353,114 @@ def cnnRGraphFN(
             'gN':                   gN,
             'vars':                 vars,
             'optVars':              optVars}
+
+# cards net graph
+def cardGFN(
+        scope=      'cardNG',
+        wC=         16,
+        nLayers=    6,
+        rWidth=     30,
+        lR=         1e-3,
+        doClip=     True):
+
+    # builds graph of cards representations
+    def cardRepG(
+            sevenC,                     # seven cards placeholder
+            cEMB,                       # cards embedding tensor
+            scope=      'cardReprNG',
+            nLayers=    6,
+            rWidth=     30):            # width of representation tensor
+
+        inCemb = tf.nn.embedding_lookup(params=cEMB, ids=sevenC)
+        print(' > inCemb:', inCemb)
+        inCemb = tf.unstack(inCemb, axis=-2)
+        inCemb = tf.concat(inCemb, axis=-1)
+        print(' > inCemb (flattened):', inCemb)
+
+        encOUT = encDR(
+            input=      inCemb,
+            name=       scope,
+            nLayers=    nLayers,
+            layWidth=   rWidth,
+            nHL=        0,
+            verbLev=    2)
+
+        return encOUT['output']
+
+    with tf.variable_scope(scope, reuse=tf.AUTO_REUSE):
+
+        cEMB = tf.get_variable(  # cards embeddings
+            name=           'cEMB',
+            shape=          [53, wC],  # one card for 'no_card'
+            dtype=          tf.float32,
+            initializer=    defInitializer())
+
+        inAC = tf.placeholder(  # 7 cards of A
+            name=           'inAC',
+            dtype=          tf.int32,
+            shape=          [None, 7])  # [bsz,7cards]
+
+        inBC = tf.placeholder(  # 7 cards of B
+            name=           'inBC',
+            dtype=          tf.int32,
+            shape=          [None, 7])  # [bsz,7cards]
+
+        won = tf.placeholder(  # won class
+            name=           'won',
+            dtype=          tf.int32,
+            shape=          [None])  # [bsz,seq]
+
+        rAC = cardRepG(inAC, cEMB, nLayers=nLayers, rWidth=rWidth)
+        rBC = cardRepG(inBC, cEMB, nLayers=nLayers, rWidth=rWidth)
+        concRepr = tf.concat([rAC,rBC], axis=-1)
+        print(' > concRepr:', concRepr)
+
+        # projection to logits
+        denseOut = layDENSE(
+            input=          concRepr,
+            units=          3,
+            useBias=        False,
+            initializer=    defInitializer())
+        logits = denseOut['output']
+        print(' > logits:', logits)
+
+        vars = tf.trainable_variables(scope=tf.get_variable_scope().name)
+        print(' ### num of vars %s' % shortSCIN(numVFloats(vars)))
+
+        loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
+            labels=     won,
+            logits=     logits)
+        loss = tf.reduce_mean(loss)
+        print(' > loss:', loss)
+
+        predictions = tf.argmax(logits, axis=-1, output_type=tf.int32)
+        correct = tf.equal(predictions, won)
+        avgAcc = tf.reduce_mean(tf.cast(correct, dtype=tf.float32))
+        print(' > avgAcc:', avgAcc)
+
+        optimizer = tf.train.AdamOptimizer(lR)
+
+        gradients = tf.gradients(loss, vars)
+        clipOUT = gradClipper(gradients, doClip=doClip)
+        gradients = clipOUT['gradients']
+        gN = clipOUT['gGNorm']
+        agN = clipOUT['avtGGNorm']
+        optimizer = optimizer.apply_gradients(zip(gradients, vars))
+
+        # select optimizer vars
+        optVars = []
+        for var in tf.global_variables(scope=tf.get_variable_scope().name):
+            if var not in vars: optVars.append(var)
+
+        return{
+            'scope':                scope,
+            'inAC':                 inAC,
+            'inBC':                 inBC,
+            'won':                  won,
+            'loss':                 loss,
+            'acc':                  avgAcc,
+            'gN':                   gN,
+            'agN':                  agN,
+            'vars':                 vars,
+            'optVars':              optVars,
+            'optimizer':            optimizer}
