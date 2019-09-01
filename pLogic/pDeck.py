@@ -116,31 +116,35 @@ class PDeck:
 
         # straightFlush case check
         possibleStraightFlush = False
-        colInRow = [] + inRow
         if possibleStraight and colCards:
 
+            # remove from row cards out of colour
+            colInRow = [] + inRow
             toDelete = []
             for c in colInRow:
                 if c[1] != colour: toDelete.append(c)
-            for c in toDelete: colInRow.remove(c)
+            for c in toDelete: colInRow.remove(c) # after this col may be not in row (may be split)
 
             if len(colInRow) > 4:
-                possibleStraightFlush = True
+                possibleStraightFlush = True # assume true
+
                 splitIX = [] # indexes of split from
                 for ix in range(1,len(colInRow)):
                     if colInRow[ix-1][0]+1 != colInRow[ix][0]: splitIX.append(ix)
-                if splitIX and len(colInRow)-len(splitIX) > 4:
-                    splitIX = [0]+splitIX+[len(colInRow)]
-                    max = 0
-                    ixFrom = 0
-                    for ix in range(len(splitIX)-1):
-                        diff = splitIX[ix+1]-splitIX[ix]
-                        if diff > max:
-                            max = diff
-                            ixFrom = ix
-                    if max < 5: possibleStraightFlush = False
-                    if possibleStraightFlush: colInRow = colInRow[splitIX[ixFrom]:splitIX[ixFrom+1]]
-                if len(colInRow) > 5: colInRow = colInRow[len(colInRow)-5:]
+
+                if splitIX:
+                    if len(colInRow)<6 or len(splitIX)>1: possibleStraightFlush = False # any split gives possibility for SF only for 6 cards (7 with one removed from inside/notEdge/ gives 6 with split) with one split
+                    else:
+                        if splitIX[0] not in [1,5]: possibleStraightFlush = False
+                        else:
+                            ixF = 0
+                            ixT = 5
+                            if splitIX[0]==1:
+                                ixF = 1
+                                ixT = 6
+                            colInRow = colInRow[ixF:ixT]
+
+                if len(colInRow) > 5: colInRow = colInRow[len(colInRow)-5:] # trim
 
         if possibleStraightFlush:       topRank = 8 # straightFlush
         elif 4 in nFig:                 topRank = 7 # fourOf
@@ -217,7 +221,7 @@ if __name__ == "__main__":
     testDeck = PDeck()
 
     sTime = time.time()
-    for _ in range(12300):
+    for _ in range(123000):
         sevenCards = [testDeck.getCard() for _ in range(7)]
         """
         print(' ', end='')
@@ -226,6 +230,7 @@ if __name__ == "__main__":
         print()
         #"""
         cR = PDeck.cardsRank(sevenCards)
+        #if cR[0]==8: print(cR[-1])
         #print(cR[-1])
         testDeck.resetDeck()
     print('time taken %.2fsec'%(time.time()-sTime))
