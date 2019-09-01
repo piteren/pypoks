@@ -199,7 +199,6 @@ class PTable(Process):
         self.cashToCall = 0 # how much player has to put to call ON CURRENT RIVER
 
         self.handID = -1 # int incremented every hand
-        self.hands = [] # list of histories of played hands
 
         self.players = [
             self.PPlayer(
@@ -271,8 +270,7 @@ class PTable(Process):
             pl.hand = ca, cb
             if self.pMsg: print(' ### P(%s) taken hand %s %s' % (pl.name, PDeck.cts(ca), PDeck.cts(cb)))
         hHis = [{'playersPC': [[pl.name, pl.hand] for pl in handPlayers]}]
-        self.hands.append(hHis)
-        for pl in self.players: pl.updState(handH=self.hands[-1])
+        for pl in self.players: pl.updState(handH=hHis)
 
         while self.state < 5 and len(handPlayers) > 1:
 
@@ -312,7 +310,7 @@ class PTable(Process):
 
                     # player makes move
                     plMV = handPlayers[cmpIX].makeMove(
-                        handH=      self.hands[-1],
+                        handH=      hHis,
                         tblCash=    self.cash,
                         tblCashTC=  self.cashToCall)
                     mvD['plMove'] = plMV
@@ -407,7 +405,7 @@ class PTable(Process):
                 print()
 
         hHis.append({'winnersData': winnersData})
-        for pl in self.players: pl.updState(handH=self.hands[-1])
+        for pl in self.players: pl.updState(handH=hHis)
 
         self.players.append(self.players.pop(0)) # rotate table players for next hand
 
@@ -415,4 +413,4 @@ class PTable(Process):
 
         if self.verbLev > 2:
             print('HandHistory:')
-            for el in self.hands[-1]: print(el)
+            for el in hHis: print(el)
