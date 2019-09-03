@@ -21,6 +21,10 @@
  0.17740 0.44400 0.23040 0.04785 0.04150 0.03060 0.02660 0.00145 0.00020 (fraction)
  0.17740 0.62140 0.85180 0.89965 0.94115 0.97175 0.99835 0.99980 1.00000 (cumulative fraction)
 
+ for seven cards when try_to_balance it looks like (from 0 to 8):
+ 0.11485 0.22095 0.16230 0.10895 0.08660 0.09515 0.08695 0.06490 0.05935
+ 0.11485 0.33580 0.49810 0.60705 0.69365 0.78880 0.87575 0.94065 1.00000
+
 """
 
 import random
@@ -36,20 +40,25 @@ from neuralGraphs import cardGFN
 
 
 def prepBatch(
-        task=   None,
-        bs=     10000):
+        task=       None,
+        bs=         10000,
+        tBalance=   True):
 
     deck = PDeck()
     pa7B, pb7B, wB, haB, hbB = [],[],[],[],[]
     nH = [0]*9
     #hS = ['']*9
-    for _ in range(bs):
+    for s in range(bs):
         deck.resetDeck()
-        paC = [deck.getCard() for _ in range(2)] # two cards for A
-        pbC = [deck.getCard() for _ in range(2)] # two cards for B
-        cmC = [deck.getCard() for _ in range(5)] # five cards from table
-        pa7 = paC + cmC
-        pb7 = pbC + cmC
+        pa7 = deck.get7ofRank(s%9) if tBalance else [deck.getCard() for _ in range(7)] # 7 cards for A
+        pb7 = [deck.getCard() for _ in range(2)] + pa7[2:] # 7 cards for B
+
+        # randomly swap
+        if tBalance:
+            if random.random() > 0.5:
+                temp = pa7
+                pa7 = pb7
+                pb7 = temp
 
         # get cards ranks and calc labels
         paCR = deck.cardsRank(pa7)

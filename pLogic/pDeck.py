@@ -62,6 +62,92 @@ class PDeck:
     # returns one card from deck
     def getCard(self): return self.cards.pop()
 
+    # returns seven card of given rank
+    def get7ofRank(self, rank :int):
+
+        seven = []
+        if rank == 0:
+            while True:
+                self.resetDeck()
+                seven = [self.getCard() for _ in range(7)]
+                if self.cardsRank(seven)[0] == 0: break
+        if rank == 1:
+            while True:
+                self.resetDeck()
+                seven = [self.getCard() for _ in range(7)]
+                if self.cardsRank(seven)[0] == 1: break
+        if rank == 2:
+            while True:
+                self.resetDeck()
+                seven = [self.getCard() for _ in range(7)]
+                if self.cardsRank(seven)[0] == 2: break
+        if rank == 3:
+            while True:
+                self.resetDeck()
+                fig = random.randrange(12)
+                col = [c for c in range(4)]
+                random.shuffle(col)
+                col = col[:-1]
+                seven = [(fig,c) for c in col]
+                for card in seven: self.cards.remove(card)
+                seven += [self.getCard() for _ in range(4)]
+                if self.cardsRank(seven)[0] == 3: break
+        if rank == 4:
+            while True:
+                self.resetDeck()
+                fig = random.randrange(8)
+                seven = [(fig+ix,random.randrange(4)) for ix in range(5)]
+                for card in seven: self.cards.remove(card)
+                seven += [self.getCard() for _ in range(2)]
+                if self.cardsRank(seven)[0] == 4: break
+        if rank == 5:
+            while True:
+                self.resetDeck()
+                col = random.randrange(4)
+                fig = [f for f in range(12)]
+                random.shuffle(fig)
+                fig = fig[:5]
+                seven = [(f,col) for f in fig]
+                for card in seven: self.cards.remove(card)
+                seven += [self.getCard() for _ in range(2)]
+                if self.cardsRank(seven)[0] == 5: break
+        if rank == 6:
+            while True:
+                self.resetDeck()
+                fig = [f for f in range(12)]
+                random.shuffle(fig)
+                fig = fig[:2]
+                col = [c for c in range(4)]
+                random.shuffle(col)
+                col = col[:3]
+                seven = [(fig[0],c) for c in col]
+                col = [c for c in range(4)]
+                random.shuffle(col)
+                col = col[:2]
+                seven += [(fig[1],c) for c in col]
+                for card in seven: self.cards.remove(card)
+                seven += [self.getCard() for _ in range(2)]
+                if self.cardsRank(seven)[0] == 6: break
+        if rank == 7:
+            while True:
+                self.resetDeck()
+                fig = random.randrange(12)
+                seven = [(fig,c) for c in range(4)]
+                for card in seven: self.cards.remove(card)
+                seven += [self.getCard() for _ in range(3)]
+                if self.cardsRank(seven)[0] == 7: break
+        if rank == 8:
+            while True:
+                self.resetDeck()
+                fig = random.randrange(8)
+                col = random.randrange(4)
+                seven = [(fig + ix, col) for ix in range(5)]
+                for card in seven: self.cards.remove(card)
+                seven += [self.getCard() for _ in range(2)]
+                if self.cardsRank(seven)[0] == 8: break
+        random.shuffle(seven)
+        return seven
+
     # returns card id (int)
     @staticmethod
     def cti(card: tuple): return card[0]*4+card[1]
@@ -219,19 +305,23 @@ class PDeck:
 if __name__ == "__main__":
 
     testDeck = PDeck()
-
+    """
     sTime = time.time()
     for _ in range(123000):
         sevenCards = [testDeck.getCard() for _ in range(7)]
-        """
+        
         print(' ', end='')
         for card in sorted(sevenCards):
             print(PDeck.cts(card), end=' ')
         print()
-        #"""
+        
         cR = PDeck.cardsRank(sevenCards)
         #if cR[0]==8: print(cR[-1])
         #print(cR[-1])
         testDeck.resetDeck()
     print('time taken %.2fsec'%(time.time()-sTime))
+    """
+    for ix in range(9):
+        cards = testDeck.get7ofRank(ix)
+        print(ix, cards, PDeck.cardsRank(cards)[-1])
 
