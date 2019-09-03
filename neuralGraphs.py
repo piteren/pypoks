@@ -360,6 +360,7 @@ def cardGFN(
         wC=         16,
         nLayers=    6,
         rWidth=     30,
+        drLayers=   3, # may be 0 or None
         lR=         1e-3,
         doClip=     True):
 
@@ -376,6 +377,8 @@ def cardGFN(
         inCemb = tf.unstack(inCemb, axis=-2)
         inCemb = tf.concat(inCemb, axis=-1)
         print(' > inCemb (flattened):', inCemb)
+
+        # histogram
 
         encOUT = encDR(
             input=      inCemb,
@@ -412,12 +415,23 @@ def cardGFN(
 
         rAC = cardRepG(inAC, cEMB, nLayers=nLayers, rWidth=rWidth)
         rBC = cardRepG(inBC, cEMB, nLayers=nLayers, rWidth=rWidth)
-        concRepr = tf.concat([rAC,rBC], axis=-1)
-        print(' > concRepr:', concRepr)
+        output = tf.concat([rAC,rBC], axis=-1)
+        print(' > concRepr:', output)
+
+        # dense classifier
+        if drLayers:
+            encOUT = encDR(
+                input=      output,
+                name=       'drC',
+                nLayers=    drLayers,
+                layWidth=   rWidth*2,
+                nHL=        0,
+                verbLev=    2)
+            output = encOUT['output']
 
         # projection to logits
         denseOut = layDENSE(
-            input=          concRepr,
+            input=          output,
             units=          3,
             useBias=        False,
             initializer=    defInitializer())

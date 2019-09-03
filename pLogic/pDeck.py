@@ -30,7 +30,7 @@ CRD_COL = {
     2:  'D',    # diamonds, blue (diament)
     3:  'C'}    # clubs, green (żołądź)
 
-# card rankings
+# card ranks
 CRD_RNK = {
     0:  'highCard',
     1:  'pair',

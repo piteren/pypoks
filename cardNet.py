@@ -40,44 +40,49 @@ from neuralGraphs import cardGFN
 
 
 def prepBatch(
-        task=       None,
-        bs=         10000,
+        task=       None, # needed by QMP
+        bs=         1000,
         tBalance=   True):
 
-    deck = PDeck()
-    pa7B, pb7B, wB, haB, hbB = [],[],[],[],[]
-    nH = [0]*9
+    deck = PDeck() # since it is hard to give any object to function of process...
+
+    crd7AB, crd7BB, winsB, rankAB, rankBB = [],[],[],[],[] # batches
+    numRanks = [0]*9
     #hS = ['']*9
     for s in range(bs):
         deck.resetDeck()
-        pa7 = deck.get7ofRank(s%9) if tBalance else [deck.getCard() for _ in range(7)] # 7 cards for A
-        pb7 = [deck.getCard() for _ in range(2)] + pa7[2:] # 7 cards for B
 
-        # randomly swap
+        # look 4 the smallest number rank
+        nMinRank = min(numRanks)
+        desiredRank = numRanks.index(nMinRank)
+        crd7A = deck.get7ofRank(desiredRank) if tBalance else [deck.getCard() for _ in range(7)] # 7 cards for A
+        crd7B = [deck.getCard() for _ in range(2)] + crd7A[2:] # 7 cards for B
+
+        # randomly swap A with B to avoid wins bias
         if tBalance:
             if random.random() > 0.5:
-                temp = pa7
-                pa7 = pb7
-                pb7 = temp
+                temp = crd7A
+                crd7A = crd7B
+                crd7B = temp
 
         # get cards ranks and calc labels
-        paCR = deck.cardsRank(pa7)
-        pbCR = deck.cardsRank(pb7)
-        paCRV = paCR[1]
-        pbCRV = pbCR[1]
-        ha = paCR[0]
-        hb = pbCR[0]
-        nH[paCR[0]]+=1
-        nH[pbCR[0]]+=1
+        aRank = deck.cardsRank(crd7A)
+        bRank = deck.cardsRank(crd7B)
+        paCRV = aRank[1]
+        pbCRV = bRank[1]
+        ha = aRank[0]
+        hb = bRank[0]
+        numRanks[aRank[0]]+=1
+        numRanks[bRank[0]]+=1
         #hS[paCR[0]] = paCR[-1]
         #hS[pbCR[0]] = pbCR[-1]
         diff = paCRV-pbCRV
         wins = 0 if diff>0 else 1
-        if diff==0: wins = 2
+        if diff==0: wins = 2 # remis
 
         # convert cards tuples to ints
-        pa7 = [PDeck.cti(c) for c in pa7]
-        pb7 = [PDeck.cti(c) for c in pb7]
+        crd7A = [PDeck.cti(c) for c in crd7A]
+        crd7B = [PDeck.cti(c) for c in crd7B]
 
         """
         # mask some table cards
@@ -87,15 +92,15 @@ def prepBatch(
             pb7[ix] = 52
         """
 
-        pa7B.append(pa7)
-        pb7B.append(pb7)
-        wB.append(wins)
-        haB.append(ha)
-        hbB.append(hb)
+        crd7AB.append(crd7A)    # 7 cards of A
+        crd7BB.append(crd7B)    # 7 cards of B
+        winsB.append(wins)      # who wins {0,1,2}
+        rankAB.append(ha)       # rank of A
+        rankBB.append(hb)       # rank ok B
 
     #for s in hS: print(s)
     #print()
-    return pa7B, pb7B, wB, haB, hbB, nH
+    return crd7AB, crd7BB, winsB, rankAB, rankBB, numRanks
 
 
 if __name__ == "__main__":
@@ -105,27 +110,32 @@ if __name__ == "__main__":
     qmp = QueMultiProcessor(
         iProcFunction=  prepBatch,
         #nProc=          10,
-    )
+        verbLev=        1)
 
     cardNG = cardGFN(
-        wC=         2,
-        nLayers=    24,
-        rWidth=     256,
-        lR=         1e-3, # for nLays==48 lR=1e-4
-        doClip=     False
+        wC=         12,#6,#2,
+        nLayers=    12,#36,#24,
+        rWidth=     128,#,#256
+        drLayers=   None,
+        lR=         3e-4,#1e-5 # for nLays==48 lR=1e-4
+        #doClip=     False
     )
+
     session = tf.Session()
 
     session.run(tf.initializers.variables(var_list=cardNG['vars']+cardNG['optVars']))
     summWriter = tf.summary.FileWriter(logdir='_nnTB/crdN_%s'% time.strftime('%m.%d_%H.%M'), flush_secs=10)
 
-    for b in range(1000000):
+    for b in range(100000):
 
         batch = qmp.getResult()
+
+        # prints stats of rank @batch
         """
         hStats = batch[-1]
+        nHands = 2*len(batch[0])
         for ix in range(len(hStats)):
-            hStats[ix] /= 20000
+            hStats[ix] /= nHands
             print('%.5f '%hStats[ix], end='')
         print()
         cum = 0
@@ -133,7 +143,7 @@ if __name__ == "__main__":
             cum += hStats[ix]
             print('%.5f ' %cum, end='')
         print()
-        """
+        #"""
 
         feed = {
             cardNG['inAC']:     batch[0],
