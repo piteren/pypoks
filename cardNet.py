@@ -56,9 +56,9 @@ def prepBatch(
         nMinRank = min(numRanks)
         desiredRank = numRanks.index(nMinRank)
         crd7A = deck.get7ofRank(desiredRank) if tBalance else [deck.getCard() for _ in range(7)] # 7 cards for A
-        crd7B = [deck.getCard() for _ in range(2)] + crd7A[2:] # 7 cards for B
+        crd7B = [deck.getCard() for _ in range(2)] + crd7A[2:] # 2+5 cards for B
 
-        # randomly swap A with B to avoid wins bias
+        # randomly swap hands of A with B to avoid wins bias
         if tBalance:
             if random.random() > 0.5:
                 temp = crd7A
@@ -113,11 +113,11 @@ if __name__ == "__main__":
         verbLev=        1)
 
     cardNG = cardGFN(
-        wC=         24,#4,#6,#2,
+        wC=         36,#24,#4,#6,#2,
         nLayers=    12,#36,#24,
-        rWidth=     168,#128,#,#256
+        rWidth=     252,#168,#128,#,#256
         drLayers=   None,
-        lR=         3e-4,#1e-5 # for nLays==48 lR=1e-4
+        lR=         6e-4,#1e-5 # for nLays==48 lR=1e-4
         doClip=     False
     )
 
@@ -150,12 +150,12 @@ if __name__ == "__main__":
             cardNG['inBC']:     batch[1],
             cardNG['won']:      batch[2]}
 
-        fetches = [cardNG['optimizer'], cardNG['loss'], cardNG['acc'], cardNG['gN'], cardNG['agN']]
+        fetches = [cardNG['optimizer'], cardNG['loss'], cardNG['acc'], cardNG['gN'], cardNG['agN'], cardNG['lRs']]
         if b%200 == 0: fetches.append(cardNG['histSumm'])
 
         out = session.run(fetches, feed_dict=feed)
-        if len(out)==5: out.append(None)
-        _, loss, acc, gN, agN, histSumm = out
+        if len(out)==6: out.append(None)
+        _, loss, acc, gN, agN, lRs, histSumm = out
 
         if b%100 == 0:
             print('%6d, loss: %.3f, acc: %.3f, gN: %.3f' % (b, loss, acc, gN))
@@ -163,10 +163,12 @@ if __name__ == "__main__":
             losssum = tf.Summary(value=[tf.Summary.Value(tag='crdN/2_loss', simple_value=loss)])
             gNsum = tf.Summary(value=[tf.Summary.Value(tag='crdN/3_gN', simple_value=gN)])
             agNsum = tf.Summary(value=[tf.Summary.Value(tag='crdN/4_agN', simple_value=agN)])
+            lRssum = tf.Summary(value=[tf.Summary.Value(tag='crdN/5_lRs', simple_value=lRs)])
             summWriter.add_summary(accsum, b)
             summWriter.add_summary(losssum, b)
             summWriter.add_summary(gNsum, b)
             summWriter.add_summary(agNsum, b)
+            summWriter.add_summary(lRssum, b)
         if histSumm: summWriter.add_summary(histSumm, b)
 
     qmp.close()

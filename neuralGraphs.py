@@ -7,7 +7,7 @@
 import tensorflow as tf
 
 from pUtils.littleTools.littleMethods import shortSCIN
-from pUtils.nnTools.nnBaseElements import defInitializer, layDENSE, numVFloats, gradClipper
+from pUtils.nnTools.nnBaseElements import defInitializer, layDENSE, numVFloats, gradClipper, lRscaler
 from pUtils.nnTools.nnEncoders import encDR
 from pUtils.nnTools.dvc.dvcModel import DVCmodel
 from pUtils.nnTools.dvc.dvcPresets import dvcPresets, setFulldvcDict
@@ -364,6 +364,9 @@ def cardGFN(
         rWidth=     30,
         drLayers=   3, # may be 0 or None
         lR=         1e-3,
+        warmUp=     10000,
+        annbLr=     0.999,
+        stepLr=     0.1,
         doClip=     True):
 
     # builds graph of cards representations
@@ -459,14 +462,30 @@ def cardGFN(
         avgAcc = tf.reduce_mean(tf.cast(correct, dtype=tf.float32))
         print(' > avgAcc:', avgAcc)
 
-        optimizer = tf.train.AdamOptimizer(lR)
+        globalStep = tf.get_variable(  # global step
+            name=           'gStep',
+            shape=          [],
+            trainable=      False,
+            initializer=    tf.constant_initializer(0),
+            dtype=          tf.int32)
+
+        lRs = lRscaler(
+            iLR=            lR,
+            gStep=          globalStep,
+            warmUpSteps=    warmUp,
+            annbLr=         annbLr,
+            stepLr=         stepLr,
+            verbLev=        1)
+        print(lRs)
+
+        optimizer = tf.train.AdamOptimizer(lRs)
 
         gradients = tf.gradients(loss, vars)
         clipOUT = gradClipper(gradients, doClip=doClip)
         gradients = clipOUT['gradients']
         gN = clipOUT['gGNorm']
         agN = clipOUT['avtGGNorm']
-        optimizer = optimizer.apply_gradients(zip(gradients, vars))
+        optimizer = optimizer.apply_gradients(zip(gradients, vars), global_step=globalStep)
 
         # select optimizer vars
         optVars = []
@@ -480,6 +499,7 @@ def cardGFN(
             'won':                  won,
             'loss':                 loss,
             'acc':                  avgAcc,
+            'lRs':                  lRs,
             'gN':                   gN,
             'agN':                  agN,
             'vars':                 vars,
