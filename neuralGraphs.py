@@ -9,6 +9,8 @@ import tensorflow as tf
 from pUtils.littleTools.littleMethods import shortSCIN
 from pUtils.nnTools.nnBaseElements import defInitializer, layDENSE, numVFloats, gradClipper
 from pUtils.nnTools.nnEncoders import encDR
+from pUtils.nnTools.dvc.dvcModel import DVCmodel
+from pUtils.nnTools.dvc.dvcPresets import dvcPresets, setFulldvcDict
 
 # base LSTM neural graph
 def lstmGraphFN(
@@ -378,17 +380,18 @@ def cardGFN(
         inCemb = tf.concat(inCemb, axis=-1)
         print(' > inCemb (flattened):', inCemb)
 
-        # histogram
-
         encOUT = encDR(
             input=      inCemb,
             name=       scope,
             nLayers=    nLayers,
             layWidth=   rWidth,
-            nHL=        0,
+            nHL=        2,
             verbLev=    2)
 
-        return encOUT['output']
+        return {
+            'output':   encOUT['output'],
+            'histSumm': encOUT['histSumm'],
+            'nnZeros':  encOUT['nnZeros']}
 
     with tf.variable_scope(scope, reuse=tf.AUTO_REUSE):
 
@@ -397,6 +400,8 @@ def cardGFN(
             shape=          [53, wC],  # one card for 'no_card'
             dtype=          tf.float32,
             initializer=    defInitializer())
+
+        histSumm = [tf.summary.histogram('cEMB', cEMB, family='cEMB')]
 
         inAC = tf.placeholder(  # 7 cards of A
             name=           'inAC',
@@ -413,10 +418,12 @@ def cardGFN(
             dtype=          tf.int32,
             shape=          [None])  # [bsz,seq]
 
-        rAC = cardRepG(inAC, cEMB, nLayers=nLayers, rWidth=rWidth)
-        rBC = cardRepG(inBC, cEMB, nLayers=nLayers, rWidth=rWidth)
-        output = tf.concat([rAC,rBC], axis=-1)
+        cRGAout = cardRepG(inAC, cEMB, nLayers=nLayers, rWidth=rWidth)
+        cRGBout = cardRepG(inBC, cEMB, nLayers=nLayers, rWidth=rWidth)
+        output = tf.concat([cRGAout['output'],cRGBout['output']], axis=-1)
         print(' > concRepr:', output)
+
+        histSumm.append(cRGAout['histSumm'])
 
         # dense classifier
         if drLayers:
@@ -477,4 +484,5 @@ def cardGFN(
             'agN':                  agN,
             'vars':                 vars,
             'optVars':              optVars,
-            'optimizer':            optimizer}
+            'optimizer':            optimizer,
+            'histSumm':             tf.summary.merge(histSumm)}

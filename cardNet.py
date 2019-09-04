@@ -113,12 +113,12 @@ if __name__ == "__main__":
         verbLev=        1)
 
     cardNG = cardGFN(
-        wC=         12,#6,#2,
+        wC=         24,#4,#6,#2,
         nLayers=    12,#36,#24,
-        rWidth=     128,#,#256
+        rWidth=     168,#128,#,#256
         drLayers=   None,
         lR=         3e-4,#1e-5 # for nLays==48 lR=1e-4
-        #doClip=     False
+        doClip=     False
     )
 
     session = tf.Session()
@@ -151,9 +151,14 @@ if __name__ == "__main__":
             cardNG['won']:      batch[2]}
 
         fetches = [cardNG['optimizer'], cardNG['loss'], cardNG['acc'], cardNG['gN'], cardNG['agN']]
-        _, loss, acc, gN, agN = session.run(fetches, feed_dict=feed)
-        print('%6d, loss: %.3f, acc: %.3f, gN: %.3f'%(b, loss, acc, gN))
+        if b%200 == 0: fetches.append(cardNG['histSumm'])
+
+        out = session.run(fetches, feed_dict=feed)
+        if len(out)==5: out.append(None)
+        _, loss, acc, gN, agN, histSumm = out
+
         if b%100 == 0:
+            print('%6d, loss: %.3f, acc: %.3f, gN: %.3f' % (b, loss, acc, gN))
             accsum = tf.Summary(value=[tf.Summary.Value(tag='crdN/1_acc', simple_value=acc)])
             losssum = tf.Summary(value=[tf.Summary.Value(tag='crdN/2_loss', simple_value=loss)])
             gNsum = tf.Summary(value=[tf.Summary.Value(tag='crdN/3_gN', simple_value=gN)])
@@ -162,6 +167,7 @@ if __name__ == "__main__":
             summWriter.add_summary(losssum, b)
             summWriter.add_summary(gNsum, b)
             summWriter.add_summary(agNsum, b)
+        if histSumm: summWriter.add_summary(histSumm, b)
 
     qmp.close()
     print('done')
