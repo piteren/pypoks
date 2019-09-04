@@ -17,16 +17,17 @@
  7 (fourOf)         -  0.0240%
  8 (straightFlush)  -  0.001544%
 
- for seven cards it looks like (from 0 to 8):
+ for seven cards (from 0 to 8):
  0.17740 0.44400 0.23040 0.04785 0.04150 0.03060 0.02660 0.00145 0.00020 (fraction)
  0.17740 0.62140 0.85180 0.89965 0.94115 0.97175 0.99835 0.99980 1.00000 (cumulative fraction)
 
- for seven cards when try_to_balance it looks like (from 0 to 8):
+ for seven cards, when try_to_balance it (first attempt) (from 0 to 8):
  0.11485 0.22095 0.16230 0.10895 0.08660 0.09515 0.08695 0.06490 0.05935
  0.11485 0.33580 0.49810 0.60705 0.69365 0.78880 0.87575 0.94065 1.00000
 
 """
 
+import numpy as np
 import random
 import tensorflow as tf
 import time
@@ -38,47 +39,63 @@ from pLogic.pDeck import PDeck
 
 from neuralGraphs import cardGFN
 
-
+# prepares batch of 7cards, MP ready
 def prepBatch(
-        task=       None, # needed by QMP
+        task=       None,   # needed by QMP, here passed avoidCTuples - list of sorted_card tuples to avoid in batch
         bs=         1000,
-        tBalance=   True):
+        rBalance=   True,   # balance rank
+        wBalance=   0.1):   # False or fraction of draws
 
     deck = PDeck() # since it is hard to give any object to function of process...
+    avoidCTuples = task
 
     crd7AB, crd7BB, winsB, rankAB, rankBB = [],[],[],[],[] # batches
     numRanks = [0]*9
-    #hS = ['']*9
+    numWins = [0]*3
+    hS = ['']*9
     for s in range(bs):
         deck.resetDeck()
 
         # look 4 the smallest number rank
         nMinRank = min(numRanks)
         desiredRank = numRanks.index(nMinRank)
-        crd7A = deck.get7ofRank(desiredRank) if tBalance else [deck.getCard() for _ in range(7)] # 7 cards for A
-        crd7B = [deck.getCard() for _ in range(2)] + crd7A[2:] # 7 cards for B
+        desiredDraw = False if wBalance is False else numWins[2] < wBalance*sum(numWins)
 
-        # randomly swap A with B to avoid wins bias
-        if tBalance:
+        crd7A = None
+        crd7B = None
+        aRank = None
+        bRank = None
+        gotDesiredCards = False
+        while not gotDesiredCards:
+
+            crd7A = deck.get7ofRank(desiredRank) if rBalance else [deck.getCard() for _ in range(7)] # 7 cards for A
+            crd7B = [deck.getCard() for _ in range(2)] + crd7A[2:] # 2+5 cards for B
+
+            # randomly swap hands of A with B to avoid wins bias
             if random.random() > 0.5:
                 temp = crd7A
                 crd7A = crd7B
                 crd7B = temp
 
-        # get cards ranks and calc labels
-        aRank = deck.cardsRank(crd7A)
-        bRank = deck.cardsRank(crd7B)
+            # get cards ranks
+            aRank = deck.cardsRank(crd7A)
+            bRank = deck.cardsRank(crd7B)
+
+            if not desiredDraw or (desiredDraw and aRank[1]==bRank[1]): gotDesiredCards = True
+            if gotDesiredCards and avoidCTuples is not None and (tuple(sorted(crd7A)) in avoidCTuples or tuple(sorted(crd7B)) in avoidCTuples): gotDesiredCards = False
+
         paCRV = aRank[1]
         pbCRV = bRank[1]
         ha = aRank[0]
         hb = bRank[0]
         numRanks[aRank[0]]+=1
         numRanks[bRank[0]]+=1
-        #hS[paCR[0]] = paCR[-1]
-        #hS[pbCR[0]] = pbCR[-1]
+        hS[aRank[0]] = aRank[-1]
+        hS[bRank[0]] = bRank[-1]
         diff = paCRV-pbCRV
         wins = 0 if diff>0 else 1
         if diff==0: wins = 2 # remis
+        numWins[wins] += 1
 
         # convert cards tuples to ints
         crd7A = [PDeck.cti(c) for c in crd7A]
@@ -100,24 +117,37 @@ def prepBatch(
 
     #for s in hS: print(s)
     #print()
-    return crd7AB, crd7BB, winsB, rankAB, rankBB, numRanks
+    return crd7AB, crd7BB, winsB, rankAB, rankBB, numRanks, numWins
 
 
 if __name__ == "__main__":
 
     loggingSet('_log', customName='pypCN', forceLast=True)
 
+    testSize = 10000
+    testBatch = prepBatch(bs=testSize)
+    cTuples = []
+    for ix in range(testSize):
+        cTuples.append(tuple(sorted(testBatch[0][ix])))
+        cTuples.append(tuple(sorted(testBatch[1][ix])))
+    print('Got %d of hands in testBatch'%len(cTuples))
+    cTuples = dict.fromkeys(cTuples, 1)
+    print('of which %d is unique'%len(cTuples))
+
     qmp = QueMultiProcessor(
         iProcFunction=  prepBatch,
+        taskObject=     cTuples,
+        rQueTSize=      100,
         #nProc=          10,
         verbLev=        1)
 
     cardNG = cardGFN(
-        wC=         24,#4,#6,#2,
-        nLayers=    12,#36,#24,
-        rWidth=     168,#128,#,#256
+        cEmbW=      48,#24,
+        nLayers=    24,#12,
         drLayers=   None,
-        lR=         3e-4,#1e-5 # for nLays==48 lR=1e-4
+        lR=         1e-3,
+        annbLr=     0.999,
+        stepLr=     0.02,#0.04,#0.02,
         doClip=     False
     )
 
@@ -126,48 +156,212 @@ if __name__ == "__main__":
     session.run(tf.initializers.variables(var_list=cardNG['vars']+cardNG['optVars']))
     summWriter = tf.summary.FileWriter(logdir='_nnTB/crdN_%s'% time.strftime('%m.%d_%H.%M'), flush_secs=10)
 
-    for b in range(100000):
+    izT1 = 50
+    izT2 = 500
+    izT3 = 2000
+    indZerosT1 = []
+    indZerosT2 = []
+    indZerosT3 = []
+    nHighAcc = 0
+
+    for b in range(147000):
 
         batch = qmp.getResult()
-
-        # prints stats of rank @batch
-        """
-        hStats = batch[-1]
-        nHands = 2*len(batch[0])
-        for ix in range(len(hStats)):
-            hStats[ix] /= nHands
-            print('%.5f '%hStats[ix], end='')
-        print()
-        cum = 0
-        for ix in range(len(hStats)):
-            cum += hStats[ix]
-            print('%.5f ' %cum, end='')
-        print()
-        #"""
 
         feed = {
             cardNG['inAC']:     batch[0],
             cardNG['inBC']:     batch[1],
-            cardNG['won']:      batch[2]}
+            cardNG['won']:      batch[2],
+            cardNG['rnkA']:     batch[3],
+            cardNG['rnkB']:     batch[4],
+        }
 
-        fetches = [cardNG['optimizer'], cardNG['loss'], cardNG['acc'], cardNG['gN'], cardNG['agN']]
+        fetches = [
+            cardNG['optimizer'],
+            cardNG['loss'],
+            cardNG['acc'],
+            cardNG['accC'],
+            cardNG['predictions'],
+            cardNG['ohNotCorrect'],
+            cardNG['accR'],
+            cardNG['accRC'],
+            cardNG['predictionsRA'],
+            cardNG['ohNotCorrectRA'],
+            cardNG['gN'],
+            cardNG['agN'],
+            cardNG['lRs'],
+            cardNG['nnZeros']]
+        lenNH = len(fetches)
         if b%200 == 0: fetches.append(cardNG['histSumm'])
 
         out = session.run(fetches, feed_dict=feed)
-        if len(out)==5: out.append(None)
-        _, loss, acc, gN, agN, histSumm = out
+        if len(out)==lenNH: out.append(None)
+        _, loss, acc, accC, pr, nc, accR, accRC, prRA, ncRA, gN, agN, lRs, zeros, histSumm = out
+
+        if not zeros.size: zeros = np.asarray([0])
+        indZerosT1.append(zeros)
+        indZerosT2.append(zeros)
+        indZerosT3.append(zeros)
 
         if b%100 == 0:
+
+            # prints stats of rank @batch
+            """
+            rStats = batch[5]
+            nHands = 2*len(batch[0])
+            for ix in range(len(rStats)):
+                rStats[ix] /= nHands
+                print('%.5f '%rStats[ix], end='')
+            print()
+            cum = 0
+            for ix in range(len(rStats)):
+                cum += rStats[ix]
+                print('%.5f ' %cum, end='')
+            print()
+
+            wStats = batch[6]
+            nWins = len(batch[0])
+            for ix in range(len(wStats)):
+                wStats[ix] /= nWins
+                print('%.3f ' % wStats[ix], end='')
+            print()
+
+            #"""
+
             print('%6d, loss: %.3f, acc: %.3f, gN: %.3f' % (b, loss, acc, gN))
-            accsum = tf.Summary(value=[tf.Summary.Value(tag='crdN/1_acc', simple_value=acc)])
+
+            accsum = tf.Summary(value=[tf.Summary.Value(tag='crdN/1_acc', simple_value=1-acc)])
+            accRsum = tf.Summary(value=[tf.Summary.Value(tag='crdN/1_accR', simple_value=1-accR)])
             losssum = tf.Summary(value=[tf.Summary.Value(tag='crdN/2_loss', simple_value=loss)])
             gNsum = tf.Summary(value=[tf.Summary.Value(tag='crdN/3_gN', simple_value=gN)])
             agNsum = tf.Summary(value=[tf.Summary.Value(tag='crdN/4_agN', simple_value=agN)])
+            lRssum = tf.Summary(value=[tf.Summary.Value(tag='crdN/5_lRs', simple_value=lRs)])
             summWriter.add_summary(accsum, b)
+            summWriter.add_summary(accRsum, b)
             summWriter.add_summary(losssum, b)
             summWriter.add_summary(gNsum, b)
             summWriter.add_summary(agNsum, b)
+            summWriter.add_summary(lRssum, b)
+
+            accRC = accRC.tolist()
+            for cx in range(len(accRC)):
+                csum = tf.Summary(value=[tf.Summary.Value(tag='Rca/%dca'%cx, simple_value=1-accRC[cx])])
+                summWriter.add_summary(csum, b)
+            accC = accC.tolist()
+            accC01 = (accC[0]+accC[1])/2
+            accC2 = accC[2]
+            c01sum = tf.Summary(value=[tf.Summary.Value(tag='Wca/01ca', simple_value=1-accC01)])
+            c2sum = tf.Summary(value=[tf.Summary.Value(tag='Wca/2ca', simple_value=1-accC2)])
+            summWriter.add_summary(c01sum, b)
+            summWriter.add_summary(c2sum, b)
+
+            zerosT0 = np.mean(zeros)
+            naneT0Summ = tf.Summary(value=[tf.Summary.Value(tag='nane/naneT0', simple_value=zerosT0)])
+            summWriter.add_summary(naneT0Summ, b)
+            if len(indZerosT1) > izT1 - 1:
+                indZerosT1 = indZerosT1[-izT1:]
+                zerosT1 = np.mean(np.where(np.mean(np.stack(indZerosT1, axis=0), axis=0)==1, 1, 0))
+                indZerosT1 = []
+                naneT1Summ = tf.Summary(value=[tf.Summary.Value(tag='nane/naneT%d' % izT1, simple_value=zerosT1)])
+                summWriter.add_summary(naneT1Summ, b)
+            if len(indZerosT2) > izT2 - 1:
+                indZerosT2 = indZerosT2[-izT2:]
+                zerosT2 = np.mean(np.where(np.mean(np.stack(indZerosT2, axis=0), axis=0)==1, 1, 0))
+                indZerosT2 = []
+                naneT2Summ = tf.Summary(value=[tf.Summary.Value(tag='nane/naneT%d' % izT2, simple_value=zerosT2)])
+                summWriter.add_summary(naneT2Summ, b)
+            if len(indZerosT3) > izT3 - 1:
+                indZerosT3 = indZerosT3[-izT3:]
+                zerosT3 = np.mean(np.where(np.mean(np.stack(indZerosT3, axis=0), axis=0)==1, 1, 0))
+                indZerosT3 = []
+                naneT3Summ = tf.Summary(value=[tf.Summary.Value(tag='nane/naneT%d' % izT3, simple_value=zerosT3)])
+                summWriter.add_summary(naneT3Summ, b)
+
+            if acc > 0.99: nHighAcc += 1
+            if nHighAcc > 10:
+                nS = prRA.shape[0]
+                nBS = 0
+                for sx in range(nS):
+                    ncRASL = ncRA[sx].tolist()
+                    if max(ncRASL):
+                        nBS += 1
+                        if nBS < 5:
+                            cards = sorted(batch[0][sx])
+                            cards = [PDeck.itc(c) for c in cards]
+                            cS7 = ''
+                            for c in cards:
+                                cS7 += ' %s' % PDeck.cts(c)
+                            cr = PDeck.cardsRank(cards)
+                            print(prRA[sx],ncRASL.index(1),cS7,cr[-1])
+                if nBS: print(nBS)
+                nBS = 0
+                for sx in range(nS):
+                    ncSL = nc[sx].tolist()
+                    if max(ncSL):
+                        nBS += 1
+                        if nBS < 5:
+                            cardsA = batch[0][sx]
+                            cardsA = [PDeck.itc(c) for c in cardsA]
+                            cardsB = batch[1][sx]
+                            cardsB = [PDeck.itc(c) for c in cardsB]
+                            cS7A = ''
+                            for c in cardsA:
+                                cS7A += ' %s' % PDeck.cts(c)
+                            cS7A = cS7A[1:]
+                            cS7B = ''
+                            for c in cardsB:
+                                cS7B += ' %s' % PDeck.cts(c)
+                            cS7B = cS7B[1:]
+                            crA = PDeck.cardsRank(cardsA)
+                            crB = PDeck.cardsRank(cardsB)
+                            print(pr[sx], ncSL.index(1), crA[-1][:2], crB[-1][:2], '(%s - %s = %s - %s)'%(cS7A,cS7B,crA[-1][3:],crB[-1][3:]))
+                if nBS: print(nBS)
+
         if histSumm: summWriter.add_summary(histSumm, b)
+
+        # test
+        if b%1000 == 0:
+            batch = testBatch
+
+            feed = {
+                cardNG['inAC']:     batch[0],
+                cardNG['inBC']:     batch[1],
+                cardNG['won']:      batch[2],
+                cardNG['rnkA']:     batch[3],
+                cardNG['rnkB']:     batch[4],
+            }
+
+            fetches = [
+                cardNG['loss'],
+                cardNG['acc'],
+                cardNG['accC'],
+                cardNG['predictions'],
+                cardNG['ohNotCorrect'],
+                cardNG['accR'],
+                cardNG['accRC'],
+                cardNG['predictionsRA'],
+                cardNG['ohNotCorrectRA']]
+
+            out = session.run(fetches, feed_dict=feed)
+            if len(out)==lenNH: out.append(None)
+            loss, acc, accC, pr, nc, accR, accRC, prRA, ncRA = out
+
+            print('%6dT loss: %.4f acc: %.4f' % (b, loss, acc))
+
+            accsum = tf.Summary(value=[tf.Summary.Value(tag='crdNT/1_acc', simple_value=1-acc)])
+            accRsum = tf.Summary(value=[tf.Summary.Value(tag='crdNT/1_accR', simple_value=1-accR)])
+            losssum = tf.Summary(value=[tf.Summary.Value(tag='crdNT/2_loss', simple_value=loss)])
+            summWriter.add_summary(accsum, b)
+            summWriter.add_summary(accRsum, b)
+            summWriter.add_summary(losssum, b)
+
+            accC = accC.tolist()
+            accC01 = (accC[0]+accC[1])/2
+            accC2 = accC[2]
+            c01sum = tf.Summary(value=[tf.Summary.Value(tag='WcaT/01ca', simple_value=1-accC01)])
+            c2sum = tf.Summary(value=[tf.Summary.Value(tag='WcaT/2ca', simple_value=1-accC2)])
+            summWriter.add_summary(c01sum, b)
+            summWriter.add_summary(c2sum, b)
 
     qmp.close()
     print('done')

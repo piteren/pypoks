@@ -17,7 +17,7 @@ CRD_FIG = {
     5:  '7',
     6:  '8',
     7:  '9',
-    8:  '10',
+    8:  'T',
     9:  'J',
     10: 'D',
     11: 'K',
@@ -32,15 +32,15 @@ CRD_COL = {
 
 # card ranks
 CRD_RNK = {
-    0:  'highCard',
-    1:  'pair',
-    2:  'twoPairs',
-    3:  'threeOf',
-    4:  'straight',
-    5:  'flush',
-    6:  'fullHouse',
-    7:  'fourOf',
-    8:  'straightFlush'}
+    0:  'hc',
+    1:  '2_',
+    2:  '22',
+    3:  '3_',
+    4:  'ST',
+    5:  'FL',
+    6:  '32',
+    7:  '4_',
+    8:  'SF'}
 
 
 class PDeck:
@@ -152,7 +152,14 @@ class PDeck:
     @staticmethod
     def cti(card: tuple): return card[0]*4+card[1]
 
-    # retund card str
+    # returns card tuple
+    @staticmethod
+    def itc(card: int):
+        cf = int(card/4)
+        cc = card%4
+        return cf,cc
+
+    # returns card str
     @staticmethod
     def cts(card: tuple): return CRD_FIG[card[0]] + CRD_COL[card[1]]
 
@@ -232,15 +239,15 @@ class PDeck:
 
                 if len(colInRow) > 5: colInRow = colInRow[len(colInRow)-5:] # trim
 
-        if possibleStraightFlush:       topRank = 8 # straightFlush
-        elif 4 in nFig:                 topRank = 7 # fourOf
-        elif 3 in nFig and 2 in nFig:   topRank = 6 # fullHouse
-        elif colCards:                  topRank = 5 # flush
-        elif possibleStraight:          topRank = 4 # straight
-        elif 3 in nFig:                 topRank = 3 # threeOf
-        elif nFig.count(2) > 1:         topRank = 2 # twoPairs
-        elif 2 in nFig:                 topRank = 1 # pair
-        else:                           topRank = 0 # highCard
+        if possibleStraightFlush:                               topRank = 8 # straightFlush
+        elif 4 in nFig:                                         topRank = 7 # fourOf
+        elif (3 in nFig and 2 in nFig) or nFig.count(3) > 1:    topRank = 6 # fullHouse
+        elif colCards:                                          topRank = 5 # flush
+        elif possibleStraight:                                  topRank = 4 # straight
+        elif 3 in nFig:                                         topRank = 3 # threeOf
+        elif nFig.count(2) > 1:                                 topRank = 2 # twoPairs
+        elif 2 in nFig:                                         topRank = 1 # pair
+        else:                                                   topRank = 0 # highCard
 
         # find five cards
         fiveCards = []
@@ -254,13 +261,12 @@ class PDeck:
             for c in four: cards.remove(c)
             fiveCards = [cards[-1]] + four
         if topRank == 6:
-            three = []
+            fiveCards = []
             for cL in cFig:
-                if len(cL) == 3: three = cL
-            two = []
+                if len(cL) == 2: fiveCards += cL
             for cL in cFig:
-                if len(cL) == 2: two = cL
-            fiveCards = two + three
+                if len(cL) == 3: fiveCards += cL
+            fiveCards = fiveCards[-5:]
         if topRank == 5:
             if len(colCards) > 5: colCards = colCards[len(colCards)-5:]
             fiveCards = colCards
@@ -295,7 +301,7 @@ class PDeck:
         rankValue += 1000000*topRank
 
         # prep string
-        string = CRD_RNK[topRank] + ' %s'%rankValue
+        string = CRD_RNK[topRank] + ' %7s'%rankValue
         for c in fiveCards:
             string += ' %s' % PDeck.cts(c)
 
@@ -321,7 +327,17 @@ if __name__ == "__main__":
         testDeck.resetDeck()
     print('time taken %.2fsec'%(time.time()-sTime))
     """
+    """
     for ix in range(9):
         cards = testDeck.get7ofRank(ix)
         print(ix, cards, PDeck.cardsRank(cards)[-1])
+    """
+    cards = [(0,0),(0,1),(0,2),(3,0),(9,0),(9,1),(9,2)]
+    print(PDeck.cardsRank(cards)[-1])
+    cards = [(0,0),(0,1),(1,0),(1,1),(9,0),(9,1),(9,2)]
+    print(PDeck.cardsRank(cards)[-1])
+    cards = [(0,0),(2,1),(1,0),(1,1),(9,0),(9,1),(9,2)]
+    print(PDeck.cardsRank(cards)[-1])
+    cards = [(0,0),(0,1),(0,2),(1,1),(8,0),(9,1),(9,2)]
+    print(PDeck.cardsRank(cards)[-1])
 

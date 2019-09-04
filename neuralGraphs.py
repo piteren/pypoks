@@ -7,8 +7,8 @@
 import tensorflow as tf
 
 from pUtils.littleTools.littleMethods import shortSCIN
-from pUtils.nnTools.nnBaseElements import defInitializer, layDENSE, numVFloats, gradClipper
-from pUtils.nnTools.nnEncoders import encDR
+from pUtils.nnTools.nnBaseElements import defInitializer, layDENSE, numVFloats, gradClipper, lRscaler
+from pUtils.nnTools.nnEncoders import encDR, encTRNS
 from pUtils.nnTools.dvc.dvcModel import DVCmodel
 from pUtils.nnTools.dvc.dvcPresets import dvcPresets, setFulldvcDict
 
@@ -359,18 +359,21 @@ def cnnRGraphFN(
 # cards net graph
 def cardGFN(
         scope=      'cardNG',
-        wC=         16,
+        cEmbW=      16,
         nLayers=    6,
         rWidth=     30,
-        drLayers=   3, # may be 0 or None
+        drLayers=   3, # None or 0
         lR=         1e-3,
+        warmUp=     10000,
+        annbLr=     0.999,
+        stepLr=     0.1,
         doClip=     True):
 
-    # builds graph of cards representations
-    def cardRepG(
+    # DR encoder graph (cards representations)
+    def cEncDR(
             sevenC,                     # seven cards placeholder
             cEMB,                       # cards embedding tensor
-            scope=      'cardReprNG',
+            scope=      'cEncDR',
             nLayers=    6,
             rWidth=     30):            # width of representation tensor
 
@@ -393,11 +396,67 @@ def cardGFN(
             'histSumm': encOUT['histSumm'],
             'nnZeros':  encOUT['nnZeros']}
 
+    # Transformer encoder graph (cards representations)
+    def cEncT(
+            sevenC,                     # seven cards placeholder
+            cEMB,                       # cards embedding tensor
+            nLayers=    6):
+
+        print('\nBuilding cEncT (T encoder)...')
+
+        inCemb = tf.nn.embedding_lookup(params=cEMB, ids=sevenC)
+        print(' > inCemb:', inCemb)
+
+        #""""
+        myCEMB = tf.get_variable(  # my cards embeddings
+            name=           'myCEMB',
+            shape=          [2, cEMB.shape[-1]],
+            dtype=          tf.float32,
+            initializer=    defInitializer())
+        myCElook = tf.nn.embedding_lookup(params=myCEMB, ids=[0,0,1,1,1,1,1])
+        print(' > myCElook:', myCElook)
+        inCemb += myCElook
+        #"""
+        cProjOUT = layDENSE(
+            input=          inCemb,
+            units=          48,
+            name=           'cProj',
+            reuse=          tf.AUTO_REUSE,
+            useBias=        False,
+            initializer=    defInitializer())
+        #inCemb = cProjOUT['output']
+        print(' > inCemb projected:', inCemb)
+        #"""
+
+        TATcase = True # hardcoded TAT, which performs well
+        encOUT = encTRNS(
+            input=      inCemb,
+            seqOut=     not TATcase,
+            addPE=      False,
+            name=       'cTrans',
+            nBlocks=    nLayers,
+            nHeads=     1,
+            denseMul=   24,#4,
+            maxSeqLen=  7,
+            nHistL=     2,
+            verbLev=    2)
+
+        output = encOUT['eTOut']
+        if not TATcase:
+            output = tf.unstack(output, axis=-2)
+            output = tf.concat(output, axis=-1)
+        print(' > encT reshaped output:', output)
+
+        return {
+            'output':   output,
+            'histSumm': encOUT['histSumm'],
+            'nnZeros':  encOUT['nnZeros']}
+
     with tf.variable_scope(scope, reuse=tf.AUTO_REUSE):
 
         cEMB = tf.get_variable(  # cards embeddings
             name=           'cEMB',
-            shape=          [53, wC],  # one card for 'no_card'
+            shape=          [53, cEmbW],  # one card for 'no_card'
             dtype=          tf.float32,
             initializer=    defInitializer())
 
@@ -418,10 +477,42 @@ def cardGFN(
             dtype=          tf.int32,
             shape=          [None])  # [bsz,seq]
 
-        cRGAout = cardRepG(inAC, cEMB, nLayers=nLayers, rWidth=rWidth)
-        cRGBout = cardRepG(inBC, cEMB, nLayers=nLayers, rWidth=rWidth)
+        rnkA = tf.placeholder( # rank A class
+            name=           'rnkA',
+            dtype=          tf.int32,
+            shape=          [None])  # [bsz,seq]
+
+        rnkB = tf.placeholder( # rank B class
+            name=           'rnkB',
+            dtype=          tf.int32,
+            shape=          [None])  # [bsz,seq]
+
+        #cRGAout = cEncDR(inAC, cEMB, nLayers=nLayers, rWidth=rWidth)
+        #cRGBout = cEncDR(inBC, cEMB, nLayers=nLayers, rWidth=rWidth)
+        cRGAout = cEncT(inAC, cEMB, nLayers=nLayers)
+        cRGBout = cEncT(inBC, cEMB, nLayers=nLayers)
+        nnZeros = cRGAout['nnZeros']
+        nnZeros = tf.reshape(tf.stack(nnZeros), shape=[-1])
+
+        denseOutA = layDENSE(
+            input=          cRGAout['output'],
+            units=          9,
+            name=           'denseRC',
+            useBias=        False,
+            initializer=    defInitializer())
+        rankAlogits = denseOutA['output']
+
+        denseOutB = layDENSE(
+            input=          cRGBout['output'],
+            units=          9,
+            name=           'denseRC',
+            reuse=          True,
+            useBias=        False,
+            initializer=    defInitializer())
+        rankBlogits = denseOutB['output']
+
         output = tf.concat([cRGAout['output'],cRGBout['output']], axis=-1)
-        print(' > concRepr:', output)
+        print('\n > concRepr:', output)
 
         histSumm.append(cRGAout['histSumm'])
 
@@ -442,31 +533,90 @@ def cardGFN(
             units=          3,
             useBias=        False,
             initializer=    defInitializer())
-        logits = denseOut['output']
-        print(' > logits:', logits)
+        wonLogits = denseOut['output']
+        print(' > logits:', wonLogits)
 
-        vars = tf.trainable_variables(scope=tf.get_variable_scope().name)
-        print(' ### num of vars %s' % shortSCIN(numVFloats(vars)))
+        vars = tf.trainable_variables()
+        print(' ### num of (%d) vars %s'%(len(vars), shortSCIN(numVFloats(vars))))
+        #for var in vars: print(var)
 
-        loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
+        lossRA = tf.nn.sparse_softmax_cross_entropy_with_logits(
+            labels= rnkA,
+            logits= rankAlogits)
+        lossRA = tf.reduce_mean(lossRA)
+
+        lossRB = tf.nn.sparse_softmax_cross_entropy_with_logits(
+            labels= rnkB,
+            logits= rankBlogits)
+        lossRB = tf.reduce_mean(lossRB)
+        lossR = lossRA+lossRB
+        print(' > lossR:', lossR)
+
+        lossW = tf.nn.sparse_softmax_cross_entropy_with_logits(
             labels=     won,
-            logits=     logits)
-        loss = tf.reduce_mean(loss)
-        print(' > loss:', loss)
+            logits=     wonLogits)
+        lossW = tf.reduce_mean(lossW)
+        print(' > lossW:', lossW)
+        loss = lossW+lossR
 
-        predictions = tf.argmax(logits, axis=-1, output_type=tf.int32)
+        predictionsRA = tf.argmax(rankAlogits, axis=-1, output_type=tf.int32)
+        predictionsRB = tf.argmax(rankBlogits, axis=-1, output_type=tf.int32)
+        correctRA = tf.equal(predictionsRA, rnkA)
+        correctRB = tf.equal(predictionsRB, rnkB)
+        avgAccR = tf.reduce_mean(tf.cast(correctRA, dtype=tf.float32)) + tf.reduce_mean(tf.cast(correctRB, dtype=tf.float32))
+        avgAccR /= 2
+        print(' > avgAccR:', avgAccR)
+
+        ohRnkA = tf.one_hot(indices=rnkA, depth=9)
+        ohRnkB = tf.one_hot(indices=rnkB, depth=9)
+        rnkAdensity = tf.reduce_mean(ohRnkA, axis=-2)
+        rnkBdensity = tf.reduce_mean(ohRnkB, axis=-2)
+        ohCorrectRA = tf.where(condition=correctRA, x=ohRnkA, y=tf.zeros_like(ohRnkA))
+        ohCorrectRB = tf.where(condition=correctRB, x=ohRnkB, y=tf.zeros_like(ohRnkB))
+        rnkAcorrDensity = tf.reduce_mean(ohCorrectRA, axis=-2)
+        rnkBcorrDensity = tf.reduce_mean(ohCorrectRB, axis=-2)
+        avgAccRC = (rnkAcorrDensity/rnkAdensity + rnkBcorrDensity/rnkBdensity)/2
+
+        ohNotCorrectRA = tf.where(condition=tf.logical_not(correctRA), x=ohRnkA, y=tf.zeros_like(ohRnkA))
+
+        predictions = tf.argmax(wonLogits, axis=-1, output_type=tf.int32)
+        print(' > predictions:', predictions)
         correct = tf.equal(predictions, won)
+        print(' > correct:', correct)
         avgAcc = tf.reduce_mean(tf.cast(correct, dtype=tf.float32))
         print(' > avgAcc:', avgAcc)
 
-        optimizer = tf.train.AdamOptimizer(lR)
+        ohWon = tf.one_hot(indices=won, depth=3)
+        wonDensity = tf.reduce_mean(ohWon, axis=-2)
+        ohCorrect = tf.where(condition=correct, x=ohWon, y=tf.zeros_like(ohWon))
+        wonCorrDensity = tf.reduce_mean(ohCorrect, axis=-2)
+        avgAccC = wonCorrDensity / wonDensity
+
+        ohNotCorrect = tf.where(condition=tf.logical_not(correct), x=ohWon, y=tf.zeros_like(ohWon))
+
+        globalStep = tf.get_variable(  # global step
+            name=           'gStep',
+            shape=          [],
+            trainable=      False,
+            initializer=    tf.constant_initializer(0),
+            dtype=          tf.int32)
+
+        lRs = lRscaler(
+            iLR=            lR,
+            gStep=          globalStep,
+            warmUpSteps=    warmUp,
+            annbLr=         annbLr,
+            stepLr=         stepLr,
+            verbLev=        1)
+
+        optimizer = tf.train.AdamOptimizer(lRs)
 
         gradients = tf.gradients(loss, vars)
         clipOUT = gradClipper(gradients, doClip=doClip)
         gradients = clipOUT['gradients']
         gN = clipOUT['gGNorm']
         agN = clipOUT['avtGGNorm']
-        optimizer = optimizer.apply_gradients(zip(gradients, vars))
+        optimizer = optimizer.apply_gradients(zip(gradients, vars), global_step=globalStep)
 
         # select optimizer vars
         optVars = []
@@ -478,11 +628,22 @@ def cardGFN(
             'inAC':                 inAC,
             'inBC':                 inBC,
             'won':                  won,
+            'rnkA':                 rnkA,
+            'rnkB':                 rnkB,
             'loss':                 loss,
             'acc':                  avgAcc,
+            'accC':                 avgAccC,
+            'predictions':          predictions,
+            'ohNotCorrect':         ohNotCorrect,
+            'accR':                 avgAccR,
+            'accRC':                avgAccRC,
+            'predictionsRA':        predictionsRA,
+            'ohNotCorrectRA':       ohNotCorrectRA,
+            'lRs':                  lRs,
             'gN':                   gN,
             'agN':                  agN,
             'vars':                 vars,
             'optVars':              optVars,
             'optimizer':            optimizer,
-            'histSumm':             tf.summary.merge(histSumm)}
+            'histSumm':             tf.summary.merge(histSumm),
+            'nnZeros':              nnZeros}
