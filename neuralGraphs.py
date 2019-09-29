@@ -358,48 +358,30 @@ def cnnRGraphFN(
 
 # cards net graph
 def cardGFN(
-        scope=      'cardNG',
-        cEmbW=      16,
-        nLayers=    6,
-        rWidth=     30,
-        drLayers=   3, # None or 0
+        tat=        False,
+        cEmbW=      12,
+        nLayers=    8,
+        inProj=     None, # None, 0 or int
+        denseMul=   4,
+        denseProj=  None, # None, 0 or int
+        drLayers=   4, # None, 0 or int
         lR=         1e-3,
         warmUp=     10000,
         annbLr=     0.999,
-        stepLr=     0.1,
-        doClip=     True):
-
-    # DR encoder graph (cards representations)
-    def cEncDR(
-            sevenC,                     # seven cards placeholder
-            cEMB,                       # cards embedding tensor
-            scope=      'cEncDR',
-            nLayers=    6,
-            rWidth=     30):            # width of representation tensor
-
-        inCemb = tf.nn.embedding_lookup(params=cEMB, ids=sevenC)
-        print(' > inCemb:', inCemb)
-        inCemb = tf.unstack(inCemb, axis=-2)
-        inCemb = tf.concat(inCemb, axis=-1)
-        print(' > inCemb (flattened):', inCemb)
-
-        encOUT = encDR(
-            input=      inCemb,
-            name=       scope,
-            nLayers=    nLayers,
-            layWidth=   rWidth,
-            nHL=        2,
-            verbLev=    2)
-
-        return {
-            'output':   encOUT['output'],
-            'histSumm': encOUT['histSumm'],
-            'nnZeros':  encOUT['nnZeros']}
+        stepLr=     0.04,
+        dropout=    0.0,
+        dropoutDRE= 0.0,
+        avtStartV=  0.1,
+        avtWindow=  500,
+        avtMaxUpd=  1.5,
+        doClip=     False):
 
     # Transformer encoder graph (cards representations)
     def cEncT(
             sevenC,                     # seven cards placeholder
             cEMB,                       # cards embedding tensor
+            trPH,
+            dropout=    0.0,
             nLayers=    6):
 
         print('\nBuilding cEncT (T encoder)...')
@@ -407,7 +389,6 @@ def cardGFN(
         inCemb = tf.nn.embedding_lookup(params=cEMB, ids=sevenC)
         print(' > inCemb:', inCemb)
 
-        #""""
         myCEMB = tf.get_variable(  # my cards embeddings
             name=           'myCEMB',
             shape=          [2, cEMB.shape[-1]],
@@ -416,43 +397,53 @@ def cardGFN(
         myCElook = tf.nn.embedding_lookup(params=myCEMB, ids=[0,0,1,1,1,1,1])
         print(' > myCElook:', myCElook)
         inCemb += myCElook
-        #"""
-        cProjOUT = layDENSE(
-            input=          inCemb,
-            units=          48,
-            name=           'cProj',
-            reuse=          tf.AUTO_REUSE,
-            useBias=        False,
-            initializer=    defInitializer())
-        #inCemb = cProjOUT['output']
-        print(' > inCemb projected:', inCemb)
-        #"""
 
-        TATcase = True # hardcoded TAT, which performs well
+        # input projection
+        if inProj:
+            cProjOUT = layDENSE(
+                input=          inCemb,
+                units=          inProj,
+                name=           'cProj',
+                reuse=          tf.AUTO_REUSE,
+                useBias=        False)
+            inCemb = cProjOUT['output']
+            print(' > inCemb projected:', inCemb)
+        else: print(' > inCemb:', inCemb)
+
+        TATcase = tat
         encOUT = encTRNS(
             input=      inCemb,
             seqOut=     not TATcase,
             addPE=      False,
-            name=       'cTrans',
+            name=       'TAT' if TATcase else 'TNS',
             nBlocks=    nLayers,
             nHeads=     1,
-            denseMul=   24,#4,
+            denseMul=   denseMul,
             maxSeqLen=  7,
-            nHistL=     2,
+            dropoutAtt= 0,
+            dropout=    dropout,
+            dropFlagT=  trPH,
+            nHistL=     3,
             verbLev=    2)
 
         output = encOUT['eTOut']
         if not TATcase:
             output = tf.unstack(output, axis=-2)
             output = tf.concat(output, axis=-1)
-        print(' > encT reshaped output:', output)
+            print(' > encT reshaped output:', output)
+        else: print(' > encT output:', output)
 
         return {
             'output':   output,
             'histSumm': encOUT['histSumm'],
             'nnZeros':  encOUT['nnZeros']}
 
-    with tf.variable_scope(scope, reuse=tf.AUTO_REUSE):
+    with tf.variable_scope('CNG', reuse=tf.AUTO_REUSE):
+
+        trPH = tf.placeholder_with_default(  # train placeholder
+            input=          False,
+            name=           'trPH',
+            shape=          [])
 
         cEMB = tf.get_variable(  # cards embeddings
             name=           'cEMB',
@@ -487,47 +478,57 @@ def cardGFN(
             dtype=          tf.int32,
             shape=          [None])  # [bsz,seq]
 
-        #cRGAout = cEncDR(inAC, cEMB, nLayers=nLayers, rWidth=rWidth)
-        #cRGBout = cEncDR(inBC, cEMB, nLayers=nLayers, rWidth=rWidth)
-        cRGAout = cEncT(inAC, cEMB, nLayers=nLayers)
-        cRGBout = cEncT(inBC, cEMB, nLayers=nLayers)
+        cRGAout = cEncT(
+            sevenC=     inAC,
+            cEMB=       cEMB,
+            trPH=       trPH,
+            dropout=    dropout,
+            nLayers=    nLayers)
+        cRGBout = cEncT(
+            sevenC=     inBC,
+            cEMB=       cEMB,
+            trPH=       trPH,
+            dropout=    dropout,
+            nLayers=    nLayers)
+        # get nnZeros from A
         nnZeros = cRGAout['nnZeros']
         nnZeros = tf.reshape(tf.stack(nnZeros), shape=[-1])
+        histSumm.append(cRGAout['histSumm']) # get histograms from A
 
+        # projection to 9 ranks A
         denseOutA = layDENSE(
             input=          cRGAout['output'],
             units=          9,
             name=           'denseRC',
-            useBias=        False,
-            initializer=    defInitializer())
+            useBias=        False)
         rankAlogits = denseOutA['output']
 
+        # projection to 9 ranks B
         denseOutB = layDENSE(
             input=          cRGBout['output'],
             units=          9,
             name=           'denseRC',
             reuse=          True,
-            useBias=        False,
-            initializer=    defInitializer())
+            useBias=        False)
         rankBlogits = denseOutB['output']
 
         output = tf.concat([cRGAout['output'],cRGBout['output']], axis=-1)
         print('\n > concRepr:', output)
-
-        histSumm.append(cRGAout['histSumm'])
 
         # dense classifier
         if drLayers:
             encOUT = encDR(
                 input=      output,
                 name=       'drC',
+                layWidth=   denseProj,
                 nLayers=    drLayers,
-                layWidth=   rWidth*2,
+                dropout=    dropoutDRE,
+                dropFlagT=  trPH,
                 nHL=        0,
                 verbLev=    2)
             output = encOUT['output']
 
-        # projection to logits
+        # projection to 3 winner logits
         denseOut = layDENSE(
             input=          output,
             units=          3,
@@ -609,10 +610,17 @@ def cardGFN(
             stepLr=         stepLr,
             verbLev=        1)
 
-        optimizer = tf.train.AdamOptimizer(lRs)
+        optimizer = tf.train.AdamOptimizer(lRs, beta1=0.7, beta2=0.7)
+        #optimizer = tf.train.GradientDescentOptimizer(lRs)
+        #optimizer = tf.train.MomentumOptimizer(lRs, momentum=0.9)
+        #optimizer = tf.train.AdagradOptimizer(lRs)
 
-        gradients = tf.gradients(loss, vars)
-        clipOUT = gradClipper(gradients, doClip=doClip)
+        clipOUT = gradClipper(
+            gradients=  tf.gradients(loss, vars),
+            avtStartV=  avtStartV,
+            avtWindow=  avtWindow,
+            avtMaxUpd=  avtMaxUpd,#1.2,
+            doClip=     doClip)
         gradients = clipOUT['gradients']
         gN = clipOUT['gGNorm']
         agN = clipOUT['avtGGNorm']
@@ -624,7 +632,7 @@ def cardGFN(
             if var not in vars: optVars.append(var)
 
         return{
-            'scope':                scope,
+            'trPH':                 trPH,
             'inAC':                 inAC,
             'inBC':                 inBC,
             'won':                  won,

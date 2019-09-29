@@ -44,7 +44,7 @@ def prepBatch(
         task=       None,   # needed by QMP, here passed avoidCTuples - list of sorted_card tuples to avoid in batch
         bs=         1000,
         rBalance=   True,   # balance rank
-        wBalance=   0.1):   # False or fraction of draws
+        dBalance=   0.1):   # False or fraction of draws
 
     deck = PDeck() # since it is hard to give any object to function of process...
     avoidCTuples = task
@@ -59,7 +59,7 @@ def prepBatch(
         # look 4 the smallest number rank
         nMinRank = min(numRanks)
         desiredRank = numRanks.index(nMinRank)
-        desiredDraw = False if wBalance is False else numWins[2] < wBalance*sum(numWins)
+        desiredDraw = False if dBalance is False else numWins[2] < dBalance * sum(numWins)
 
         crd7A = None
         crd7B = None
@@ -82,7 +82,7 @@ def prepBatch(
             bRank = deck.cardsRank(crd7B)
 
             if not desiredDraw or (desiredDraw and aRank[1]==bRank[1]): gotDesiredCards = True
-            if gotDesiredCards and avoidCTuples is not None and (tuple(sorted(crd7A)) in avoidCTuples or tuple(sorted(crd7B)) in avoidCTuples): gotDesiredCards = False
+            if gotDesiredCards and type(avoidCTuples) is list and (tuple(sorted(crd7A)) in avoidCTuples or tuple(sorted(crd7B)) in avoidCTuples): gotDesiredCards = False
 
         paCRV = aRank[1]
         pbCRV = bRank[1]
@@ -124,31 +124,36 @@ if __name__ == "__main__":
 
     loggingSet('_log', customName='pypCN', forceLast=True)
 
-    testSize = 10000
-    testBatch = prepBatch(bs=testSize)
-    cTuples = []
-    for ix in range(testSize):
-        cTuples.append(tuple(sorted(testBatch[0][ix])))
-        cTuples.append(tuple(sorted(testBatch[1][ix])))
-    print('Got %d of hands in testBatch'%len(cTuples))
-    cTuples = dict.fromkeys(cTuples, 1)
-    print('of which %d is unique'%len(cTuples))
+    doTest = True
+    #doTest = False
+    if doTest:
+        testSize = 10000
+        testBatch = prepBatch(bs=testSize)
+        cTuples = []
+        for ix in range(testSize):
+            cTuples.append(tuple(sorted(testBatch[0][ix])))
+            cTuples.append(tuple(sorted(testBatch[1][ix])))
+        print('\nGot %d of hands in testBatch'%len(cTuples))
+        cTuples = dict.fromkeys(cTuples, 1)
+        print('of which %d is unique'%len(cTuples))
+    else:
+        cTuples = None
+        testBatch = None
 
     qmp = QueMultiProcessor(
         iProcFunction=  prepBatch,
         taskObject=     cTuples,
         rQueTSize=      100,
-        #nProc=          10,
         verbLev=        1)
 
     cardNG = cardGFN(
-        cEmbW=      48,#24,
-        nLayers=    24,#12,
-        drLayers=   None,
-        lR=         1e-3,
-        annbLr=     0.999,
-        stepLr=     0.02,#0.04,#0.02,
-        doClip=     False
+        cEmbW=      12,
+        nLayers=    8,
+        #inProj=     96,
+        denseMul=   4,
+        drLayers=   2,
+        #dropoutDRE= 0.5,
+        #doClip=     True,
     )
 
     session = tf.Session()
@@ -156,25 +161,24 @@ if __name__ == "__main__":
     session.run(tf.initializers.variables(var_list=cardNG['vars']+cardNG['optVars']))
     summWriter = tf.summary.FileWriter(logdir='_nnTB/crdN_%s'% time.strftime('%m.%d_%H.%M'), flush_secs=10)
 
-    izT1 = 50
-    izT2 = 500
-    izT3 = 2000
-    indZerosT1 = []
-    indZerosT2 = []
-    indZerosT3 = []
+    izT = [50,500,5000]
+    indZeros = [[] for _ in izT]
+
     nHighAcc = 0
 
-    for b in range(147000):
+    repFreq = 100
+    hisFreq = 500
+    for b in range(200000):
 
         batch = qmp.getResult()
 
         feed = {
+            cardNG['trPH']:     True,
             cardNG['inAC']:     batch[0],
             cardNG['inBC']:     batch[1],
             cardNG['won']:      batch[2],
             cardNG['rnkA']:     batch[3],
-            cardNG['rnkB']:     batch[4],
-        }
+            cardNG['rnkB']:     batch[4]}
 
         fetches = [
             cardNG['optimizer'],
@@ -192,18 +196,16 @@ if __name__ == "__main__":
             cardNG['lRs'],
             cardNG['nnZeros']]
         lenNH = len(fetches)
-        if b%200 == 0: fetches.append(cardNG['histSumm'])
+        if b % hisFreq == 0: fetches.append(cardNG['histSumm'])
 
         out = session.run(fetches, feed_dict=feed)
         if len(out)==lenNH: out.append(None)
         _, loss, acc, accC, pr, nc, accR, accRC, prRA, ncRA, gN, agN, lRs, zeros, histSumm = out
 
         if not zeros.size: zeros = np.asarray([0])
-        indZerosT1.append(zeros)
-        indZerosT2.append(zeros)
-        indZerosT3.append(zeros)
+        for ls in indZeros: ls.append(zeros)
 
-        if b%100 == 0:
+        if b % repFreq == 0:
 
             # prints stats of rank @batch
             """
@@ -228,7 +230,7 @@ if __name__ == "__main__":
 
             #"""
 
-            print('%6d, loss: %.3f, acc: %.3f, gN: %.3f' % (b, loss, acc, gN))
+            print('%6d, loss: %.6f, acc: %.6f, gN: %.6f' % (b, loss, acc, gN))
 
             accsum = tf.Summary(value=[tf.Summary.Value(tag='crdN/1_acc', simple_value=1-acc)])
             accRsum = tf.Summary(value=[tf.Summary.Value(tag='crdN/1_accR', simple_value=1-accR)])
@@ -258,24 +260,14 @@ if __name__ == "__main__":
             zerosT0 = np.mean(zeros)
             naneT0Summ = tf.Summary(value=[tf.Summary.Value(tag='nane/naneT0', simple_value=zerosT0)])
             summWriter.add_summary(naneT0Summ, b)
-            if len(indZerosT1) > izT1 - 1:
-                indZerosT1 = indZerosT1[-izT1:]
-                zerosT1 = np.mean(np.where(np.mean(np.stack(indZerosT1, axis=0), axis=0)==1, 1, 0))
-                indZerosT1 = []
-                naneT1Summ = tf.Summary(value=[tf.Summary.Value(tag='nane/naneT%d' % izT1, simple_value=zerosT1)])
-                summWriter.add_summary(naneT1Summ, b)
-            if len(indZerosT2) > izT2 - 1:
-                indZerosT2 = indZerosT2[-izT2:]
-                zerosT2 = np.mean(np.where(np.mean(np.stack(indZerosT2, axis=0), axis=0)==1, 1, 0))
-                indZerosT2 = []
-                naneT2Summ = tf.Summary(value=[tf.Summary.Value(tag='nane/naneT%d' % izT2, simple_value=zerosT2)])
-                summWriter.add_summary(naneT2Summ, b)
-            if len(indZerosT3) > izT3 - 1:
-                indZerosT3 = indZerosT3[-izT3:]
-                zerosT3 = np.mean(np.where(np.mean(np.stack(indZerosT3, axis=0), axis=0)==1, 1, 0))
-                indZerosT3 = []
-                naneT3Summ = tf.Summary(value=[tf.Summary.Value(tag='nane/naneT%d' % izT3, simple_value=zerosT3)])
-                summWriter.add_summary(naneT3Summ, b)
+            for ix in range(len(izT)):
+                cizT = izT[ix]
+                if len(indZeros[ix]) > cizT - 1:
+                    indZeros[ix] = indZeros[ix][-cizT:]
+                    zerosT = np.mean(np.where(np.mean(np.stack(indZeros[ix], axis=0), axis=0)==1, 1, 0))
+                    indZeros[ix] = []
+                    naneTSumm = tf.Summary(value=[tf.Summary.Value(tag='nane/naneT%d' % cizT, simple_value=zerosT)])
+                    summWriter.add_summary(naneTSumm, b)
 
             if acc > 0.99: nHighAcc += 1
             if nHighAcc > 10:
@@ -320,7 +312,7 @@ if __name__ == "__main__":
         if histSumm: summWriter.add_summary(histSumm, b)
 
         # test
-        if b%1000 == 0:
+        if b%1000 == 0 and testBatch is not None:
             batch = testBatch
 
             feed = {
@@ -346,7 +338,7 @@ if __name__ == "__main__":
             if len(out)==lenNH: out.append(None)
             loss, acc, accC, pr, nc, accR, accRC, prRA, ncRA = out
 
-            print('%6dT loss: %.4f acc: %.4f' % (b, loss, acc))
+            print('%6dT loss: %.7f acc: %.7f' % (b, loss, acc))
 
             accsum = tf.Summary(value=[tf.Summary.Value(tag='crdNT/1_acc', simple_value=1-acc)])
             accRsum = tf.Summary(value=[tf.Summary.Value(tag='crdNT/1_accR', simple_value=1-accR)])
