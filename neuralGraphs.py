@@ -359,8 +359,8 @@ def cnnRGraphFN(
 # cards net graph
 def cardGFN(
         tat=        False,
-        cEmbW=      12,
-        nLayers=    8,
+        cEmbW=      24,
+        nLayers=    12,
         inProj=     None, # None, 0 or int
         denseMul=   4,
         denseProj=  None, # None, 0 or int
@@ -558,7 +558,8 @@ def cardGFN(
             logits=     wonLogits)
         lossW = tf.reduce_mean(lossW)
         print(' > lossW:', lossW)
-        loss = lossW+lossR
+        loss = lossW + lossR
+        #loss = lossW
 
         predictionsRA = tf.argmax(rankAlogits, axis=-1, output_type=tf.int32)
         predictionsRB = tf.argmax(rankBlogits, axis=-1, output_type=tf.int32)

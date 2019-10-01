@@ -44,7 +44,8 @@ def prepBatch(
         task=       None,   # needed by QMP, here passed avoidCTuples - list of sorted_card tuples to avoid in batch
         bs=         1000,
         rBalance=   True,   # balance rank
-        dBalance=   0.1):   # False or fraction of draws
+        dBalance=   0.1,    # False or fraction of draws
+):
 
     deck = PDeck() # since it is hard to give any object to function of process...
     avoidCTuples = task
@@ -147,14 +148,10 @@ if __name__ == "__main__":
         verbLev=        1)
 
     cardNG = cardGFN(
-        cEmbW=      12,
+        cEmbW=      24,
         nLayers=    8,
-        #inProj=     96,
         denseMul=   4,
-        drLayers=   2,
-        #dropoutDRE= 0.5,
-        #doClip=     True,
-    )
+        drLayers=   2)
 
     session = tf.Session()
 
