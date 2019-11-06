@@ -4,7 +4,7 @@
 
  card net training
 
- there are 2,598,960 hands not counting different suits it is (52/5) - combination
+ there are 2,598,960 hands not considering different suits it is (52/5) - combination
 
  stats of poks hands, for 5 (not 7) randomly taken:
  0 (highCard)       - 50.1177%
