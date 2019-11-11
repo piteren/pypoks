@@ -62,6 +62,14 @@ class PDeck:
     # returns one card from deck
     def getCard(self): return self.cards.pop()
 
+    # returns exact card from deck, id not present return None
+    def getECard(self, card: tuple or int):
+        if type(card) is int: card = PDeck.itc(card)
+        if card in self.cards:
+            self.cards.remove(card)
+            return card
+        return None
+
     # returns seven card of given rank
     def get7ofRank(self, rank :int):
 
@@ -161,12 +169,17 @@ class PDeck:
 
     # returns card str
     @staticmethod
-    def cts(card: tuple): return CRD_FIG[card[0]] + CRD_COL[card[1]]
+    def cts(card: tuple or int):
+        if type(card) is int: card = PDeck.itc(card)
+        return CRD_FIG[card[0]] + CRD_COL[card[1]]
 
     # returns rank of 5 from 7 given cards
     # simple implementation evaluates about 12,3K*7cards/sec
     @staticmethod
     def cardsRank(cards: list):
+
+        if type(cards[0]) is int: cards = [PDeck.itc(c) for c in cards]
+
         cards = sorted(cards)
 
         # calc possible multiFig and colours

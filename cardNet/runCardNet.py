@@ -28,7 +28,6 @@
 """
 
 import numpy as np
-import random
 import tensorflow as tf
 import time
 
@@ -37,88 +36,8 @@ from pUtils.queMultiProcessor import QueMultiProcessor
 
 from pLogic.pDeck import PDeck
 
-from neuralGraphs import cardGFN
-
-# prepares batch of 7cards, MP ready
-def prepBatch(
-        task=       None,   # needed by QMP, here passed avoidCTuples - list of sorted_card tuples to avoid in batch
-        bs=         1000,
-        rBalance=   True,   # balance rank
-        dBalance=   0.1,    # False or fraction of draws
-):
-
-    deck = PDeck() # since it is hard to give any object to function of process...
-    avoidCTuples = task
-
-    crd7AB, crd7BB, winsB, rankAB, rankBB = [],[],[],[],[] # batches
-    numRanks = [0]*9
-    numWins = [0]*3
-    hS = ['']*9
-    for s in range(bs):
-        deck.resetDeck()
-
-        # look 4 the smallest number rank
-        nMinRank = min(numRanks)
-        desiredRank = numRanks.index(nMinRank)
-        desiredDraw = False if dBalance is False else numWins[2] < dBalance * sum(numWins)
-
-        crd7A = None
-        crd7B = None
-        aRank = None
-        bRank = None
-        gotDesiredCards = False
-        while not gotDesiredCards:
-
-            crd7A = deck.get7ofRank(desiredRank) if rBalance else [deck.getCard() for _ in range(7)] # 7 cards for A
-            crd7B = [deck.getCard() for _ in range(2)] + crd7A[2:] # 2+5 cards for B
-
-            # randomly swap hands of A with B to avoid wins bias
-            if random.random() > 0.5:
-                temp = crd7A
-                crd7A = crd7B
-                crd7B = temp
-
-            # get cards ranks
-            aRank = deck.cardsRank(crd7A)
-            bRank = deck.cardsRank(crd7B)
-
-            if not desiredDraw or (desiredDraw and aRank[1]==bRank[1]): gotDesiredCards = True
-            if gotDesiredCards and type(avoidCTuples) is list and (tuple(sorted(crd7A)) in avoidCTuples or tuple(sorted(crd7B)) in avoidCTuples): gotDesiredCards = False
-
-        paCRV = aRank[1]
-        pbCRV = bRank[1]
-        ha = aRank[0]
-        hb = bRank[0]
-        numRanks[aRank[0]]+=1
-        numRanks[bRank[0]]+=1
-        hS[aRank[0]] = aRank[-1]
-        hS[bRank[0]] = bRank[-1]
-        diff = paCRV-pbCRV
-        wins = 0 if diff>0 else 1
-        if diff==0: wins = 2 # remis
-        numWins[wins] += 1
-
-        # convert cards tuples to ints
-        crd7A = [PDeck.cti(c) for c in crd7A]
-        crd7B = [PDeck.cti(c) for c in crd7B]
-
-        """
-        # mask some table cards
-        nMask = random.randrange(5)
-        for ix in range(2+5-nMask,7):
-            pa7[ix] = 52
-            pb7[ix] = 52
-        """
-
-        crd7AB.append(crd7A)    # 7 cards of A
-        crd7BB.append(crd7B)    # 7 cards of B
-        winsB.append(wins)      # who wins {0,1,2}
-        rankAB.append(ha)       # rank of A
-        rankBB.append(hb)       # rank ok B
-
-    #for s in hS: print(s)
-    #print()
-    return crd7AB, crd7BB, winsB, rankAB, rankBB, numRanks, numWins
+from cardNet.cardNetwork import cardGFN
+from cardNet.cardBatcher import prep2X7Batch
 
 
 if __name__ == "__main__":
@@ -129,7 +48,7 @@ if __name__ == "__main__":
     #doTest = False
     if doTest:
         testSize = 10000
-        testBatch = prepBatch(bs=testSize)
+        testBatch = prep2X7Batch(bs=testSize)
         cTuples = []
         for ix in range(testSize):
             cTuples.append(tuple(sorted(testBatch[0][ix])))
@@ -142,7 +61,7 @@ if __name__ == "__main__":
         testBatch = None
 
     qmp = QueMultiProcessor(
-        iProcFunction=  prepBatch,
+        iProcFunction=  prep2X7Batch,
         taskObject=     cTuples,
         rQueTSize=      100,
         verbLev=        1)
@@ -353,4 +272,4 @@ if __name__ == "__main__":
             summWriter.add_summary(c2sum, b)
 
     qmp.close()
-    print('done')
+    print('cardNet done')
