@@ -26,17 +26,22 @@
 """
 
 import random
+from tqdm import tqdm
+
 from pLogic.pDeck import PDeck
 
 
-# prepares batch of 2x 7cards, MP ready
+# prepares batch of 2x 7cards with regression, MP ready
 def prep2X7Batch(
         task=       None,   # needed by QMP, here passed avoidCTuples - list of sorted_card tuples to avoid in batch
         bs=         1000,   # batch size
         rBalance=   True,   # balance rank
         dBalance=   0.1,    # False or fraction of draws
-        probNoMask= 1.0,    # probability of not masking (all cards are known), for None uses full random
-        nMonte=     0):     # num of MonteCarlo runs for A estimation
+        #probNoMask= 1.0,    # probability of not masking (all cards are known), for None uses full random
+        probNoMask= None,
+        #nMonte=     0):     # num of MonteCarlo runs for A estimation
+        nMonte=     5,
+        verbLev=    0):
 
     deck = PDeck() # since it is hard to give any object to function of process...
     avoidCTuples = task
@@ -45,7 +50,10 @@ def prep2X7Batch(
     numRanks = [0]*9
     numWins = [0]*3
     hS = ['']*9
-    for s in range(bs):
+
+    iter = range(bs)
+    if verbLev: iter = tqdm(iter)
+    for s in iter:
         deck.resetDeck()
 
         # look 4 the smallest number rank
@@ -63,7 +71,7 @@ def prep2X7Batch(
             crd7A = deck.get7ofRank(desiredRank) if rBalance else [deck.getCard() for _ in range(7)] # 7 cards for A
             crd7B = [deck.getCard() for _ in range(2)] + crd7A[2:] # 2+5 cards for B
 
-            # randomly swap hands of A with B to avoid wins bias
+            # randomly swap hands of A and B (to avoid win bias)
             if random.random() > 0.5:
                 temp = crd7A
                 crd7A = crd7B
@@ -127,7 +135,15 @@ def prep2X7Batch(
         rankBB.append(hb)               # rank ok B
         mcAChanceB.append(mcAChance)    # chances for A
 
-    return crd7AB, crd7BB, winsB, rankAB, rankBB, numRanks, numWins, mcAChanceB
+    return {
+        'crd7AB':       crd7AB,
+        'crd7BB':       crd7BB,
+        'winsB':        winsB,
+        'rankAB':       rankAB,
+        'rankBB':       rankBB,
+        'mcAChanceB':   mcAChanceB,
+        'numRanks':     numRanks,
+        'numWins':      numWins}
 
 if __name__ == "__main__":
 
@@ -135,8 +151,8 @@ if __name__ == "__main__":
         bs=         10,
         probNoMask= 0.5,
         nMonte=     100)
-    crd7A = batch[0]
-    mcAC = batch[7]
+    crd7A = batch['crd7AB']
+    mcAC = batch['mcAChanceB']
 
     for ix in range(len(crd7A)):
         for c in crd7A[ix]:

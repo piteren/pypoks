@@ -111,30 +111,35 @@ def cardGFN(
 
         histSumm = [tf.summary.histogram('cEMB', cEMB, family='cEMB')]
 
-        inAC = tf.placeholder(  # 7 cards of A
+        inAC = tf.placeholder( # 7 cards of A
             name=           'inAC',
             dtype=          tf.int32,
             shape=          [None, 7])  # [bsz,7cards]
 
-        inBC = tf.placeholder(  # 7 cards of B
+        inBC = tf.placeholder( # 7 cards of B
             name=           'inBC',
             dtype=          tf.int32,
             shape=          [None, 7])  # [bsz,7cards]
 
-        won = tf.placeholder(  # won class
+        won = tf.placeholder( # won class
             name=           'won',
             dtype=          tf.int32,
-            shape=          [None])  # [bsz,seq]
+            shape=          [None])  # [bsz]
 
         rnkA = tf.placeholder( # rank A class
             name=           'rnkA',
             dtype=          tf.int32,
-            shape=          [None])  # [bsz,seq]
+            shape=          [None])  # [bsz]
 
         rnkB = tf.placeholder( # rank B class
             name=           'rnkB',
             dtype=          tf.int32,
-            shape=          [None])  # [bsz,seq]
+            shape=          [None])  # [bsz]
+
+        mcAC = tf.placeholder( # MontCarlo chances of winning for A
+            name=           'mcAC',
+            dtype=          tf.float32,
+            shape=          [None])  # [bsz]
 
         cRGAout = cEncT(
             sevenC=     inAC,
@@ -159,27 +164,51 @@ def cardGFN(
         nnZeros = tf.reshape(tf.stack(nnZeros), shape=[-1])
         histSumm.append(cRGAout['histSumm']) # get histograms from A
 
+        # where all cards of A are known
+        whereAllCards = tf.reduce_max(inAC, axis=-1)
+        whereAllCards = tf.where(
+            condition=  whereAllCards < 52,
+            x=          tf.ones_like(whereAllCards),
+            y=          tf.zeros_like(whereAllCards))
+        whereAllCardsF = tf.cast(whereAllCards, dtype=tf.float32)
+        print(' > whereAllCards', whereAllCards)
+
+        sumAllCards = tf.reduce_sum(whereAllCardsF)
+        #factorAllCards = tf.reduce_mean(whereAllCardsF)
+
         # projection to 9 ranks A
         denseOutA = layDENSE(
-            input=          cRGAout['output'],
-            units=          9,
-            name=           'denseRC',
-            useBias=        False)
+            input=      cRGAout['output'],
+            units=      9,
+            name=       'denseRC',
+            useBias=    False)
         rankAlogits = denseOutA['output']
+
+        lossRA = tf.nn.sparse_softmax_cross_entropy_with_logits( # loss rank A
+            labels=     rnkA,
+            logits=     rankAlogits)
+        lossRA = tf.reduce_mean(lossRA * whereAllCardsF)
 
         # projection to 9 ranks B
         denseOutB = layDENSE(
-            input=          cRGBout['output'],
-            units=          9,
-            name=           'denseRC',
-            reuse=          True,
-            useBias=        False)
+            input=      cRGBout['output'],
+            units=      9,
+            name=       'denseRC',
+            reuse=      True,
+            useBias=    False)
         rankBlogits = denseOutB['output']
 
-        output = tf.concat([cRGAout['output'],cRGBout['output']], axis=-1)
-        print('\n > concRepr:', output)
+        lossRB = tf.nn.sparse_softmax_cross_entropy_with_logits( # loss rank B
+            labels=     rnkB,
+            logits=     rankBlogits)
+        lossRB = tf.reduce_mean(lossRB)
+
+        lossR = lossRA + lossRB
+        print(' > lossR:', lossR)
 
         # dense classifier of output
+        output = tf.concat([cRGAout['output'],cRGBout['output']], axis=-1)
+        print('\n > concRepr:', output)
         if drLayers:
             encOUT = encDR(
                 input=      output,
@@ -196,40 +225,43 @@ def cardGFN(
         denseOut = layDENSE(
             input=          output,
             units=          3,
-            useBias=        False,
-            initializer=    defInitializer())
+            useBias=        False)
         wonLogits = denseOut['output']
         print(' > logits:', wonLogits)
+
+        lossW = tf.nn.sparse_softmax_cross_entropy_with_logits( # loss won
+            labels=     won,
+            logits=     wonLogits)
+        lossW = tf.reduce_mean(lossW * whereAllCardsF)
+        print(' > lossW:', lossW)
+
+        # projection to regression value
+        denseOut = layDENSE(
+            input=          cRGAout['output'],
+            units=          1,
+            activation=     tf.nn.relu,
+            useBias=        False)
+        mcACregVal = denseOut['output']
+        mcACregVal = tf.reshape(mcACregVal, shape=[-1])
+        print(' > mcACregVal:', mcACregVal)
+
+        lossMCAC = tf.losses.mean_squared_error(
+            labels=         mcAC,
+            predictions=    mcACregVal)
+        print(' > lossMCAC:', lossMCAC)
 
         vars = tf.trainable_variables()
         print(' ### num of (%d) vars %s'%(len(vars), shortSCIN(numVFloats(vars))))
         #for var in vars: print(var)
 
-        lossRA = tf.nn.sparse_softmax_cross_entropy_with_logits(
-            labels= rnkA,
-            logits= rankAlogits)
-        lossRA = tf.reduce_mean(lossRA)
-
-        lossRB = tf.nn.sparse_softmax_cross_entropy_with_logits(
-            labels= rnkB,
-            logits= rankBlogits)
-        lossRB = tf.reduce_mean(lossRB)
-        lossR = lossRA+lossRB
-        print(' > lossR:', lossR)
-
-        lossW = tf.nn.sparse_softmax_cross_entropy_with_logits(
-            labels=     won,
-            logits=     wonLogits)
-        lossW = tf.reduce_mean(lossW)
-        print(' > lossW:', lossW)
-        loss = lossW + lossR
-        #loss = lossW
+        loss = lossW + lossR + lossMCAC # how loss is constructed
 
         predictionsRA = tf.argmax(rankAlogits, axis=-1, output_type=tf.int32)
         predictionsRB = tf.argmax(rankBlogits, axis=-1, output_type=tf.int32)
         correctRA = tf.equal(predictionsRA, rnkA)
         correctRB = tf.equal(predictionsRB, rnkB)
-        avgAccR = tf.reduce_mean(tf.cast(correctRA, dtype=tf.float32)) + tf.reduce_mean(tf.cast(correctRB, dtype=tf.float32))
+        correctRAFwhere = tf.cast(correctRA, dtype=tf.float32) * whereAllCardsF
+        avgAccR = tf.reduce_sum(correctRAFwhere) / sumAllCards + tf.reduce_mean(tf.cast(correctRB, dtype=tf.float32))
         avgAccR /= 2
         print(' > avgAccR:', avgAccR)
 
@@ -245,20 +277,21 @@ def cardGFN(
 
         ohNotCorrectRA = tf.where(condition=tf.logical_not(correctRA), x=ohRnkA, y=tf.zeros_like(ohRnkA))
 
-        predictions = tf.argmax(wonLogits, axis=-1, output_type=tf.int32)
-        print(' > predictions:', predictions)
-        correct = tf.equal(predictions, won)
-        print(' > correct:', correct)
-        avgAcc = tf.reduce_mean(tf.cast(correct, dtype=tf.float32))
-        print(' > avgAcc:', avgAcc)
+        predictionsW = tf.argmax(wonLogits, axis=-1, output_type=tf.int32)
+        print(' > predictionsW:', predictionsW)
+        correctW = tf.equal(predictionsW, won)
+        print(' > correctW:', correctW)
+        correctWFwhere = tf.cast(correctW, dtype=tf.float32) * whereAllCardsF
+        avgAccW = tf.reduce_sum(correctWFwhere) / sumAllCards
+        print(' > avgAccW:', avgAccW)
 
         ohWon = tf.one_hot(indices=won, depth=3)
         wonDensity = tf.reduce_mean(ohWon, axis=-2)
-        ohCorrect = tf.where(condition=correct, x=ohWon, y=tf.zeros_like(ohWon))
+        ohCorrect = tf.where(condition=correctW, x=ohWon, y=tf.zeros_like(ohWon))
         wonCorrDensity = tf.reduce_mean(ohCorrect, axis=-2)
         avgAccC = wonCorrDensity / wonDensity
 
-        ohNotCorrect = tf.where(condition=tf.logical_not(correct), x=ohWon, y=tf.zeros_like(ohWon))
+        ohNotCorrect = tf.where(condition=tf.logical_not(correctW), x=ohWon, y=tf.zeros_like(ohWon))
 
         globalStep = tf.get_variable(  # global step
             name=           'gStep',
@@ -303,10 +336,14 @@ def cardGFN(
             'won':                  won,
             'rnkA':                 rnkA,
             'rnkB':                 rnkB,
+            'mcAC':                 mcAC,
             'loss':                 loss,
-            'acc':                  avgAcc,
+            'lossW':                lossW,
+            'lossR':                lossR,
+            'lossMCAC':             lossMCAC,
+            'acc':                  avgAccW,
             'accC':                 avgAccC,
-            'predictions':          predictions,
+            'predictions':          predictionsW,
             'ohNotCorrect':         ohNotCorrect,
             'accR':                 avgAccR,
             'accRC':                avgAccRC,

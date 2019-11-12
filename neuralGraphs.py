@@ -232,8 +232,7 @@ def cnnRGraphFN(
         denseOut = layDENSE(
             input=          input,
             units=          reW,
-            useBias=        False,
-            initializer=    defInitializer())
+            useBias=        False)
         projInput = denseOut['output']
         print(' > projInput (projected):', projInput)
 
@@ -293,8 +292,7 @@ def cnnRGraphFN(
         denseOut = layDENSE(
             input=          out,
             units=          4,
-            useBias=        False,
-            initializer=    defInitializer())
+            useBias=        False)
         logits = denseOut['output']
         print(' > logits:', logits)
 

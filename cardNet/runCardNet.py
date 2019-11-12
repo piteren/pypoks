@@ -34,11 +34,12 @@ import time
 from pUtils.nnTools.nnBaseElements import loggingSet
 from pUtils.queMultiProcessor import QueMultiProcessor
 
-from pLogic.pDeck import PDeck
-
 from cardNet.cardNetwork import cardGFN
 from cardNet.cardBatcher import prep2X7Batch
 
+#TODO:
+# - accuracy_masked continue
+# - how loss is constructed (elements of loss)
 
 if __name__ == "__main__":
 
@@ -47,13 +48,17 @@ if __name__ == "__main__":
     doTest = True
     #doTest = False
     if doTest:
-        testSize = 10000
-        testBatch = prep2X7Batch(bs=testSize)
+        print('\nPreparing test batch...')
+        testSize = 2000
+        testBatch = prep2X7Batch(
+            bs=         testSize,
+            nMonte=     10000,
+            verbLev=    1)
         cTuples = []
         for ix in range(testSize):
-            cTuples.append(tuple(sorted(testBatch[0][ix])))
-            cTuples.append(tuple(sorted(testBatch[1][ix])))
-        print('\nGot %d of hands in testBatch'%len(cTuples))
+            cTuples.append(tuple(sorted(testBatch['crd7AB'][ix])))
+            cTuples.append(tuple(sorted(testBatch['crd7BB'][ix])))
+        print('Got %d of hands in testBatch'%len(cTuples))
         cTuples = dict.fromkeys(cTuples, 1)
         print('of which %d is unique'%len(cTuples))
     else:
@@ -90,15 +95,19 @@ if __name__ == "__main__":
 
         feed = {
             cardNG['trPH']:     True,
-            cardNG['inAC']:     batch[0],
-            cardNG['inBC']:     batch[1],
-            cardNG['won']:      batch[2],
-            cardNG['rnkA']:     batch[3],
-            cardNG['rnkB']:     batch[4]}
+            cardNG['inAC']:     batch['crd7AB'],
+            cardNG['inBC']:     batch['crd7BB'],
+            cardNG['won']:      batch['winsB'],
+            cardNG['rnkA']:     batch['rankAB'],
+            cardNG['rnkB']:     batch['rankBB'],
+            cardNG['mcAC']:     batch['mcAChanceB']}
 
         fetches = [
             cardNG['optimizer'],
             cardNG['loss'],
+            cardNG['lossW'],
+            cardNG['lossR'],
+            cardNG['lossMCAC'],
             cardNG['acc'],
             cardNG['accC'],
             cardNG['predictions'],
@@ -116,7 +125,7 @@ if __name__ == "__main__":
 
         out = session.run(fetches, feed_dict=feed)
         if len(out)==lenNH: out.append(None)
-        _, loss, acc, accC, pr, nc, accR, accRC, prRA, ncRA, gN, agN, lRs, zeros, histSumm = out
+        _, loss, lossW, lossR, lossMCAC, acc, accC, pr, nc, accR, accRC, prRA, ncRA, gN, agN, lRs, zeros, histSumm = out
 
         if not zeros.size: zeros = np.asarray([0])
         for ls in indZeros: ls.append(zeros)
@@ -148,15 +157,21 @@ if __name__ == "__main__":
 
             print('%6d, loss: %.6f, acc: %.6f, gN: %.6f' % (b, loss, acc, gN))
 
-            accsum = tf.Summary(value=[tf.Summary.Value(tag='crdN/1_acc', simple_value=1-acc)])
+            accsum = tf.Summary(value=[tf.Summary.Value(tag='crdN/0_acc', simple_value=1-acc)])
             accRsum = tf.Summary(value=[tf.Summary.Value(tag='crdN/1_accR', simple_value=1-accR)])
             losssum = tf.Summary(value=[tf.Summary.Value(tag='crdN/2_loss', simple_value=loss)])
-            gNsum = tf.Summary(value=[tf.Summary.Value(tag='crdN/3_gN', simple_value=gN)])
-            agNsum = tf.Summary(value=[tf.Summary.Value(tag='crdN/4_agN', simple_value=agN)])
-            lRssum = tf.Summary(value=[tf.Summary.Value(tag='crdN/5_lRs', simple_value=lRs)])
+            lossWsum = tf.Summary(value=[tf.Summary.Value(tag='crdN/3_lossW', simple_value=lossW)])
+            lossRsum = tf.Summary(value=[tf.Summary.Value(tag='crdN/4_lossR', simple_value=lossR)])
+            lossMCACsum = tf.Summary(value=[tf.Summary.Value(tag='crdN/5_lossMCAC', simple_value=lossMCAC)])
+            gNsum = tf.Summary(value=[tf.Summary.Value(tag='crdN/6_gN', simple_value=gN)])
+            agNsum = tf.Summary(value=[tf.Summary.Value(tag='crdN/7_agN', simple_value=agN)])
+            lRssum = tf.Summary(value=[tf.Summary.Value(tag='crdN/8_lRs', simple_value=lRs)])
             summWriter.add_summary(accsum, b)
             summWriter.add_summary(accRsum, b)
             summWriter.add_summary(losssum, b)
+            summWriter.add_summary(lossWsum, b)
+            summWriter.add_summary(lossRsum, b)
+            summWriter.add_summary(lossMCACsum, b)
             summWriter.add_summary(gNsum, b)
             summWriter.add_summary(agNsum, b)
             summWriter.add_summary(lRssum, b)
@@ -185,6 +200,7 @@ if __name__ == "__main__":
                     naneTSumm = tf.Summary(value=[tf.Summary.Value(tag='nane/naneT%d' % cizT, simple_value=zerosT)])
                     summWriter.add_summary(naneTSumm, b)
 
+            """
             if acc > 0.99: nHighAcc += 1
             if nHighAcc > 10:
                 nS = prRA.shape[0]
@@ -194,7 +210,7 @@ if __name__ == "__main__":
                     if max(ncRASL):
                         nBS += 1
                         if nBS < 5:
-                            cards = sorted(batch[0][sx])
+                            cards = sorted(batch['crd7AB'][sx])
                             cards = [PDeck.itc(c) for c in cards]
                             cS7 = ''
                             for c in cards:
@@ -208,9 +224,9 @@ if __name__ == "__main__":
                     if max(ncSL):
                         nBS += 1
                         if nBS < 5:
-                            cardsA = batch[0][sx]
+                            cardsA = batch['crd7AB'][sx]
                             cardsA = [PDeck.itc(c) for c in cardsA]
-                            cardsB = batch[1][sx]
+                            cardsB = batch['crd7BB'][sx]
                             cardsB = [PDeck.itc(c) for c in cardsB]
                             cS7A = ''
                             for c in cardsA:
@@ -224,7 +240,7 @@ if __name__ == "__main__":
                             crB = PDeck.cardsRank(cardsB)
                             print(pr[sx], ncSL.index(1), crA[-1][:2], crB[-1][:2], '(%s - %s = %s - %s)'%(cS7A,cS7B,crA[-1][3:],crB[-1][3:]))
                 if nBS: print(nBS)
-
+            """
         if histSumm: summWriter.add_summary(histSumm, b)
 
         # test
@@ -232,15 +248,18 @@ if __name__ == "__main__":
             batch = testBatch
 
             feed = {
-                cardNG['inAC']:     batch[0],
-                cardNG['inBC']:     batch[1],
-                cardNG['won']:      batch[2],
-                cardNG['rnkA']:     batch[3],
-                cardNG['rnkB']:     batch[4],
-            }
+                cardNG['inAC']:     batch['crd7AB'],
+                cardNG['inBC']:     batch['crd7BB'],
+                cardNG['won']:      batch['winsB'],
+                cardNG['rnkA']:     batch['rankAB'],
+                cardNG['rnkB']:     batch['rankBB'],
+                cardNG['mcAC']:     batch['mcAChanceB']}
 
             fetches = [
                 cardNG['loss'],
+                cardNG['lossW'],
+                cardNG['lossR'],
+                cardNG['lossMCAC'],
                 cardNG['acc'],
                 cardNG['accC'],
                 cardNG['predictions'],
@@ -252,16 +271,22 @@ if __name__ == "__main__":
 
             out = session.run(fetches, feed_dict=feed)
             if len(out)==lenNH: out.append(None)
-            loss, acc, accC, pr, nc, accR, accRC, prRA, ncRA = out
+            loss, lossW, lossR, lossMCAC, acc, accC, pr, nc, accR, accRC, prRA, ncRA = out
 
             print('%6dT loss: %.7f acc: %.7f' % (b, loss, acc))
 
-            accsum = tf.Summary(value=[tf.Summary.Value(tag='crdNT/1_acc', simple_value=1-acc)])
+            accsum = tf.Summary(value=[tf.Summary.Value(tag='crdNT/0_acc', simple_value=1-acc)])
             accRsum = tf.Summary(value=[tf.Summary.Value(tag='crdNT/1_accR', simple_value=1-accR)])
             losssum = tf.Summary(value=[tf.Summary.Value(tag='crdNT/2_loss', simple_value=loss)])
+            lossWsum = tf.Summary(value=[tf.Summary.Value(tag='crdNT/3_lossW', simple_value=lossW)])
+            lossRsum = tf.Summary(value=[tf.Summary.Value(tag='crdNT/4_lossR', simple_value=lossR)])
+            lossMCACsum = tf.Summary(value=[tf.Summary.Value(tag='crdNT/5_lossMCAC', simple_value=lossMCAC)])
             summWriter.add_summary(accsum, b)
             summWriter.add_summary(accRsum, b)
             summWriter.add_summary(losssum, b)
+            summWriter.add_summary(lossWsum, b)
+            summWriter.add_summary(lossRsum, b)
+            summWriter.add_summary(lossMCACsum, b)
 
             accC = accC.tolist()
             accC01 = (accC[0]+accC[1])/2

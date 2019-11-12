@@ -21,7 +21,8 @@ CRD_FIG = {
     9:  'J',
     10: 'D',
     11: 'K',
-    12: 'A'}
+    12: 'A',
+    13: 'X'}
 
 # card colors
 CRD_COL = {
@@ -189,7 +190,7 @@ class PDeck:
             cFig[c[0]].append(c)
             cCol[c[1]].append(c)
 
-        nFig = [len(f) for f in cFig]  # multiple figures
+        nFig = [len(f) for f in cFig] # multiple figures
 
         # search for flush
         colCards = None
@@ -200,22 +201,23 @@ class PDeck:
                 colour = cL[0][1]
                 break
 
+        scFig = cFig[-1:] + cFig # with aces at the beginning
         inRow = []
         pix = -2
-        for ix in range(13):
-            if len(cFig[ix]):
+        for ix in range(14):
+            if len(scFig[ix]):
                 # select card
-                c = cFig[ix][0]
-                if len(cFig[ix]) > 1 and colour:
-                    for c in cFig[ix]:
+                crd = scFig[ix][0]
+                if len(scFig[ix]) > 1 and colour:
+                    for c in scFig[ix]:
                         if c[1] == colour:
-                            c = c
+                            crd = c
                             break
                 if pix + 1 == ix:
-                    inRow.append(c)
+                    inRow.append(crd)
                 else:
                     if len(inRow) in [3,4]: break # no chance anymore
-                    if len(inRow) in [0,1,2]: inRow = [c] # still a chance
+                    if len(inRow) in [0,1,2]: inRow = [crd] # still a chance
                     else: break # got 5
                 pix = ix
         possibleStraight = len(inRow) > 4
@@ -345,12 +347,9 @@ if __name__ == "__main__":
         cards = testDeck.get7ofRank(ix)
         print(ix, cards, PDeck.cardsRank(cards)[-1])
     """
-    cards = [(0,0),(0,1),(0,2),(3,0),(9,0),(9,1),(9,2)]
+    cards = [(12,0),(0,1),(1,2),(2,0),(3,0),(5,1),(9,2)]
     print(PDeck.cardsRank(cards)[-1])
-    cards = [(0,0),(0,1),(1,0),(1,1),(9,0),(9,1),(9,2)]
+    cards = [(12,0),(0,1),(1,2),(2,0),(3,0),(4,1),(9,2)]
     print(PDeck.cardsRank(cards)[-1])
-    cards = [(0,0),(2,1),(1,0),(1,1),(9,0),(9,1),(9,2)]
-    print(PDeck.cardsRank(cards)[-1])
-    cards = [(0,0),(0,1),(0,2),(1,1),(8,0),(9,1),(9,2)]
-    print(PDeck.cardsRank(cards)[-1])
+
 
