@@ -48,16 +48,13 @@ class PDeck:
 
     def __init__(self):
 
+        self.__fullInitDeck = [PDeck.itc(ci) for ci in range(52)]
         self.cards = None
         self.resetDeck()
 
     # resets deck to initial state
     def resetDeck(self):
-        self.cards = []
-        for f in range(13):
-            for c in range(4):
-                self.cards.append((f, c))
-        random.shuffle(self.cards)
+        self.cards = [] + self.__fullInitDeck
         random.shuffle(self.cards)
 
     # returns one card from deck
@@ -317,8 +314,7 @@ class PDeck:
 
         # prep string
         string = CRD_RNK[topRank] + ' %7s'%rankValue
-        for c in fiveCards:
-            string += ' %s' % PDeck.cts(c)
+        for c in fiveCards: string += ' %s' % PDeck.cts(c)
 
         return topRank, rankValue, fiveCards, string
 

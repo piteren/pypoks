@@ -27,101 +27,115 @@
 
 """
 
+from functools import partial
 import numpy as np
 import tensorflow as tf
 import time
 
+from pUtils.nnTools.nnModel import NNModel
+from pUtils.nnTools.multiSaver import MultiSaver
 from pUtils.nnTools.nnBaseElements import loggingSet
 from pUtils.queMultiProcessor import QueMultiProcessor
 
-from cardNet.cardNetwork import cardGFN
 from cardNet.cardBatcher import prep2X7Batch
+from cardNet.cardNetwork import cardFWDng, cardOPTng
 
 #TODO:
 # - accuracy_masked continue
-# - how loss is constructed (elements of loss)
+# - loss components influence
 
-if __name__ == "__main__":
+def trainCardNet(
+        cardNetDict,
+        nBatches=   50000,
+        trainSM=    (1000,30),
+        doTest=     True,
+        testSM=     (2000,10000),   # test size and MonteC samples
+        verbLev=    0):
 
-    loggingSet('_log', customName='pypCN', forceLast=True)
-
-    doTest = True
-    #doTest = False
+    # prepare tests data
+    cTuples = None
+    testBatch = None
     if doTest:
-        print('\nPreparing test batch...')
-        testSize = 2000
+        if verbLev > 0: print('\nPreparing test batch...')
         testBatch = prep2X7Batch(
-            bs=         testSize,
-            nMonte=     10000,
-            verbLev=    1)
+            bs=         testSM[0],
+            nMonte=     testSM[1],
+            verbLev=    verbLev)
         cTuples = []
-        for ix in range(testSize):
+        for ix in range(testSM[0]):
             cTuples.append(tuple(sorted(testBatch['crd7AB'][ix])))
             cTuples.append(tuple(sorted(testBatch['crd7BB'][ix])))
-        print('Got %d of hands in testBatch'%len(cTuples))
+        if verbLev > 1: print('Got %d of hands in testBatch'%len(cTuples))
         cTuples = dict.fromkeys(cTuples, 1)
-        print('of which %d is unique'%len(cTuples))
-    else:
-        cTuples = None
-        testBatch = None
+        if verbLev > 1: print('of which %d is unique'%len(cTuples))
 
+    iPF = partial(prep2X7Batch,bs=trainSM[0],nMonte=trainSM[1])
     qmp = QueMultiProcessor(
-        iProcFunction=  prep2X7Batch,
+        iProcFunction=  iPF,
         taskObject=     cTuples,
-        rQueTSize=      100,
-        verbLev=        1)
+        rQueTSize=      1000,
+        verbLev=        verbLev)
 
-    cardNG = cardGFN(
-        cEmbW=      24,
-        nLayers=    8,
-        denseMul=   4,
-        drLayers=   2)
+    cNet = NNModel(
+        mDict=          cardNetDict,
+        fwdM=           cardFWDng,
+        optM=           cardOPTng,
+        verbLev=        verbLev)
 
-    session = tf.Session()
+    session = tf.Session(graph=cNet.gd['graph'])
 
-    session.run(tf.initializers.variables(var_list=cardNG['vars']+cardNG['optVars']))
-    summWriter = tf.summary.FileWriter(logdir='_nnTB/crdN_%s'% time.strftime('%m.%d_%H.%M'), flush_secs=10)
+    varDict = {
+        'FWD':  cNet.gd['trnVars'],
+        'OPT':  cNet.gd['optVars']}
+    nSaver = MultiSaver(
+        modelName=  cNet.gd['name'],
+        variables=  varDict,
+        savePath=   '_models',
+        session=    session,
+        verbLev=    verbLev)
+    nSaver.load()
+
+    summWriter = tf.summary.FileWriter(logdir='_nnTB/%s_%s'% (cNet.gd['name'], time.strftime('%m.%d_%H.%M')), flush_secs=10)
 
     izT = [50,500,5000]
     indZeros = [[] for _ in izT]
 
-    nHighAcc = 0
-
     repFreq = 100
     hisFreq = 500
-    for b in range(200000):
+    nHighAcc = 0
+    for b in range(nBatches):
 
         batch = qmp.getResult()
 
         feed = {
-            cardNG['trPH']:     True,
-            cardNG['inAC']:     batch['crd7AB'],
-            cardNG['inBC']:     batch['crd7BB'],
-            cardNG['won']:      batch['winsB'],
-            cardNG['rnkA']:     batch['rankAB'],
-            cardNG['rnkB']:     batch['rankBB'],
-            cardNG['mcAC']:     batch['mcAChanceB']}
+            cNet.gd['trPH']:       True,
+            cNet.gd['inACPH']:     batch['crd7AB'],
+            cNet.gd['inBCPH']:     batch['crd7BB'],
+            cNet.gd['wonPH']:      batch['winsB'],
+            cNet.gd['rnkAPH']:     batch['rankAB'],
+            cNet.gd['rnkBPH']:     batch['rankBB'],
+            cNet.gd['mcACPH']:     batch['mcAChanceB']}
 
         fetches = [
-            cardNG['optimizer'],
-            cardNG['loss'],
-            cardNG['lossW'],
-            cardNG['lossR'],
-            cardNG['lossMCAC'],
-            cardNG['acc'],
-            cardNG['accC'],
-            cardNG['predictions'],
-            cardNG['ohNotCorrect'],
-            cardNG['accR'],
-            cardNG['accRC'],
-            cardNG['predictionsRA'],
-            cardNG['ohNotCorrectRA'],
-            cardNG['gN'],
-            cardNG['agN'],
-            cardNG['lRs'],
-            cardNG['nnZeros']]
+            cNet.gd['optimizer'],
+            cNet.gd['loss'],
+            cNet.gd['lossW'],
+            cNet.gd['lossR'],
+            cNet.gd['lossMCAC'],
+            cNet.gd['avgAccW'],
+            cNet.gd['avgAccC'],
+            cNet.gd['predictions'],
+            cNet.gd['ohNotCorrect'],
+            cNet.gd['accR'],
+            cNet.gd['accRC'],
+            cNet.gd['predictionsRA'],
+            cNet.gd['ohNotCorrectRA'],
+            cNet.gd['gN'],
+            cNet.gd['agN'],
+            cNet.gd['lRs'],
+            cNet.gd['nnZeros']]
         lenNH = len(fetches)
-        if b % hisFreq == 0: fetches.append(cardNG['histSumm'])
+        if b % hisFreq == 0: fetches.append(cNet.gd['histSumm'])
 
         out = session.run(fetches, feed_dict=feed)
         if len(out)==lenNH: out.append(None)
@@ -133,27 +147,25 @@ if __name__ == "__main__":
         if b % repFreq == 0:
 
             # prints stats of rank @batch
-            """
-            rStats = batch[5]
-            nHands = 2*len(batch[0])
-            for ix in range(len(rStats)):
-                rStats[ix] /= nHands
-                print('%.5f '%rStats[ix], end='')
-            print()
-            cum = 0
-            for ix in range(len(rStats)):
-                cum += rStats[ix]
-                print('%.5f ' %cum, end='')
-            print()
+            if verbLev > 2:
+                rStats = batch[5]
+                nHands = 2*len(batch[0])
+                for ix in range(len(rStats)):
+                    rStats[ix] /= nHands
+                    print('%.5f '%rStats[ix], end='')
+                print()
+                cum = 0
+                for ix in range(len(rStats)):
+                    cum += rStats[ix]
+                    print('%.5f ' %cum, end='')
+                print()
 
-            wStats = batch[6]
-            nWins = len(batch[0])
-            for ix in range(len(wStats)):
-                wStats[ix] /= nWins
-                print('%.3f ' % wStats[ix], end='')
-            print()
-
-            #"""
+                wStats = batch[6]
+                nWins = len(batch[0])
+                for ix in range(len(wStats)):
+                    wStats[ix] /= nWins
+                    print('%.3f ' % wStats[ix], end='')
+                print()
 
             print('%6d, loss: %.6f, acc: %.6f, gN: %.6f' % (b, loss, acc, gN))
 
@@ -245,29 +257,29 @@ if __name__ == "__main__":
 
         # test
         if b%1000 == 0 and testBatch is not None:
-            batch = testBatch
 
+            batch = testBatch
             feed = {
-                cardNG['inAC']:     batch['crd7AB'],
-                cardNG['inBC']:     batch['crd7BB'],
-                cardNG['won']:      batch['winsB'],
-                cardNG['rnkA']:     batch['rankAB'],
-                cardNG['rnkB']:     batch['rankBB'],
-                cardNG['mcAC']:     batch['mcAChanceB']}
+                cNet.gd['inACPH']:     batch['crd7AB'],
+                cNet.gd['inBCPH']:     batch['crd7BB'],
+                cNet.gd['wonPH']:      batch['winsB'],
+                cNet.gd['rnkAPH']:     batch['rankAB'],
+                cNet.gd['rnkBPH']:     batch['rankBB'],
+                cNet.gd['mcACPH']:     batch['mcAChanceB']}
 
             fetches = [
-                cardNG['loss'],
-                cardNG['lossW'],
-                cardNG['lossR'],
-                cardNG['lossMCAC'],
-                cardNG['acc'],
-                cardNG['accC'],
-                cardNG['predictions'],
-                cardNG['ohNotCorrect'],
-                cardNG['accR'],
-                cardNG['accRC'],
-                cardNG['predictionsRA'],
-                cardNG['ohNotCorrectRA']]
+                cNet.gd['loss'],
+                cNet.gd['lossW'],
+                cNet.gd['lossR'],
+                cNet.gd['lossMCAC'],
+                cNet.gd['avgAccW'],
+                cNet.gd['avgAccC'],
+                cNet.gd['predictions'],
+                cNet.gd['ohNotCorrect'],
+                cNet.gd['accR'],
+                cNet.gd['accRC'],
+                cNet.gd['predictionsRA'],
+                cNet.gd['ohNotCorrectRA']]
 
             out = session.run(fetches, feed_dict=feed)
             if len(out)==lenNH: out.append(None)
@@ -296,5 +308,27 @@ if __name__ == "__main__":
             summWriter.add_summary(c01sum, b)
             summWriter.add_summary(c2sum, b)
 
+    nSaver.save()
     qmp.close()
-    print('cardNet done')
+    if verbLev > 0: print('%s done' % cNet.gd['name'])
+
+
+if __name__ == "__main__":
+
+    netName = 'cardNet'
+
+    loggingSet('_log', customName=netName, forceLast=True)
+
+    cND = {
+        'name':     netName,
+        'cEmbW':    24,
+        'nLayers':  8,
+        'denseMul': 4,
+        'drLayers': 2}
+
+    trainCardNet(
+        cardNetDict=    cND,
+        nBatches =      500,
+        trainSM=        (1000,10),
+        testSM=         (2000,100),
+        verbLev=        1)

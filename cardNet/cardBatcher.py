@@ -37,13 +37,11 @@ def prep2X7Batch(
         bs=         1000,   # batch size
         rBalance=   True,   # balance rank
         dBalance=   0.1,    # False or fraction of draws
-        #probNoMask= 1.0,    # probability of not masking (all cards are known), for None uses full random
-        probNoMask= None,
-        #nMonte=     0):     # num of MonteCarlo runs for A estimation
-        nMonte=     5,
+        probNoMask= None,   # probability of not masking (all cards are known), for None uses full random
+        nMonte=     30,     # num of MonteCarlo runs for A estimation
         verbLev=    0):
 
-    deck = PDeck() # since it is hard to give any object to function of process...
+    deck = PDeck() # since it is hard to give any object to method of subprocess...
     avoidCTuples = task
 
     crd7AB, crd7BB, winsB, rankAB, rankBB, mcAChanceB = [],[],[],[],[],[] # batches
@@ -110,20 +108,19 @@ def prep2X7Batch(
         for ix in range(2+5-nMask,7): crd7A[ix] = 52
 
         # calc MontCarlo chances of winning for A
+        newDeck = PDeck()
         nAWins = 0
         if diff > 0: nAWins = 1
         if diff == 0: nAWins = 0.5
         if nMonte > 0:
             gotCards = [c for c in crd7A if c!=52]
             for it in range(nMonte):
+                newDeck.resetDeck()
                 nineCards = [] + gotCards
-                newDeck = PDeck()
-                for c in gotCards: newDeck.getECard(c)
+                for c in nineCards: newDeck.getECard(c) # remove cards from deck
                 while len(nineCards) < 9: nineCards.append(PDeck.cti(newDeck.getCard()))
-                a7c = nineCards[:7]
-                b7c = nineCards[2:]
-                aR = PDeck.cardsRank(a7c)
-                bR = PDeck.cardsRank(b7c)
+                aR = PDeck.cardsRank(nineCards[:7])
+                bR = PDeck.cardsRank(nineCards[2:])
                 if aR[1] > bR[1]: nAWins += 1
                 if aR[1] == bR[1]: nAWins += 0.5
         mcAChance = nAWins / (nMonte+1)
