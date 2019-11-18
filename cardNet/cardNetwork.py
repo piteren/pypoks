@@ -103,7 +103,8 @@ def cardFWDng(
         dtype=          tf.float32,
         initializer=    defInitializer())
 
-    histSumm = [tf.summary.histogram('cEMB', cEMB, family='cEMB')]
+    with tf.device('/device:CPU:0'):
+        histSumm = [tf.summary.histogram('cEMB', cEMB, family='cEMB')]
 
     inACPH = tf.placeholder( # 7 cards of A
         name=           'inACPH',
@@ -245,52 +246,12 @@ def cardFWDng(
         predictions=    mcACregVal)
     if verbLev > 1: print(' > lossMCAC:', lossMCAC)
 
-    trnVars = tf.trainable_variables()
-    if verbLev > 1: print(' ### num of (%d) trnVars %s'%(len(trnVars), shortSCIN(numVFloats(trnVars))))
-    if verbLev > 2: logVars(trnVars)
+    tVars = tf.trainable_variables()
+    if verbLev > 1: print(' ### num of (%d) tVars %s'%(len(tVars), shortSCIN(numVFloats(tVars))))
+    if verbLev > 2: logVars(tVars)
 
-    loss = lossW + lossR + lossMCAC # how loss is constructed
-
-    return{
-        'trPH':                 trPH,
-        'inACPH':               inACPH,
-        'inBCPH':               inBCPH,
-        'wonPH':                wonPH,
-        'rnkAPH':               rnkAPH,
-        'rnkBPH':               rnkBPH,
-        'mcACPH':               mcACPH,
-        'whereAllCardsF':       whereAllCardsF,
-        'rankAlogits':          rankAlogits,
-        'rankBlogits':          rankBlogits,
-        'wonLogits':            wonLogits,
-        'loss':                 loss,
-        'lossW':                lossW,
-        'lossR':                lossR,
-        'lossMCAC':             lossMCAC,
-        'trnVars':              trnVars,
-        'histSumm':             tf.summary.merge(histSumm),
-        'nnZeros':              nnZeros}
-
-def cardOPTng(
-        loss,
-        trnVars,
-        rankAlogits,
-        rankBlogits,
-        wonLogits,
-        whereAllCardsF,
-        rnkAPH,
-        rnkBPH,
-        wonPH,
-        lR=         1e-3,
-        warmUp=     10000,
-        annbLr=     0.999,
-        stepLr=     0.04,
-        avtStartV=  0.1,
-        avtWindow=  500,
-        avtMaxUpd=  1.5,
-        doClip=     False,
-        verbLev=    0,
-        **kwargs):
+    loss = lossW + lossR + lossMCAC # this is how loss is constructed
+    gradients = tf.gradients(loss, tVars)
 
     predictionsRA = tf.argmax(rankAlogits, axis=-1, output_type=tf.int32)
     predictionsRB = tf.argmax(rankBlogits, axis=-1, output_type=tf.int32)
@@ -329,6 +290,49 @@ def cardOPTng(
 
     ohNotCorrect = tf.where(condition=tf.logical_not(correctW), x=ohWon, y=tf.zeros_like(ohWon))
 
+    return{
+        'trPH':                 trPH,
+        'inACPH':               inACPH,
+        'inBCPH':               inBCPH,
+        'wonPH':                wonPH,
+        'rnkAPH':               rnkAPH,
+        'rnkBPH':               rnkBPH,
+        'mcACPH':               mcACPH,
+        'whereAllCardsF':       whereAllCardsF,
+        'rankAlogits':          rankAlogits,
+        'rankBlogits':          rankBlogits,
+        'wonLogits':            wonLogits,
+        'loss':                 loss,
+        'lossW':                lossW,
+        'lossR':                lossR,
+        'lossMCAC':             lossMCAC,
+        'tVars':                tVars,
+        'gradients':            gradients,
+        'avgAccW':              avgAccW,
+        'avgAccC':              avgAccC,
+        'predictions':          predictionsW,
+        'ohNotCorrect':         ohNotCorrect,
+        'accR':                 avgAccR,
+        'accRC':                avgAccRC,
+        'predictionsRA':        predictionsRA,
+        'ohNotCorrectRA':       ohNotCorrectRA,
+        'histSumm':             tf.summary.merge(histSumm),
+        'nnZeros':              nnZeros}
+
+def cardOPTng(
+        tVars :list,
+        gradients :list,
+        lR=         1e-3,
+        warmUp=     10000,
+        annbLr=     0.999,
+        stepLr=     0.04,
+        avtStartV=  0.1,
+        avtWindow=  500,
+        avtMaxUpd=  1.5,
+        doClip=     False,
+        verbLev=    0,
+        **kwargs):
+
     globalStep = tf.get_variable(  # global step
         name=           'gStep',
         shape=          [],
@@ -347,7 +351,7 @@ def cardOPTng(
     optimizer = tf.train.AdamOptimizer(lRs, beta1=0.7, beta2=0.7)
 
     clipOUT = gradClipper(
-        gradients=  tf.gradients(loss, trnVars),
+        gradients=  gradients,
         avtStartV=  avtStartV,
         avtWindow=  avtWindow,
         avtMaxUpd=  avtMaxUpd,#1.2,
@@ -355,24 +359,16 @@ def cardOPTng(
     gradients = clipOUT['gradients']
     gN = clipOUT['gGNorm']
     agN = clipOUT['avtGGNorm']
-    optimizer = optimizer.apply_gradients(zip(gradients, trnVars), global_step=globalStep)
+    optimizer = optimizer.apply_gradients(zip(gradients, tVars), global_step=globalStep)
 
     # select optimizer vars
-    optVars = []
+    oVars = []
     for var in tf.global_variables(scope=tf.get_variable_scope().name):
-        if var not in trnVars: optVars.append(var)
+        if var not in tVars: oVars.append(var)
 
     return{
-        'avgAccW':          avgAccW,
-        'avgAccC':          avgAccC,
-        'predictions':      predictionsW,
-        'ohNotCorrect':     ohNotCorrect,
-        'accR':             avgAccR,
-        'accRC':            avgAccRC,
-        'predictionsRA':    predictionsRA,
-        'ohNotCorrectRA':   ohNotCorrectRA,
         'lRs':              lRs,
         'gN':               gN,
         'agN':              agN,
-        'optVars':          optVars,
+        'oVars':            oVars,
         'optimizer':        optimizer}
