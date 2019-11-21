@@ -82,11 +82,11 @@ def cEncT(
 def cardFWDng(
         tat=        False,
         cEmbW=      24,
-        nLayers=    12,
+        nLayers=    8,
         inProj=     None,   # None, 0 or int
         denseMul=   4,
         denseProj=  None,   # None, 0 or int
-        drLayers=   4,      # None, 0 or int
+        drLayers=   2,      # None, 0 or int
         dropout=    0.0,
         dropoutDRE= 0.0,
         verbLev=    0,
@@ -310,7 +310,7 @@ def cardFWDng(
         'gradients':            gradients,
         'avgAccW':              avgAccW,
         'avgAccC':              avgAccC,
-        'predictions':          predictionsW,
+        'predictionsW':         predictionsW,
         'ohNotCorrect':         ohNotCorrect,
         'accR':                 avgAccR,
         'accRC':                avgAccRC,

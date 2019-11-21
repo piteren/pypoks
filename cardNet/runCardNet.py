@@ -44,6 +44,7 @@ from cardNet.cardNetwork import cardFWDng, cardOPTng
 # - accuracy_masked continue
 # - loss components influence
 
+
 def trainCardNet(
         cardNetDict,
         nBatches=   50000,
@@ -81,7 +82,7 @@ def trainCardNet(
         mDict=          cardNetDict,
         fwdM=           cardFWDng,
         optM=           cardOPTng,
-        #forceCUDAid=    [0],
+        useAllCUDA=     False,
         verbLev=        verbLev)
 
     session = tf.Session( # session
@@ -107,6 +108,7 @@ def trainCardNet(
     repFreq = 100
     hisFreq = 500
     nHighAcc = 0
+    sTime = time.time()
     for b in range(nBatches):
 
         # feed loop for towers
@@ -133,7 +135,7 @@ def trainCardNet(
             cNet['lossMCAC'],
             cNet['avgAccW'],
             cNet['avgAccC'],
-            cNet['predictions'],
+            cNet['predictionsW'],
             cNet['ohNotCorrect'],
             cNet['accR'],
             cNet['accRC'],
@@ -176,7 +178,8 @@ def trainCardNet(
                     print('%.3f ' % wStats[ix], end='')
                 print()
 
-            print('%6d, loss: %.6f, acc: %.6f, gN: %.6f' % (b, loss, acc, gN))
+            print('%6d, loss: %.6f, acc: %.6f, gN: %.6f, (%d/s)' % (b, loss, acc, gN, repFreq*trainSM[0]/(time.time()-sTime)))
+            sTime = time.time()
 
             accsum = tf.Summary(value=[tf.Summary.Value(tag='crdN/0_acc', simple_value=1-acc)])
             accRsum = tf.Summary(value=[tf.Summary.Value(tag='crdN/1_accR', simple_value=1-accR)])
@@ -283,7 +286,7 @@ def trainCardNet(
                 cNet['lossMCAC'],
                 cNet['avgAccW'],
                 cNet['avgAccC'],
-                cNet['predictions'],
+                cNet['predictionsW'],
                 cNet['ohNotCorrect'],
                 cNet['accR'],
                 cNet['accRC'],
@@ -322,23 +325,74 @@ def trainCardNet(
     if verbLev > 0: print('%s done' % cNet['name'])
 
 
-if __name__ == "__main__":
+def inferW(
+        cNet,
+        session,
+        batch):
 
-    netName = 'cardNetB'
+    feed = {
+        cNet['inACPH']: batch['crd7AB'],
+        cNet['inBCPH']: batch['crd7BB']}
+
+    fetches = [cNet['predictionsW']]
+    return session.run(fetches, feed_dict=feed)
+
+
+def train():
+
+    netName = 'cardNetS'
 
     loggingSet('_log', customName=netName, manageGPUs=False)
 
-    cND = {
-        'name':     netName,
-        'cEmbW':    24,
-        'nLayers':  8,
-        'denseMul': 4,
-        'drLayers': 2}
-
     trainCardNet(
-        cardNetDict=    cND,
+        cardNetDict=    {'name': netName},
         nBatches =      10000,
         trainSM=        (1000,10),
         testSM=         (2000,100),
         rQueTSize=      200,
         verbLev=        1)
+
+
+def infer():
+
+    verbLev = 1
+
+    loggingSet(None, manageGPUs=False)
+
+    cNet = NNModel(  # model
+        mDict=      {'name': 'cardNetS'},
+        fwdM=       cardFWDng,
+        verbLev=    verbLev)
+
+    session = tf.Session( # session
+        graph=      cNet['graph'],
+        config=     tf.ConfigProto(allow_soft_placement=True))
+
+    varDict = {'FWD': cNet['tVars']}
+    nSaver = MultiSaver( # saver
+        modelName=  cNet['name'],
+        variables=  varDict,
+        savePath=   '_models',
+        session=    session,
+        verbLev=    verbLev)
+    nSaver.load()
+
+    bs = 1000000
+    rs = 20
+    inferBatch = prep2X7Batch(
+        bs=         bs,
+        rBalance=   False,
+        dBalance=   False,
+        nMonte=     0,
+        verbLev=    verbLev)
+    sTime = time.time()
+    for ix in range(rs):
+        res = inferW(cNet,session,inferBatch)
+        print(ix)
+    print('Finished, speed: %d/sec'%(int(bs*rs/(time.time()-sTime))))
+
+
+if __name__ == "__main__":
+
+    #train()
+    infer()
