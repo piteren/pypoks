@@ -82,7 +82,7 @@ def trainCardNet(
         mDict=          cardNetDict,
         fwdM=           cardFWDng,
         optM=           cardOPTng,
-        useAllCUDA=     False,
+        #useAllCUDA=     True,
         verbLev=        verbLev)
 
     session = tf.Session( # session
@@ -346,7 +346,7 @@ def train():
 
     trainCardNet(
         cardNetDict=    {'name': netName},
-        nBatches =      10000,
+        nBatches =      1000,
         trainSM=        (1000,10),
         testSM=         (2000,100),
         rQueTSize=      200,
@@ -394,5 +394,5 @@ def infer():
 
 if __name__ == "__main__":
 
-    #train()
-    infer()
+    train()
+    #infer()

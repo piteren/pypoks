@@ -346,7 +346,7 @@ def cardOPTng(
         warmUpSteps=    warmUp,
         annbLr=         annbLr,
         stepLr=         stepLr,
-        verbLev=        1)
+        verbLev=        verbLev)
 
     optimizer = tf.train.AdamOptimizer(lRs, beta1=0.7, beta2=0.7)
 
@@ -355,7 +355,8 @@ def cardOPTng(
         avtStartV=  avtStartV,
         avtWindow=  avtWindow,
         avtMaxUpd=  avtMaxUpd,#1.2,
-        doClip=     doClip)
+        doClip=     doClip,
+        verbLev=    verbLev)
     gradients = clipOUT['gradients']
     gN = clipOUT['gGNorm']
     agN = clipOUT['avtGGNorm']
