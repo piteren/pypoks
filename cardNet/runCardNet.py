@@ -2,9 +2,9 @@
 
  2019 (c) piteren
 
- card net training
+ card net running
 
- there are 2,598,960 hands not considering different suits it is (52/5) - combination
+ there are 2,598,960 hands not considering different suits, it is (52/5) - combination
 
  stats of poks hands, for 5 (not 7) randomly taken:
  0 (highCard)       - 50.1177%
@@ -32,26 +32,26 @@ import numpy as np
 import tensorflow as tf
 import time
 
-from pUtils.nnTools.nnModel import NNModel
-from pUtils.nnTools.multiSaver import MultiSaver
 from pUtils.nnTools.nnBaseElements import loggingSet
 from pUtils.queMultiProcessor import QueMultiProcessor
+from pUtils.nnTools.multiSaver import MultiSaver
+from pUtils.nnTools.nnModel import NNModel
 
 from cardNet.cardBatcher import prep2X7Batch
-from cardNet.cardNetwork import cardFWDng, cardOPTng
+from cardNet.cardNetwork import cardFWDng
 
 #TODO:
 # - accuracy_masked continue
 # - loss components influence
 
-
+# training function
 def trainCardNet(
-        cardNetDict,
+        cardNetDict :dict,
         nBatches=   50000,
-        trainSM=    (1000,30),
+        trainSM=    (1000,10),
         doTest=     True,
-        testSM=     (2000,10000),   # test size and MonteC samples
-        rQueTSize=  1000,
+        testSM=     (2000,100),   # test size and MonteC samples
+        rQueTSize=  200,
         verbLev=    0):
 
     # prepare tests data
@@ -71,7 +71,7 @@ def trainCardNet(
         cTuples = dict.fromkeys(cTuples, 1)
         if verbLev > 1: print('of which %d is unique'%len(cTuples))
 
-    iPF = partial(prep2X7Batch,bs=trainSM[0],nMonte=trainSM[1])
+    iPF = partial(prep2X7Batch, bs=trainSM[0], nMonte=trainSM[1])
     qmp = QueMultiProcessor( # QMP
         iProcFunction=  iPF,
         taskObject=     cTuples,
@@ -80,25 +80,9 @@ def trainCardNet(
 
     cNet = NNModel( # model
         mDict=          cardNetDict,
-        fwdM=           cardFWDng,
-        optM=           cardOPTng,
+        fwdF=           cardFWDng,
         #useAllCUDA=     True,
         verbLev=        verbLev)
-
-    session = tf.Session( # session
-        graph=  cNet['graph'],
-        config= tf.ConfigProto(allow_soft_placement=True))
-
-    varDict = {
-        'FWD':  cNet['tVars'],
-        'OPT':  cNet['oVars']}
-    nSaver = MultiSaver( # saver
-        modelName=  cNet['name'],
-        variables=  varDict,
-        savePath=   '_models',
-        session=    session,
-        verbLev=    verbLev)
-    nSaver.load()
 
     summWriter = tf.summary.FileWriter(logdir='_nnTB/%s_%s'% (cNet['name'], time.strftime('%m.%d_%H.%M')), flush_secs=10)
 
@@ -141,14 +125,14 @@ def trainCardNet(
             cNet['accRC'],
             cNet['predictionsRA'],
             cNet['ohNotCorrectRA'],
-            cNet['gN'],
-            cNet['agN'],
-            cNet['lRs'],
+            cNet['gGNorm'],
+            cNet['avtGGNorm'],
+            cNet['scaledLR'],
             cNet['nnZeros']]
         lenNH = len(fetches)
         if b % hisFreq == 0: fetches.append(cNet['histSumm'])
 
-        out = session.run(fetches, feed_dict=feed)
+        out = cNet['session'].run(fetches, feed_dict=feed)
         if len(out)==lenNH: out.append(None)
         _, loss, lossW, lossR, lossMCAC, acc, accC, pr, nc, accR, accRC, prRA, ncRA, gN, agN, lRs, zeros, histSumm = out
 
@@ -157,9 +141,10 @@ def trainCardNet(
 
         if b % repFreq == 0:
 
+            """
             # prints stats of rank @batch
             if verbLev > 2:
-                rStats = batch[5]
+                rStats = batch[5] TODO: replace with dict (batch is not a list)
                 nHands = 2*len(batch[0])
                 for ix in range(len(rStats)):
                     rStats[ix] /= nHands
@@ -177,6 +162,7 @@ def trainCardNet(
                     wStats[ix] /= nWins
                     print('%.3f ' % wStats[ix], end='')
                 print()
+            """
 
             print('%6d, loss: %.6f, acc: %.6f, gN: %.6f, (%d/s)' % (b, loss, acc, gN, repFreq*trainSM[0]/(time.time()-sTime)))
             sTime = time.time()
@@ -293,7 +279,7 @@ def trainCardNet(
                 cNet['predictionsRA'],
                 cNet['ohNotCorrectRA']]
 
-            out = session.run(fetches, feed_dict=feed)
+            out = cNet['session'].run(fetches, feed_dict=feed)
             if len(out)==lenNH: out.append(None)
             loss, lossW, lossR, lossMCAC, acc, accC, pr, nc, accR, accRC, prRA, ncRA = out
 
@@ -320,11 +306,11 @@ def trainCardNet(
             summWriter.add_summary(c01sum, b)
             summWriter.add_summary(c2sum, b)
 
-    nSaver.save()
+    cNet['saver'].save(step=cNet['globalStep'])
     qmp.close()
     if verbLev > 0: print('%s done' % cNet['name'])
 
-
+# inference function
 def inferW(
         cNet,
         session,
@@ -337,22 +323,7 @@ def inferW(
     fetches = [cNet['predictionsW']]
     return session.run(fetches, feed_dict=feed)
 
-
-def train():
-
-    netName = 'cardNetS'
-
-    loggingSet('_log', customName=netName, manageGPUs=False)
-
-    trainCardNet(
-        cardNetDict=    {'name': netName},
-        nBatches =      1000,
-        trainSM=        (1000,10),
-        testSM=         (2000,100),
-        rQueTSize=      200,
-        verbLev=        1)
-
-
+# inference wrap
 def infer():
 
     verbLev = 1
@@ -360,18 +331,17 @@ def infer():
     loggingSet(None, manageGPUs=False)
 
     cNet = NNModel(  # model
-        mDict=      {'name': 'cardNetS'},
-        fwdM=       cardFWDng,
+        mDict=      {'name': 'cNet'},
+        fwdF=       cardFWDng,
         verbLev=    verbLev)
 
     session = tf.Session( # session
         graph=      cNet['graph'],
         config=     tf.ConfigProto(allow_soft_placement=True))
 
-    varDict = {'FWD': cNet['tVars']}
     nSaver = MultiSaver( # saver
         modelName=  cNet['name'],
-        variables=  varDict,
+        variables=  {'FWD': cNet['tVars']},
         savePath=   '_models',
         session=    session,
         verbLev=    verbLev)
@@ -394,5 +364,5 @@ def infer():
 
 if __name__ == "__main__":
 
-    train()
+    trainCardNet(cardNetDict={'name':'cNet'},nBatches=1000,trainSM=(1000,10),testSM=(2000,100),rQueTSize=200,verbLev=1)
     #infer()

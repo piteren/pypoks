@@ -4,11 +4,10 @@
 
 """
 
+from functools import partial
 import tensorflow as tf
 
-from pUtils.nnTools.nnModel import NNModel
-from pUtils.littleTools.littleMethods import shortSCIN
-from pUtils.nnTools.nnBaseElements import defInitializer, layDENSE, numVFloats, gradClipper, lRscaler, logVars
+from pUtils.nnTools.nnBaseElements import defInitializer, layDENSE
 from pUtils.nnTools.nnEncoders import encDR, encTRNS
 
 
@@ -89,6 +88,16 @@ def cardFWDng(
         drLayers=   2,      # None, 0 or int
         dropout=    0.0,
         dropoutDRE= 0.0,
+        # train parameters
+        optimizer=  partial(tf.train.AdamOptimizer, beta1=0.7, beta2=0.7),
+        iLR=        1e-3,
+        warmUp=     10000,
+        annbLr=     0.999,
+        stepLr=     0.04,
+        avtStartV=  0.1,
+        avtWindow=  500,
+        avtMaxUpd=  1.5,
+        doClip=     False,
         verbLev=    0,
         **kwargs):
 
@@ -177,6 +186,7 @@ def cardFWDng(
         input=      cRGAout['output'],
         units=      9,
         name=       'denseRC',
+        reuse=      tf.AUTO_REUSE,
         useBias=    False)
     rankAlogits = denseOutA['output']
 
@@ -190,7 +200,7 @@ def cardFWDng(
         input=      cRGBout['output'],
         units=      9,
         name=       'denseRC',
-        reuse=      True,
+        reuse=      tf.AUTO_REUSE,
         useBias=    False)
     rankBlogits = denseOutB['output']
 
@@ -221,6 +231,8 @@ def cardFWDng(
     denseOut = layDENSE(
         input=          output,
         units=          3,
+        name=           'denseW',
+        reuse=          tf.AUTO_REUSE,
         useBias=        False)
     wonLogits = denseOut['output']
     if verbLev > 1: print(' > logits:', wonLogits)
@@ -235,6 +247,8 @@ def cardFWDng(
     denseOut = layDENSE(
         input=          cRGAout['output'],
         units=          1,
+        name=           'denseREG',
+        reuse=          tf.AUTO_REUSE,
         activation=     tf.nn.relu,
         useBias=        False)
     mcACregVal = denseOut['output']
@@ -246,12 +260,7 @@ def cardFWDng(
         predictions=    mcACregVal)
     if verbLev > 1: print(' > lossMCAC:', lossMCAC)
 
-    tVars = tf.trainable_variables()
-    if verbLev > 1: print(' ### num of (%d) tVars %s'%(len(tVars), shortSCIN(numVFloats(tVars))))
-    if verbLev > 2: logVars(tVars)
-
     loss = lossW + lossR + lossMCAC # this is how loss is constructed
-    gradients = tf.gradients(loss, tVars)
 
     predictionsRA = tf.argmax(rankAlogits, axis=-1, output_type=tf.int32)
     predictionsRB = tf.argmax(rankBlogits, axis=-1, output_type=tf.int32)
@@ -306,8 +315,6 @@ def cardFWDng(
         'lossW':                lossW,
         'lossR':                lossR,
         'lossMCAC':             lossMCAC,
-        'tVars':                tVars,
-        'gradients':            gradients,
         'avgAccW':              avgAccW,
         'avgAccC':              avgAccC,
         'predictionsW':         predictionsW,
@@ -318,58 +325,3 @@ def cardFWDng(
         'ohNotCorrectRA':       ohNotCorrectRA,
         'histSumm':             tf.summary.merge(histSumm),
         'nnZeros':              nnZeros}
-
-def cardOPTng(
-        tVars :list,
-        gradients :list,
-        lR=         1e-3,
-        warmUp=     10000,
-        annbLr=     0.999,
-        stepLr=     0.04,
-        avtStartV=  0.1,
-        avtWindow=  500,
-        avtMaxUpd=  1.5,
-        doClip=     False,
-        verbLev=    0,
-        **kwargs):
-
-    globalStep = tf.get_variable(  # global step
-        name=           'gStep',
-        shape=          [],
-        trainable=      False,
-        initializer=    tf.constant_initializer(0),
-        dtype=          tf.int32)
-
-    lRs = lRscaler(
-        iLR=            lR,
-        gStep=          globalStep,
-        warmUpSteps=    warmUp,
-        annbLr=         annbLr,
-        stepLr=         stepLr,
-        verbLev=        verbLev)
-
-    optimizer = tf.train.AdamOptimizer(lRs, beta1=0.7, beta2=0.7)
-
-    clipOUT = gradClipper(
-        gradients=  gradients,
-        avtStartV=  avtStartV,
-        avtWindow=  avtWindow,
-        avtMaxUpd=  avtMaxUpd,#1.2,
-        doClip=     doClip,
-        verbLev=    verbLev)
-    gradients = clipOUT['gradients']
-    gN = clipOUT['gGNorm']
-    agN = clipOUT['avtGGNorm']
-    optimizer = optimizer.apply_gradients(zip(gradients, tVars), global_step=globalStep)
-
-    # select optimizer vars
-    oVars = []
-    for var in tf.global_variables(scope=tf.get_variable_scope().name):
-        if var not in tVars: oVars.append(var)
-
-    return{
-        'lRs':              lRs,
-        'gN':               gN,
-        'agN':              agN,
-        'oVars':            oVars,
-        'optimizer':        optimizer}
