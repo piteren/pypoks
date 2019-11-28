@@ -89,7 +89,7 @@ def cardFWDng(
         dropout=    0.0,
         dropoutDRE= 0.0,
         # train parameters
-        optimizer=  partial(tf.train.AdamOptimizer, beta1=0.7, beta2=0.7),
+        optClass=   partial(tf.train.AdamOptimizer, beta1=0.7, beta2=0.7),
         iLR=        1e-3,
         warmUp=     10000,
         annbLr=     0.999,

@@ -37,6 +37,7 @@ from pUtils.queMultiProcessor import QueMultiProcessor
 from pUtils.nnTools.multiSaver import MultiSaver
 from pUtils.nnTools.nnModel import NNModel
 
+from pLogic.pDeck import getASC
 from cardNet.cardBatcher import prep2X7Batch
 from cardNet.cardNetwork import cardFWDng
 
@@ -54,6 +55,9 @@ def trainCardNet(
         rQueTSize=  200,
         verbLev=    0):
 
+    #asc = getASC()
+    asc = None
+
     # prepare tests data
     cTuples = None
     testBatch = None
@@ -62,6 +66,7 @@ def trainCardNet(
         testBatch = prep2X7Batch(
             bs=         testSM[0],
             nMonte=     testSM[1],
+            asc=        asc,
             verbLev=    verbLev)
         cTuples = []
         for ix in range(testSM[0]):
@@ -71,10 +76,11 @@ def trainCardNet(
         cTuples = dict.fromkeys(cTuples, 1)
         if verbLev > 1: print('of which %d is unique'%len(cTuples))
 
-    iPF = partial(prep2X7Batch, bs=trainSM[0], nMonte=trainSM[1])
+    iPF = partial(prep2X7Batch, bs=trainSM[0], nMonte=trainSM[1], asc=asc)
     qmp = QueMultiProcessor( # QMP
         iProcFunction=  iPF,
         taskObject=     cTuples,
+        nProc=          10,
         rQueTSize=      rQueTSize,
         verbLev=        verbLev)
 

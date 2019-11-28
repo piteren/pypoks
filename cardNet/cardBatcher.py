@@ -39,6 +39,7 @@ def prep2X7Batch(
         dBalance=   0.1,    # False or fraction of draws
         probNoMask= None,   # probability of not masking (all cards are known), for None uses full random
         nMonte=     30,     # num of MonteCarlo runs for A estimation
+        asc: dict=  None,
         verbLev=    0):
 
     deck = PDeck() # since it is hard to give any object to method of subprocess...
@@ -108,21 +109,23 @@ def prep2X7Batch(
         for ix in range(2+5-nMask,7): crd7A[ix] = 52
 
         # calc MontCarlo chances of winning for A
-        newDeck = PDeck()
         nAWins = 0
         if diff > 0: nAWins = 1
         if diff == 0: nAWins = 0.5
         if nMonte > 0:
-            gotCards = [c for c in crd7A if c!=52]
+            gotCards = {c for c in crd7A if c!=52}
             for it in range(nMonte):
-                newDeck.resetDeck()
-                nineCards = [] + gotCards
-                for c in nineCards: newDeck.getECard(c) # remove cards from deck
-                while len(nineCards) < 9: nineCards.append(PDeck.cti(newDeck.getCard()))
-                aR = PDeck.cardsRank(nineCards[:7])
-                bR = PDeck.cardsRank(nineCards[2:])
-                if aR[1] > bR[1]: nAWins += 1
-                if aR[1] == bR[1]: nAWins += 0.5
+                nineCards = gotCards.copy()
+                while len(nineCards) < 9: nineCards.add(int(52 * random.random())) # much faster than random.randrange(52), use numpy.random.randint(52, size=10...) for more
+                nineCards = sorted(nineCards)
+                if asc:
+                    aR = asc[tuple(nineCards[:7])]
+                    bR = asc[tuple(nineCards[2:])]
+                else:
+                    aR = PDeck.cardsRank(nineCards[:7])[1]
+                    bR = PDeck.cardsRank(nineCards[2:])[1]
+                if aR >  bR: nAWins += 1
+                if aR == bR: nAWins += 0.5
         mcAChance = nAWins / (nMonte+1)
 
         crd7AB.append(crd7A)            # 7 cards of A
