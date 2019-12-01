@@ -125,26 +125,27 @@ def cardFWDng(
         dtype=          tf.int32,
         shape=          [None, 7])  # [bsz,7cards]
 
-    wonPH = tf.placeholder( # wonPH class
+    wonPH = tf.placeholder( # wonPH class (lables of winner 0,1-ABwins,2-draw)
         name=           'wonPH',
         dtype=          tf.int32,
         shape=          [None])  # [bsz]
 
-    rnkAPH = tf.placeholder( # rank A class
+    rnkAPH = tf.placeholder( # rank A class (labels <0,8>)
         name=           'rnkAPH',
         dtype=          tf.int32,
         shape=          [None])  # [bsz]
 
-    rnkBPH = tf.placeholder( # rank B class
+    rnkBPH = tf.placeholder( # rank B class (labels <0,8>)
         name=           'rnkBPH',
         dtype=          tf.int32,
         shape=          [None])  # [bsz]
 
-    mcACPH = tf.placeholder( # MontCarlo chances of winning for A
+    mcACPH = tf.placeholder( # chances of winning for A (?montecarlo)
         name=           'mcACPH',
         dtype=          tf.float32,
         shape=          [None])  # [bsz]
 
+    # encoders for A and B
     cRGAout = cEncT(
         sevenC=     inACPH,
         cEMB=       cEMB,
@@ -155,7 +156,6 @@ def cardFWDng(
         dropout=    dropout,
         nLayers=    nLayers,
         verbLev=    verbLev)
-
     cRGBout = cEncT(
         sevenC=     inBCPH,
         cEMB=       cEMB,
@@ -167,19 +167,21 @@ def cardFWDng(
         nLayers=    nLayers,
         verbLev=    verbLev)
 
-    # get nnZeros from A
-    nnZeros = cRGAout['nnZeros']
-    nnZeros = tf.reshape(tf.stack(nnZeros), shape=[-1])
+    # get nnZeros
+    nnZerosA = cRGAout['nnZeros']
+    nnZerosA = tf.reshape(tf.stack(nnZerosA), shape=[-1])
+    nnZerosB = cRGBout['nnZeros']
+    nnZerosB = tf.reshape(tf.stack(nnZerosB), shape=[-1])
     histSumm.append(cRGAout['histSumm']) # get histograms from A
 
     # where all cards of A are known
-    whereAllCards = tf.reduce_max(inACPH, axis=-1)
-    whereAllCards = tf.where(
-        condition=  whereAllCards < 52,
-        x=          tf.ones_like(whereAllCards),
-        y=          tf.zeros_like(whereAllCards))
-    whereAllCardsF = tf.cast(whereAllCards, dtype=tf.float32)
-    if verbLev > 1: print(' > whereAllCards', whereAllCards)
+    whereAllCardsA = tf.reduce_max(inACPH, axis=-1)
+    whereAllCardsA = tf.where(
+        condition=  whereAllCardsA < 52,
+        x=          tf.ones_like(whereAllCardsA),
+        y=          tf.zeros_like(whereAllCardsA))
+    if verbLev > 1: print('\n > whereAllCardsA', whereAllCardsA)
+    whereAllCardsF = tf.cast(whereAllCardsA, dtype=tf.float32) # cast to float
 
     # projection to 9 ranks A
     denseOutA = layDENSE(
@@ -189,11 +191,10 @@ def cardFWDng(
         reuse=      tf.AUTO_REUSE,
         useBias=    False)
     rankAlogits = denseOutA['output']
-
     lossRA = tf.nn.sparse_softmax_cross_entropy_with_logits( # loss rank A
         labels=     rnkAPH,
         logits=     rankAlogits)
-    lossRA = tf.reduce_mean(lossRA * whereAllCardsF)
+    lossRA = tf.reduce_mean(lossRA * whereAllCardsF) # lossRA masked (where all cards @A)
 
     # projection to 9 ranks B
     denseOutB = layDENSE(
@@ -203,7 +204,6 @@ def cardFWDng(
         reuse=      tf.AUTO_REUSE,
         useBias=    False)
     rankBlogits = denseOutB['output']
-
     lossRB = tf.nn.sparse_softmax_cross_entropy_with_logits( # loss rank B
         labels=     rnkBPH,
         logits=     rankBlogits)
@@ -212,9 +212,9 @@ def cardFWDng(
     lossR = lossRA + lossRB
     if verbLev > 1: print(' > lossR:', lossR)
 
-    # dense classifier of output
+    # winner classifier (on concatenated representations)
     output = tf.concat([cRGAout['output'],cRGBout['output']], axis=-1)
-    if verbLev > 1: print('\n > concRepr:', output)
+    if verbLev > 1: print(' > concRepr:', output)
     if drLayers:
         encOUT = encDR(
             input=      output,
@@ -224,7 +224,7 @@ def cardFWDng(
             dropout=    dropoutDRE,
             dropFlagT=  trPH,
             nHL=        0,
-            verbLev=    2)
+            verbLev=    verbLev)
         output = encOUT['output']
 
     # projection to 3 winner logits
@@ -235,15 +235,14 @@ def cardFWDng(
         reuse=          tf.AUTO_REUSE,
         useBias=        False)
     wonLogits = denseOut['output']
-    if verbLev > 1: print(' > logits:', wonLogits)
-
+    if verbLev > 1: print(' > wonLogits:', wonLogits)
     lossW = tf.nn.sparse_softmax_cross_entropy_with_logits( # loss wonPH
         labels=     wonPH,
         logits=     wonLogits)
-    lossW = tf.reduce_mean(lossW * whereAllCardsF)
+    lossW = tf.reduce_mean(lossW * whereAllCardsF) # loss winner classifier, masked
     if verbLev > 1: print(' > lossW:', lossW)
 
-    # projection to regression value
+    # projection to probability of winning of A cards (regression value)
     denseOut = layDENSE(
         input=          cRGAout['output'],
         units=          1,
@@ -251,53 +250,51 @@ def cardFWDng(
         reuse=          tf.AUTO_REUSE,
         activation=     tf.nn.relu,
         useBias=        False)
-    mcACregVal = denseOut['output']
-    mcACregVal = tf.reshape(mcACregVal, shape=[-1])
-    if verbLev > 1: print(' > mcACregVal:', mcACregVal)
-
-    lossMCAC = tf.losses.mean_squared_error(
+    probAWvReg = denseOut['output'] # probAWvReg
+    probAWvReg = tf.reshape(probAWvReg, shape=[-1])
+    if verbLev > 1: print(' > probAWvReg:', probAWvReg)
+    lossPAWR = tf.losses.mean_squared_error(
         labels=         mcACPH,
-        predictions=    mcACregVal)
-    if verbLev > 1: print(' > lossMCAC:', lossMCAC)
+        predictions=    probAWvReg)
+    if verbLev > 1: print(' > lossPAWR:', lossPAWR)
 
-    loss = lossW + lossR + lossMCAC # this is how loss is constructed
+    loss = lossW + lossR + lossPAWR # this is how loss is constructed
 
-    predictionsRA = tf.argmax(rankAlogits, axis=-1, output_type=tf.int32)
-    predictionsRB = tf.argmax(rankBlogits, axis=-1, output_type=tf.int32)
-    correctRA = tf.equal(predictionsRA, rnkAPH)
-    correctRB = tf.equal(predictionsRB, rnkBPH)
-    correctRAFwhere = tf.cast(correctRA, dtype=tf.float32) * whereAllCardsF
-    avgAccR = tf.reduce_sum(correctRAFwhere) / tf.reduce_sum(whereAllCardsF) + tf.reduce_mean(tf.cast(correctRB, dtype=tf.float32))
-    avgAccR /= 2
-    if verbLev > 1: print(' > avgAccR:', avgAccR)
-
-    ohRnkA = tf.one_hot(indices=rnkAPH, depth=9)
-    ohRnkB = tf.one_hot(indices=rnkBPH, depth=9)
-    rnkAdensity = tf.reduce_mean(ohRnkA, axis=-2)
-    rnkBdensity = tf.reduce_mean(ohRnkB, axis=-2)
-    ohCorrectRA = tf.where(condition=correctRA, x=ohRnkA, y=tf.zeros_like(ohRnkA))
-    ohCorrectRB = tf.where(condition=correctRB, x=ohRnkB, y=tf.zeros_like(ohRnkB))
-    rnkAcorrDensity = tf.reduce_mean(ohCorrectRA, axis=-2)
-    rnkBcorrDensity = tf.reduce_mean(ohCorrectRB, axis=-2)
-    avgAccRC = (rnkAcorrDensity/rnkAdensity + rnkBcorrDensity/rnkBdensity)/2
-
-    ohNotCorrectRA = tf.where(condition=tf.logical_not(correctRA), x=ohRnkA, y=tf.zeros_like(ohRnkA))
-
+    # accuracy of winner classifier scaled by where all cards
     predictionsW = tf.argmax(wonLogits, axis=-1, output_type=tf.int32)
     if verbLev > 1: print(' > predictionsW:', predictionsW)
     correctW = tf.equal(predictionsW, wonPH)
     if verbLev > 1: print(' > correctW:', correctW)
-    correctWFwhere = tf.cast(correctW, dtype=tf.float32) * whereAllCardsF
+    correctWF = tf.cast(correctW, dtype=tf.float32)
+    correctWFwhere = correctWF * whereAllCardsF
     avgAccW = tf.reduce_sum(correctWFwhere) / tf.reduce_sum(whereAllCardsF)
     if verbLev > 1: print(' > avgAccW:', avgAccW)
 
-    ohWon = tf.one_hot(indices=wonPH, depth=3)
-    wonDensity = tf.reduce_mean(ohWon, axis=-2)
-    ohCorrect = tf.where(condition=correctW, x=ohWon, y=tf.zeros_like(ohWon))
-    wonCorrDensity = tf.reduce_mean(ohCorrect, axis=-2)
-    avgAccC = wonCorrDensity / wonDensity
+    # accuracy of winner classifier per class scaled by where all cards
+    # TODO: why accWC > 1
+    ohWon = tf.one_hot(indices=wonPH, depth=3) # OH [batch,3], one where wins, dtype tf.float32
+    wonDensity = tf.reduce_mean(ohWon, axis=0) # [3]
+    ohCorrect = tf.where(condition=correctW, x=ohWon, y=tf.zeros_like(ohWon)) # [batch,3]
+    ohCorrectWhere = ohCorrect * tf.stack([whereAllCardsF]*3, axis=1)
+    wonCorrDensity = tf.reduce_mean(ohCorrectWhere, axis=0)
+    avgAccWC = wonCorrDensity / wonDensity / tf.reduce_mean(whereAllCardsF)
 
-    ohNotCorrect = tf.where(condition=tf.logical_not(correctW), x=ohWon, y=tf.zeros_like(ohWon))
+    ohNotCorrectW = tf.where(condition=tf.logical_not(correctW), x=ohWon, y=tf.zeros_like(ohWon))
+
+    # acc of rank(B)
+    predictionsR = tf.argmax(rankBlogits, axis=-1, output_type=tf.int32)
+    correctR = tf.equal(predictionsR, rnkBPH)
+    avgAccR = tf.reduce_mean(tf.cast(correctR, dtype=tf.float32))
+    if verbLev > 1: print(' > avgAccR:', avgAccR)
+
+    # acc of rank(B) per class
+    ohRnkB = tf.one_hot(indices=rnkBPH, depth=9)
+    rnkBdensity = tf.reduce_mean(ohRnkB, axis=0)
+    ohCorrectR = tf.where(condition=correctR, x=ohRnkB, y=tf.zeros_like(ohRnkB))
+    rnkBcorrDensity = tf.reduce_mean(ohCorrectR, axis=0)
+    avgAccRC = rnkBcorrDensity/rnkBdensity
+
+    ohNotCorrectR = tf.where(condition=tf.logical_not(correctR), x=ohRnkB, y=tf.zeros_like(ohRnkB))
 
     return{
         'trPH':                 trPH,
@@ -307,21 +304,22 @@ def cardFWDng(
         'rnkAPH':               rnkAPH,
         'rnkBPH':               rnkBPH,
         'mcACPH':               mcACPH,
-        'whereAllCardsF':       whereAllCardsF,
-        'rankAlogits':          rankAlogits,
-        'rankBlogits':          rankBlogits,
-        'wonLogits':            wonLogits,
-        'loss':                 loss,
-        'lossW':                lossW,
-        'lossR':                lossR,
-        'lossMCAC':             lossMCAC,
+        #'whereAllCardsF':       whereAllCardsF,
+        #'rankAlogits':          rankAlogits,
+        #'rankBlogits':          rankBlogits,
+        #'wonLogits':            wonLogits,
+        'loss':                 loss, # total loss for training (OPT)
+        'lossW':                lossW, # loss of winner classifier
+        'lossR':                lossR, # loss of rank classifier
+        'lossPAWR':             lossPAWR, # loss of prob win (value) of A
         'avgAccW':              avgAccW,
-        'avgAccC':              avgAccC,
+        'avgAccWC':             avgAccWC,
         'predictionsW':         predictionsW,
-        'ohNotCorrect':         ohNotCorrect,
+        'ohNotCorrectW':        ohNotCorrectW,
         'accR':                 avgAccR,
         'accRC':                avgAccRC,
-        'predictionsRA':        predictionsRA,
-        'ohNotCorrectRA':       ohNotCorrectRA,
+        'predictionsR':         predictionsR,
+        'ohNotCorrectR':        ohNotCorrectR,
         'histSumm':             tf.summary.merge(histSumm),
-        'nnZeros':              nnZeros}
+        'nnZerosA':             nnZerosA,
+        'nnZerosB':             nnZerosB}

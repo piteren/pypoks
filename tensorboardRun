@@ -1,1 +1,1 @@
-nohup tensorboard --logdir=~/projects/pypoks/_nnTB &
+nohup tensorboard --logdir=~/projects/pypoks/_models &
