@@ -271,15 +271,15 @@ def cardFWDng(
     if verbLev > 1: print(' > avgAccW:', avgAccW)
 
     # accuracy of winner classifier per class scaled by where all cards
-    # TODO: why accWC > 1
-    ohWon = tf.one_hot(indices=wonPH, depth=3) # OH [batch,3], one where wins, dtype tf.float32
-    wonDensity = tf.reduce_mean(ohWon, axis=0) # [3]
-    ohCorrect = tf.where(condition=correctW, x=ohWon, y=tf.zeros_like(ohWon)) # [batch,3]
-    ohCorrectWhere = ohCorrect * tf.stack([whereAllCardsF]*3, axis=1)
-    wonCorrDensity = tf.reduce_mean(ohCorrectWhere, axis=0)
-    avgAccWC = wonCorrDensity / wonDensity / tf.reduce_mean(whereAllCardsF)
+    ohWon = tf.one_hot(indices=wonPH, depth=3) # OH [batch,3], 1 where wins, dtype tf.float32
+    ohWonWhere = ohWon * tf.stack([whereAllCardsF]*3, axis=1) # masked where all cards
+    wonDensity = tf.reduce_mean(ohWonWhere, axis=0) # [3] measures density of 1 @batch per class
+    ohCorrect = tf.where(condition=correctW, x=ohWonWhere, y=tf.zeros_like(ohWon)) # [batch,3]
+    wonCorrDensity = tf.reduce_mean(ohCorrect, axis=0)
+    avgAccWC = wonCorrDensity / wonDensity
 
-    ohNotCorrectW = tf.where(condition=tf.logical_not(correctW), x=ohWon, y=tf.zeros_like(ohWon))
+    ohNotCorrectW = tf.where(condition=tf.logical_not(correctW), x=ohWon, y=tf.zeros_like(ohWon)) # OH wins where not correct
+    ohNotCorrectW *= tf.stack([whereAllCardsF]*3, axis=1) # masked with all cards
 
     # acc of rank(B)
     predictionsR = tf.argmax(rankBlogits, axis=-1, output_type=tf.int32)
@@ -294,7 +294,7 @@ def cardFWDng(
     rnkBcorrDensity = tf.reduce_mean(ohCorrectR, axis=0)
     avgAccRC = rnkBcorrDensity/rnkBdensity
 
-    ohNotCorrectR = tf.where(condition=tf.logical_not(correctR), x=ohRnkB, y=tf.zeros_like(ohRnkB))
+    ohNotCorrectR = tf.where(condition=tf.logical_not(correctR), x=ohRnkB, y=tf.zeros_like(ohRnkB)) # OH ranks where not correct
 
     return{
         'trPH':                 trPH,
