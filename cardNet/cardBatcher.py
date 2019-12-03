@@ -28,7 +28,8 @@
 import random
 from tqdm import tqdm
 
-from pLogic.pDeck import PDeck
+import pUtils.littleTools.littleMethods as lM
+from pLogic.pDeck import PDeck, getASC
 
 
 # prepares batch of 2x 7cards with regression, MP ready
@@ -145,8 +146,37 @@ def prep2X7Batch(
         'numRanks':     numRanks,
         'numWins':      numWins}
 
+# prepares tests batch
+def getTestBatch(
+        size :int,          # batch size
+        mcs :int,           # n montecarlo samples
+        withASC=    True):  # with all seven cards dict
+
+    fn = '_cache/s%d_m%d.batch' % (size, mcs)
+    testBatch = lM.rPickle(fn)
+    if testBatch: print('\nGot test batch from file: %s'%fn)
+    else:
+        print('\nPreparing test batch (%d,%d)...'%(size,mcs))
+        testBatch = prep2X7Batch(
+            bs=         size,
+            nMonte=     mcs,
+            asc=        getASC() if withASC else None,
+            verbLev=    1)
+        lM.wPickle(testBatch, fn)
+    cTuples = []
+    for ix in range(size):
+        cTuples.append(tuple(sorted(testBatch['crd7AB'][ix])))
+        cTuples.append(tuple(sorted(testBatch['crd7BB'][ix])))
+    print('Got %d of hands in testBatch' % len(cTuples))
+    cTuples = dict.fromkeys(cTuples, 1)
+    print('of which %d is unique' % len(cTuples))
+
+    return testBatch, cTuples
+
+
 if __name__ == "__main__":
 
+    """
     batch = prep2X7Batch(
         bs=         10,
         probNoMask= 0.5,
@@ -158,3 +188,5 @@ if __name__ == "__main__":
         for c in crd7A[ix]:
             if c!=52: print(PDeck.cts(c), end=' ')
         print(mcAC[ix])
+    """
+    getTestBatch(2000,10000000)

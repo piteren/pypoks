@@ -32,17 +32,17 @@ import numpy as np
 import tensorflow as tf
 import time
 
-import pUtils.littleTools.littleMethods as lM
 from pUtils.nnTools.nnBaseElements import loggingSet
 from pUtils.queMultiProcessor import QueMultiProcessor
 from pUtils.nnTools.multiSaver import MultiSaver
 from pUtils.nnTools.nnModel import NNModel
 
-from pLogic.pDeck import PDeck, getASC
-from cardNet.cardBatcher import prep2X7Batch
+from pLogic.pDeck import PDeck
+from cardNet.cardBatcher import prep2X7Batch, getTestBatch
 from cardNet.cardNetwork import cardFWDng
 
 #TODO: - loss components influence
+
 
 # training function
 def trainCardNet(
@@ -54,27 +54,8 @@ def trainCardNet(
         rQueTSize=  200,
         verbLev=    0):
 
-    # prepare tests data
-    cTuples = None
-    testBatch = None
-    if doTest:
-        fn = '_cache/s%d_m%d.batch'%(testSM[0],testSM[1])
-        testBatch = lM.rPickle(fn)
-        if not testBatch:
-            if verbLev > 0: print('\nPreparing test batch...')
-            testBatch = prep2X7Batch(
-                bs=         testSM[0],
-                nMonte=     testSM[1],
-                asc=        getASC(),
-                verbLev=    verbLev)
-            lM.wPickle(testBatch, fn)
-        cTuples = []
-        for ix in range(testSM[0]):
-            cTuples.append(tuple(sorted(testBatch['crd7AB'][ix])))
-            cTuples.append(tuple(sorted(testBatch['crd7BB'][ix])))
-        if verbLev > 1: print('Got %d of hands in testBatch'%len(cTuples))
-        cTuples = dict.fromkeys(cTuples, 1)
-        if verbLev > 1: print('of which %d is unique'%len(cTuples))
+    testBatch, cTuples = None, None
+    if doTest: testBatch, cTuples = getTestBatch(testSM[0],testSM[1])
 
     iPF = partial(prep2X7Batch, bs=trainSM[0], nMonte=trainSM[1])
     qmp = QueMultiProcessor( # QMP
@@ -379,5 +360,13 @@ def infer():
 
 if __name__ == "__main__":
 
-    trainCardNet(cardNetDict={'name':'cNet'},nBatches=50000,trainSM=(1000,50),testSM=(2000,100000),rQueTSize=200,verbLev=1)
+    trainCardNet(
+        cardNetDict=    {
+            'name':     'cNetCL',
+            'doClip':   True},
+        nBatches=       50000,
+        trainSM=        (1000,50),
+        testSM=         (2000,100000),
+        rQueTSize=      200,
+        verbLev=        1)
     #infer()

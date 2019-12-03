@@ -304,10 +304,6 @@ def cardFWDng(
         'rnkAPH':               rnkAPH,
         'rnkBPH':               rnkBPH,
         'mcACPH':               mcACPH,
-        #'whereAllCardsF':       whereAllCardsF,
-        #'rankAlogits':          rankAlogits,
-        #'rankBlogits':          rankBlogits,
-        #'wonLogits':            wonLogits,
         'loss':                 loss, # total loss for training (OPT)
         'lossW':                lossW, # loss of winner classifier
         'lossR':                lossR, # loss of rank classifier
