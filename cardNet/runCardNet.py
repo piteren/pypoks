@@ -266,6 +266,8 @@ def trainCardNet(
                 cNet['lossW'],
                 cNet['lossR'],
                 cNet['lossPAWR'],
+                cNet['diffPAWRmn'],
+                cNet['diffPAWRmx'],
                 cNet['avgAccW'],
                 cNet['avgAccWC'],
                 cNet['predictionsW'],
@@ -277,7 +279,7 @@ def trainCardNet(
 
             out = cNet.session.run(fetches, feed_dict=feed)
             if len(out)==lenNH: out.append(None)
-            loss, lossW, lossR, lossPAWR, accW, accWC, prW, ncW, accR, accRC, prR, ncR = out
+            loss, lossW, lossR, lossPAWR, dPAWRmn, dPAWRmx, accW, accWC, prW, ncW, accR, accRC, prR, ncR = out
 
             print('%6dT loss: %.7f accW: %.7f' % (b, loss, accW))
 
@@ -287,12 +289,16 @@ def trainCardNet(
             lossWsum = tf.Summary(value=[tf.Summary.Value(tag='crdNT/3_lossW', simple_value=lossW)])
             lossRsum = tf.Summary(value=[tf.Summary.Value(tag='crdNT/4_lossR', simple_value=lossR)])
             lossMCACsum = tf.Summary(value=[tf.Summary.Value(tag='crdNT/5_lossPAWR', simple_value=lossPAWR)])
+            dPAWRmnsum = tf.Summary(value=[tf.Summary.Value(tag='crdNT/6_dPAWRmn', simple_value=dPAWRmn)])
+            dPAWRmxsum = tf.Summary(value=[tf.Summary.Value(tag='crdNT/7_dPAWRmx', simple_value=dPAWRmx)])
             cNet.summWriter.add_summary(accsum, b)
             cNet.summWriter.add_summary(accRsum, b)
             cNet.summWriter.add_summary(losssum, b)
             cNet.summWriter.add_summary(lossWsum, b)
             cNet.summWriter.add_summary(lossRsum, b)
             cNet.summWriter.add_summary(lossMCACsum, b)
+            cNet.summWriter.add_summary(dPAWRmnsum, b)
+            cNet.summWriter.add_summary(dPAWRmxsum, b)
 
             accWC = accWC.tolist()
             accC01 = (accWC[0]+accWC[1])/2
@@ -360,13 +366,21 @@ def infer():
 
 if __name__ == "__main__":
 
+    cndGD = {
+        'name':     'cNetGD',
+        'optClass': tf.train.GradientDescentOptimizer,
+        'iLR':      1e-2,
+        'warmUp':   None,
+        'annbLr':   1}
+
+    cndA = {
+        'name':     'cNetA'}
+
     trainCardNet(
-        cardNetDict=    {
-            'name':     'cNetCL',
-            'doClip':   True},
-        nBatches=       50000,
-        trainSM=        (1000,50),
-        testSM=         (2000,100000),
+        cardNetDict=    cndGD,
+        nBatches=       200000,
+        trainSM=        (1000,10),
+        testSM=         (2000,10000000),
         rQueTSize=      200,
         verbLev=        1)
     #infer()

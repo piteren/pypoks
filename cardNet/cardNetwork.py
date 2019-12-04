@@ -97,7 +97,7 @@ def cardFWDng(
         avtStartV=  0.1,
         avtWindow=  500,
         avtMaxUpd=  1.5,
-        doClip=     False,
+        doClip=     True,
         verbLev=    0,
         **kwargs):
 
@@ -258,6 +258,10 @@ def cardFWDng(
         predictions=    probAWvReg)
     if verbLev > 1: print(' > lossPAWR:', lossPAWR)
 
+    diffPAWR = tf.sqrt(tf.square(mcACPH-probAWvReg))
+    diffPAWRmn = tf.reduce_mean(diffPAWR) # avg of diff PAWR
+    diffPAWRmx = tf.reduce_max(diffPAWR) # max of diff PAWR
+
     loss = lossW + lossR + lossPAWR # this is how loss is constructed
 
     # accuracy of winner classifier scaled by where all cards
@@ -308,6 +312,8 @@ def cardFWDng(
         'lossW':                lossW, # loss of winner classifier
         'lossR':                lossR, # loss of rank classifier
         'lossPAWR':             lossPAWR, # loss of prob win (value) of A
+        'diffPAWRmn':           diffPAWRmn,
+        'diffPAWRmx':           diffPAWRmx,
         'avgAccW':              avgAccW,
         'avgAccWC':             avgAccWC,
         'predictionsW':         predictionsW,
