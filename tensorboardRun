@@ -1,1 +1,0 @@
-nohup tensorboard --logdir=~/projects/pypoks/_models &

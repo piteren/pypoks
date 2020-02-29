@@ -9,8 +9,8 @@ import random
 import time
 from tqdm import tqdm
 
-import pUtils.littleTools.littleMethods as lM
-from pUtils.queMultiProcessor import QueMultiProcessor
+import putils.lipytools.little_methods as lM
+from putils.que_MProcessor import QueMultiProcessor
 
 # card figures
 CRD_FIG = {
@@ -327,7 +327,7 @@ def getASC(useQMP=True):
 
     print('\nReading asc dict cache...')
     pickleDictFN = '_cache/asc.dict'
-    pickle = lM.rPickle(pickleDictFN)
+    pickle = lM.r_pickle(pickleDictFN)
     if pickle:
         asCards = pickle
         print(' > using cached asc dict')
@@ -346,7 +346,7 @@ def getASC(useQMP=True):
                 iProcFunction=  iPF,
                 reloadEvery=    1000,
                 userTasks=      True,
-                verbLev=        1)
+                verb=        1)
 
             np = 0
             tcmb = []
@@ -367,7 +367,7 @@ def getASC(useQMP=True):
 
         else: asCards = {cmb: PDeck.cardsRank(cmb)[1] for cmb in tqdm(combList)}
 
-        lM.wPickle(asCards, pickleDictFN)
+        lM.w_pickle(asCards, pickleDictFN)
 
     return asCards
 

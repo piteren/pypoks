@@ -28,7 +28,7 @@
 import random
 from tqdm import tqdm
 
-import pUtils.littleTools.littleMethods as lM
+import putils.lipytools.little_methods as lM
 from pLogic.pDeck import PDeck, getASC
 
 
@@ -153,7 +153,7 @@ def getTestBatch(
         withASC=    True):  # with all seven cards dict
 
     fn = '_cache/s%d_m%d.batch' % (size, mcs)
-    testBatch = lM.rPickle(fn)
+    testBatch = lM.r_pickle(fn)
     if testBatch: print('\nGot test batch from file: %s'%fn)
     else:
         print('\nPreparing test batch (%d,%d)...'%(size,mcs))
@@ -162,7 +162,7 @@ def getTestBatch(
             nMonte=     mcs,
             asc=        getASC() if withASC else None,
             verbLev=    1)
-        lM.wPickle(testBatch, fn)
+        lM.w_pickle(testBatch, fn)
     cTuples = []
     for ix in range(size):
         cTuples.append(tuple(sorted(testBatch['crd7AB'][ix])))

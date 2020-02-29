@@ -7,98 +7,99 @@
 from functools import partial
 import tensorflow as tf
 
-from pUtils.nnTools.nnBaseElements import defInitializer, layDENSE
-from pUtils.nnTools.nnEncoders import encDR, encTRNS
+from putils.neuralmess.base_elements import my_initializer
+from putils.neuralmess.layers import lay_dense
+from putils.neuralmess.encoders import encDR, encTRNS
 
 
-# cards Transformer encoder graph (7 cards representations)
-def cEncT(
-        sevenC,                     # seven cards placeholder
-        cEMB,                       # cards embedding tensor
-        trPH,                       # train placeholder
-        tat :bool,                  # task attention transformer architecture
-        inProj,
-        denseMul,
-        dropout=    0.0,
-        nLayers=    6,
-        verbLev=    0):
+# cards encoder graph (Transformer for 7 cards representations)
+def card_enc(
+        sevc_PH,            # seven cards placeholder
+        cEMB,               # cards embedding tensor
+        trPH,               # train placeholder
+        tat_case :bool,     # task attention transformer architecture
+        in_proj,
+        dense_mul,          # transformer dense multiplication
+        dropout=    0.0,    # transformer dropout
+        n_layers=   6,
+        verb=       0):
 
-    if verbLev > 0: print('\nBuilding cEncT (T encoder)...')
+    if verb > 0: print('\nBuilding cEncT (T encoder)...')
 
-    inCemb = tf.nn.embedding_lookup(params=cEMB, ids=sevenC)
-    if verbLev > 1: print(' > inCemb:', inCemb)
+    inCemb = tf.nn.embedding_lookup(params=cEMB, ids=sevc_PH)
+    if verb > 1: print(' > inCemb:', inCemb)
 
     myCEMB = tf.get_variable(  # my cards embeddings
         name=           'myCEMB',
         shape=          [2, cEMB.shape[-1]],
         dtype=          tf.float32,
-        initializer=    defInitializer())
+        initializer=    my_initializer())
     myCElook = tf.nn.embedding_lookup(params=myCEMB, ids=[0,0,1,1,1,1,1])
-    if verbLev > 1: print(' > myCElook:', myCElook)
+    if verb > 1: print(' > myCElook:', myCElook)
     inCemb += myCElook
 
     # input projection
-    if inProj:
-        cProjOUT = layDENSE(
+    if in_proj:
+        cProjOUT = lay_dense(
             input=          inCemb,
-            units=          inProj,
+            units=          in_proj,
             name=           'cProj',
             reuse=          tf.AUTO_REUSE,
             useBias=        False)
         inCemb = cProjOUT['output']
-        if verbLev > 1: print(' > inCemb projected:', inCemb)
-    elif verbLev > 1: print(' > inCemb:', inCemb)
+        if verb > 1: print(' > inCemb projected:', inCemb)
+    elif verb > 1: print(' > inCemb:', inCemb)
 
-    TATcase = tat
+    TATcase = tat_case
     encOUT = encTRNS(
-        input=      inCemb,
-        seqOut=     not TATcase,
-        addPE=      False,
-        name=       'TAT' if TATcase else 'TNS',
-        nBlocks=    nLayers,
-        nHeads=     1,
-        denseMul=   denseMul,
-        maxSeqLen=  7,
-        dropoutAtt= 0,
-        dropout=    dropout,
-        dropFlagT=  trPH,
-        nHistL=     3,
-        verbLev=    verbLev)
+        in_seq=         inCemb,
+        name=           'TAT' if TATcase else 'TNS',
+        seq_out=        not TATcase,
+        add_PE=         False,
+        n_blocks=       n_layers,
+        n_heads=        1,
+        dense_mul=      dense_mul,
+        max_seq_len=    7,
+        dropout=        dropout,
+        dropout_att=    0,
+        drop_flag=      trPH,
+        n_histL=        3,
+        verb=           verb)
 
-    output = encOUT['eTOut']
+    output = encOUT['tns_out']
     if not TATcase:
         output = tf.unstack(output, axis=-2)
         output = tf.concat(output, axis=-1)
-        if verbLev > 1:print(' > encT reshaped output:', output)
-    elif verbLev > 1: print(' > encT output:', output)
+        if verb > 1:print(' > encT reshaped output:', output)
+    elif verb > 1: print(' > encT output:', output)
 
     return {
-        'output':   output,
-        'histSumm': encOUT['histSumm'],
-        'nnZeros':  encOUT['nnZeros']}
+        'output':       output,
+        'hist_summ':    encOUT['hist_summ'],
+        'nn_zeros':     encOUT['nn_zeros']}
 
-# cards net FWD graph
-def cardFWDng(
-        tat=        False,
-        cEmbW=      24,
-        nLayers=    8,
-        inProj=     None,   # None, 0 or int
-        denseMul=   4,
-        denseProj=  None,   # None, 0 or int
-        drLayers=   2,      # None, 0 or int
-        dropout=    0.0,
-        dropoutDRE= 0.0,
+# cards netetwork graph (FWD)
+def card_net(
+        tat_case :bool= False,
+        c_embW :int=    24,
+        n_layers :int=  8,
+        in_proj :int=   None,   # None, 0 or int
+        dense_mul=      4,
+        dense_proj=     None,   # None, 0 or int
+        dr_layers=      2,      # None, 0 or int
+        dropout=        0.0,    # dropout of encoder transformer
+        dropout_DR=     0.0,    # DR dropout
         # train parameters
-        optClass=   partial(tf.train.AdamOptimizer, beta1=0.7, beta2=0.7),
-        iLR=        1e-3,
-        warmUp=     10000,
-        annbLr=     0.999,
-        stepLr=     0.04,
-        avtStartV=  0.1,
-        avtWindow=  500,
-        avtMaxUpd=  1.5,
-        doClip=     True,
-        verbLev=    0,
+        opt_class=      partial(tf.train.AdamOptimizer, beta1=0.7, beta2=0.7),
+        iLR=            1e-3,
+        warm_up=        10000,
+        ann_base=       0.999,
+        ann_step=       0.04,
+        avt_SVal=       0.1,
+        avt_window=     500,
+        avt_max_upd=    1.5,
+        do_clip=        True,
+        verb=           0,
         **kwargs):
 
     trPH = tf.placeholder_with_default(  # train placeholder
@@ -108,12 +109,12 @@ def cardFWDng(
 
     cEMB = tf.get_variable(  # cards embeddings
         name=           'cEMB',
-        shape=          [53, cEmbW],  # one card for 'no_card'
+        shape=          [53, c_embW],  # one card for 'no_card'
         dtype=          tf.float32,
-        initializer=    defInitializer())
+        initializer=    my_initializer())
 
     with tf.device('/device:CPU:0'):
-        histSumm = [tf.summary.histogram('cEMB', cEMB, family='cEMB')]
+        hist_summ = [tf.summary.histogram('cEMB', cEMB, family='cEMB')]
 
     inACPH = tf.placeholder( # 7 cards of A
         name=           'inACPH',
@@ -146,33 +147,33 @@ def cardFWDng(
         shape=          [None])  # [bsz]
 
     # encoders for A and B
-    cRGAout = cEncT(
-        sevenC=     inACPH,
+    cRGAout = card_enc(
+        sevc_PH=     inACPH,
         cEMB=       cEMB,
         trPH=       trPH,
-        tat=        tat,
-        inProj=     inProj,
-        denseMul=   denseMul,
+        tat_case=        tat_case,
+        in_proj=     in_proj,
+        dense_mul=   dense_mul,
         dropout=    dropout,
-        nLayers=    nLayers,
-        verbLev=    verbLev)
-    cRGBout = cEncT(
-        sevenC=     inBCPH,
+        n_layers=    n_layers,
+        verb=    verb)
+    cRGBout = card_enc(
+        sevc_PH=     inBCPH,
         cEMB=       cEMB,
         trPH=       trPH,
-        tat=        tat,
-        inProj=     inProj,
-        denseMul=   denseMul,
+        tat_case=        tat_case,
+        in_proj=     in_proj,
+        dense_mul=   dense_mul,
         dropout=    dropout,
-        nLayers=    nLayers,
-        verbLev=    verbLev)
+        n_layers=    n_layers,
+        verb=    verb)
 
-    # get nnZeros
-    nnZerosA = cRGAout['nnZeros']
-    nnZerosA = tf.reshape(tf.stack(nnZerosA), shape=[-1])
-    nnZerosB = cRGBout['nnZeros']
-    nnZerosB = tf.reshape(tf.stack(nnZerosB), shape=[-1])
-    histSumm.append(cRGAout['histSumm']) # get histograms from A
+    # get nn_zeros
+    nn_zerosA = cRGAout['nn_zeros']
+    nn_zerosA = tf.reshape(tf.stack(nn_zerosA), shape=[-1])
+    nn_zerosB = cRGBout['nn_zeros']
+    nn_zerosB = tf.reshape(tf.stack(nn_zerosB), shape=[-1])
+    hist_summ.append(cRGAout['hist_summ']) # get histograms from A
 
     # where all cards of A are known
     whereAllCardsA = tf.reduce_max(inACPH, axis=-1)
@@ -180,11 +181,11 @@ def cardFWDng(
         condition=  whereAllCardsA < 52,
         x=          tf.ones_like(whereAllCardsA),
         y=          tf.zeros_like(whereAllCardsA))
-    if verbLev > 1: print('\n > whereAllCardsA', whereAllCardsA)
+    if verb > 1: print('\n > whereAllCardsA', whereAllCardsA)
     whereAllCardsF = tf.cast(whereAllCardsA, dtype=tf.float32) # cast to float
 
     # projection to 9 ranks A
-    denseOutA = layDENSE(
+    denseOutA = lay_dense(
         input=      cRGAout['output'],
         units=      9,
         name=       'denseRC',
@@ -197,7 +198,7 @@ def cardFWDng(
     lossRA = tf.reduce_mean(lossRA * whereAllCardsF) # lossRA masked (where all cards @A)
 
     # projection to 9 ranks B
-    denseOutB = layDENSE(
+    denseOutB = lay_dense(
         input=      cRGBout['output'],
         units=      9,
         name=       'denseRC',
@@ -210,40 +211,40 @@ def cardFWDng(
     lossRB = tf.reduce_mean(lossRB)
 
     lossR = lossRA + lossRB
-    if verbLev > 1: print(' > lossR:', lossR)
+    if verb > 1: print(' > lossR:', lossR)
 
     # winner classifier (on concatenated representations)
     output = tf.concat([cRGAout['output'],cRGBout['output']], axis=-1)
-    if verbLev > 1: print(' > concRepr:', output)
-    if drLayers:
+    if verb > 1: print(' > concRepr:', output)
+    if dr_layers:
         encOUT = encDR(
             input=      output,
             name=       'drC',
-            layWidth=   denseProj,
-            nLayers=    drLayers,
-            dropout=    dropoutDRE,
+            layWidth=   dense_proj,
+            nLayers=    dr_layers,
+            dropout=    dropout_DR,
             dropFlagT=  trPH,
             nHL=        0,
-            verbLev=    verbLev)
+            verbLev=    verb)
         output = encOUT['output']
 
     # projection to 3 winner logits
-    denseOut = layDENSE(
+    denseOut = lay_dense(
         input=          output,
         units=          3,
         name=           'denseW',
         reuse=          tf.AUTO_REUSE,
         useBias=        False)
     wonLogits = denseOut['output']
-    if verbLev > 1: print(' > wonLogits:', wonLogits)
+    if verb > 1: print(' > wonLogits:', wonLogits)
     lossW = tf.nn.sparse_softmax_cross_entropy_with_logits( # loss wonPH
         labels=     wonPH,
         logits=     wonLogits)
     lossW = tf.reduce_mean(lossW * whereAllCardsF) # loss winner classifier, masked
-    if verbLev > 1: print(' > lossW:', lossW)
+    if verb > 1: print(' > lossW:', lossW)
 
     # projection to probability of winning of A cards (regression value)
-    denseOut = layDENSE(
+    denseOut = lay_dense(
         input=          cRGAout['output'],
         units=          1,
         name=           'denseREG',
@@ -252,11 +253,11 @@ def cardFWDng(
         useBias=        False)
     probAWvReg = denseOut['output'] # probAWvReg
     probAWvReg = tf.reshape(probAWvReg, shape=[-1])
-    if verbLev > 1: print(' > probAWvReg:', probAWvReg)
+    if verb > 1: print(' > probAWvReg:', probAWvReg)
     lossPAWR = tf.losses.mean_squared_error(
         labels=         mcACPH,
         predictions=    probAWvReg)
-    if verbLev > 1: print(' > lossPAWR:', lossPAWR)
+    if verb > 1: print(' > lossPAWR:', lossPAWR)
 
     diffPAWR = tf.sqrt(tf.square(mcACPH-probAWvReg))
     diffPAWRmn = tf.reduce_mean(diffPAWR) # avg of diff PAWR
@@ -266,13 +267,13 @@ def cardFWDng(
 
     # accuracy of winner classifier scaled by where all cards
     predictionsW = tf.argmax(wonLogits, axis=-1, output_type=tf.int32)
-    if verbLev > 1: print(' > predictionsW:', predictionsW)
+    if verb > 1: print(' > predictionsW:', predictionsW)
     correctW = tf.equal(predictionsW, wonPH)
-    if verbLev > 1: print(' > correctW:', correctW)
+    if verb > 1: print(' > correctW:', correctW)
     correctWF = tf.cast(correctW, dtype=tf.float32)
     correctWFwhere = correctWF * whereAllCardsF
     avgAccW = tf.reduce_sum(correctWFwhere) / tf.reduce_sum(whereAllCardsF)
-    if verbLev > 1: print(' > avgAccW:', avgAccW)
+    if verb > 1: print(' > avgAccW:', avgAccW)
 
     # accuracy of winner classifier per class scaled by where all cards
     ohWon = tf.one_hot(indices=wonPH, depth=3) # OH [batch,3], 1 where wins, dtype tf.float32
@@ -289,7 +290,7 @@ def cardFWDng(
     predictionsR = tf.argmax(rankBlogits, axis=-1, output_type=tf.int32)
     correctR = tf.equal(predictionsR, rnkBPH)
     avgAccR = tf.reduce_mean(tf.cast(correctR, dtype=tf.float32))
-    if verbLev > 1: print(' > avgAccR:', avgAccR)
+    if verb > 1: print(' > avgAccR:', avgAccR)
 
     # acc of rank(B) per class
     ohRnkB = tf.one_hot(indices=rnkBPH, depth=9)
@@ -322,6 +323,6 @@ def cardFWDng(
         'accRC':                avgAccRC,
         'predictionsR':         predictionsR,
         'ohNotCorrectR':        ohNotCorrectR,
-        'histSumm':             tf.summary.merge(histSumm),
-        'nnZerosA':             nnZerosA,
-        'nnZerosB':             nnZerosB}
+        'hist_summ':             tf.summary.merge(hist_summ),
+        'nn_zerosA':             nn_zerosA,
+        'nn_zerosB':             nn_zerosB}

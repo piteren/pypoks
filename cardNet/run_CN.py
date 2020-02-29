@@ -32,44 +32,44 @@ import numpy as np
 import tensorflow as tf
 import time
 
-from pUtils.nnTools.nnBaseElements import loggingSet
-from pUtils.queMultiProcessor import QueMultiProcessor
-from pUtils.nnTools.multiSaver import MultiSaver
-from pUtils.nnTools.nnModel import NNModel
+from putils.neuralmess.dev_manager import nestarter
+from putils.neuralmess.multi_saver import MultiSaver
+from putils.neuralmess.nemodel import NNModel
+from putils.que_MProcessor import QueMultiProcessor
 
 from pLogic.pDeck import PDeck
-from cardNet.cardBatcher import prep2X7Batch, getTestBatch
-from cardNet.cardNetwork import cardFWDng
+from cardNet.card_batcher import prep2X7Batch, getTestBatch
+from cardNet.card_network import card_net
 
 #TODO: - loss components influence
 
 
 # training function
-def trainCardNet(
-        cardNetDict :dict,
-        nBatches=   50000,
-        trainSM=    (1000,10),
-        doTest=     True,
-        testSM=     (2000,100),   # test size and MonteC samples
+def train_cn(
+        cn_dict :dict,
+        n_batches=  50000,
+        tr_SM=      (1000,10), # train (size,montecarlo)
+        ts_SM=      (2000,100),   # test (size,montecarlo)
+        do_test=    True,
         rQueTSize=  200,
-        verbLev=    0):
+        verb=       0):
 
-    testBatch, cTuples = None, None
-    if doTest: testBatch, cTuples = getTestBatch(testSM[0],testSM[1])
+    test_batch, c_tuples = None, None
+    if do_test: test_batch, c_tuples = getTestBatch(ts_SM[0], ts_SM[1])
 
-    iPF = partial(prep2X7Batch, bs=trainSM[0], nMonte=trainSM[1])
+    iPF = partial(prep2X7Batch, bs=tr_SM[0], nMonte=tr_SM[1])
     qmp = QueMultiProcessor( # QMP
         iProcFunction=  iPF,
-        #taskObject=     cTuples,
+        #taskObject=     c_tuples,
         #nProc=          10,
         rQueTSize=      rQueTSize,
-        verbLev=        verbLev)
+        verb=           verb)
 
-    cNet = NNModel( # model
-        mDict=          cardNetDict,
-        fwdF=           cardFWDng,
-        #useAllCUDA=     True,
-        verbLev=        verbLev)
+    cnet = NNModel( # model
+        fwd_func=       card_net,
+        mdict=          cn_dict,
+        #devices=
+        verb=           verb)
 
     izT = [50,500,5000]
     indZerosA = [[] for _ in izT]
@@ -79,14 +79,14 @@ def trainCardNet(
     hisFreq = 500
     nHighAcc = 0
     sTime = time.time()
-    for b in range(1,nBatches):
+    for b in range(1, n_batches):
 
         # feed loop for towers
-        batches = [qmp.getResult() for _ in cNet.gFWD]
+        batches = [qmp.getResult() for _ in cnet.gFWD]
         feed = {}
-        for ix in range(len(cNet.gFWD)):
+        for ix in range(len(cnet.gFWD)):
             batch = batches[ix]
-            tNet = cNet.gFWD[ix]
+            tNet = cnet.gFWD[ix]
             feed.update({
                 tNet['trPH']:       True,
                 tNet['inACPH']:     batch['crd7AB'],
@@ -98,32 +98,32 @@ def trainCardNet(
         batch = batches[0]
 
         fetches = [
-            cNet['optimizer'],
-            cNet['loss'],
-            cNet['lossW'],
-            cNet['lossR'],
-            cNet['lossPAWR'],
-            cNet['avgAccW'],
-            cNet['avgAccWC'],
-            cNet['predictionsW'],
-            cNet['ohNotCorrectW'],
-            cNet['accR'],
-            cNet['accRC'],
-            cNet['predictionsR'],
-            cNet['ohNotCorrectR'],
-            cNet['gGNorm'],
-            cNet['avtGGNorm'],
-            cNet['scaledLR'],
-            cNet['nnZerosA'],
-            cNet['nnZerosB']]
+            cnet['optimizer'],
+            cnet['loss'],
+            cnet['lossW'],
+            cnet['lossR'],
+            cnet['lossPAWR'],
+            cnet['avgAccW'],
+            cnet['avgAccWC'],
+            cnet['predictionsW'],
+            cnet['ohNotCorrectW'],
+            cnet['accR'],
+            cnet['accRC'],
+            cnet['predictionsR'],
+            cnet['ohNotCorrectR'],
+            cnet['gg_norm'],
+            cnet['avt_gg_norm'],
+            cnet['scaled_LR'],
+            cnet['nn_zerosA'],
+            cnet['nn_zerosB']]
         lenNH = len(fetches)
-        if b % hisFreq == 0: fetches.append(cNet['histSumm'])
+        if b % hisFreq == 0: fetches.append(cnet['hist_summ'])
 
-        out = cNet.session.run(fetches, feed_dict=feed)
+        out = cnet.session.run(fetches, feed_dict=feed)
         if len(out)==lenNH: out.append(None)
         _, loss, lossW, lossR, lossPAWR, accW, accWC, prW, ncW, accR, accRC, prR, ncR, gN, agN, lRs, zerosA, zerosB, histSumm = out
 
-        if histSumm: cNet.summWriter.add_summary(histSumm, b)
+        if histSumm: cnet.summ_writer.add_summary(histSumm, b)
 
         if not zerosA.size: zerosA = np.asarray([0])
         for ls in indZerosA: ls.append(zerosA)
@@ -154,7 +154,7 @@ def trainCardNet(
                 print()
             #"""
 
-            print('%6d, loss: %.6f, accW: %.6f, gN: %.6f, (%d/s)' % (b, loss, accW, gN, repFreq*trainSM[0]/(time.time()-sTime)))
+            print('%6d, loss: %.6f, accW: %.6f, gN: %.6f, (%d/s)' % (b, loss, accW, gN, repFreq * tr_SM[0] / (time.time() - sTime)))
             sTime = time.time()
 
             accsum = tf.Summary(value=[tf.Summary.Value(tag='crdN/0_accW', simple_value=1-accW)])
@@ -166,32 +166,32 @@ def trainCardNet(
             gNsum = tf.Summary(value=[tf.Summary.Value(tag='crdN/6_gN', simple_value=gN)])
             agNsum = tf.Summary(value=[tf.Summary.Value(tag='crdN/7_agN', simple_value=agN)])
             lRssum = tf.Summary(value=[tf.Summary.Value(tag='crdN/8_lRs', simple_value=lRs)])
-            cNet.summWriter.add_summary(accsum, b)
-            cNet.summWriter.add_summary(accRsum, b)
-            cNet.summWriter.add_summary(losssum, b)
-            cNet.summWriter.add_summary(lossWsum, b)
-            cNet.summWriter.add_summary(lossRsum, b)
-            cNet.summWriter.add_summary(lossMCACsum, b)
-            cNet.summWriter.add_summary(gNsum, b)
-            cNet.summWriter.add_summary(agNsum, b)
-            cNet.summWriter.add_summary(lRssum, b)
+            cnet.summ_writer.add_summary(accsum, b)
+            cnet.summ_writer.add_summary(accRsum, b)
+            cnet.summ_writer.add_summary(losssum, b)
+            cnet.summ_writer.add_summary(lossWsum, b)
+            cnet.summ_writer.add_summary(lossRsum, b)
+            cnet.summ_writer.add_summary(lossMCACsum, b)
+            cnet.summ_writer.add_summary(gNsum, b)
+            cnet.summ_writer.add_summary(agNsum, b)
+            cnet.summ_writer.add_summary(lRssum, b)
 
             accRC = accRC.tolist()
             for cx in range(len(accRC)):
                 csum = tf.Summary(value=[tf.Summary.Value(tag='Rca/%dca'%cx, simple_value=1-accRC[cx])])
-                cNet.summWriter.add_summary(csum, b)
+                cnet.summ_writer.add_summary(csum, b)
 
             accWC = accWC.tolist()
             accC01 = (accWC[0]+accWC[1])/2
             accC2 = accWC[2]
             c01sum = tf.Summary(value=[tf.Summary.Value(tag='Wca/01ca', simple_value=1-accC01)])
             c2sum = tf.Summary(value=[tf.Summary.Value(tag='Wca/2ca', simple_value=1-accC2)])
-            cNet.summWriter.add_summary(c01sum, b)
-            cNet.summWriter.add_summary(c2sum, b)
+            cnet.summ_writer.add_summary(c01sum, b)
+            cnet.summ_writer.add_summary(c2sum, b)
 
             zerosAT0 = np.mean(zerosA)
             naneT0Summ = tf.Summary(value=[tf.Summary.Value(tag='nane/naneAT0', simple_value=zerosAT0)])
-            cNet.summWriter.add_summary(naneT0Summ, b)
+            cnet.summ_writer.add_summary(naneT0Summ, b)
             for ix in range(len(izT)):
                 cizT = izT[ix]
                 if len(indZerosA[ix]) > cizT - 1:
@@ -199,10 +199,10 @@ def trainCardNet(
                     zerosAT = np.mean(np.where(np.mean(np.stack(indZerosA[ix], axis=0), axis=0)==1, 1, 0))
                     indZerosA[ix] = []
                     naneTSumm = tf.Summary(value=[tf.Summary.Value(tag='nane/naneAT%d' % cizT, simple_value=zerosAT)])
-                    cNet.summWriter.add_summary(naneTSumm, b)
+                    cnet.summ_writer.add_summary(naneTSumm, b)
             zerosBT0 = np.mean(zerosB)
             naneT0Summ = tf.Summary(value=[tf.Summary.Value(tag='nane/naneBT0', simple_value=zerosBT0)])
-            cNet.summWriter.add_summary(naneT0Summ, b)
+            cnet.summ_writer.add_summary(naneT0Summ, b)
             for ix in range(len(izT)):
                 cizT = izT[ix]
                 if len(indZerosB[ix]) > cizT - 1:
@@ -210,7 +210,7 @@ def trainCardNet(
                     zerosBT = np.mean(np.where(np.mean(np.stack(indZerosB[ix], axis=0), axis=0) == 1, 1, 0))
                     indZerosB[ix] = []
                     naneTSumm = tf.Summary(value=[tf.Summary.Value(tag='nane/naneBT%d' % cizT, simple_value=zerosBT)])
-                    cNet.summWriter.add_summary(naneTSumm, b)
+                    cnet.summ_writer.add_summary(naneTSumm, b)
 
             #""" reporting of almost correct cases in late training
             if accW > 0.99: nHighAcc += 1
@@ -250,34 +250,34 @@ def trainCardNet(
             #"""
 
         # test
-        if b%1000 == 0 and testBatch is not None:
+        if b%1000 == 0 and test_batch is not None:
 
-            batch = testBatch
+            batch = test_batch
             feed = {
-                cNet['inACPH']:     batch['crd7AB'],
-                cNet['inBCPH']:     batch['crd7BB'],
-                cNet['wonPH']:      batch['winsB'],
-                cNet['rnkAPH']:     batch['rankAB'],
-                cNet['rnkBPH']:     batch['rankBB'],
-                cNet['mcACPH']:     batch['mcAChanceB']}
+                cnet['inACPH']:     batch['crd7AB'],
+                cnet['inBCPH']:     batch['crd7BB'],
+                cnet['wonPH']:      batch['winsB'],
+                cnet['rnkAPH']:     batch['rankAB'],
+                cnet['rnkBPH']:     batch['rankBB'],
+                cnet['mcACPH']:     batch['mcAChanceB']}
 
             fetches = [
-                cNet['loss'],
-                cNet['lossW'],
-                cNet['lossR'],
-                cNet['lossPAWR'],
-                cNet['diffPAWRmn'],
-                cNet['diffPAWRmx'],
-                cNet['avgAccW'],
-                cNet['avgAccWC'],
-                cNet['predictionsW'],
-                cNet['ohNotCorrectW'],
-                cNet['accR'],
-                cNet['accRC'],
-                cNet['predictionsR'],
-                cNet['ohNotCorrectR']]
+                cnet['loss'],
+                cnet['lossW'],
+                cnet['lossR'],
+                cnet['lossPAWR'],
+                cnet['diffPAWRmn'],
+                cnet['diffPAWRmx'],
+                cnet['avgAccW'],
+                cnet['avgAccWC'],
+                cnet['predictionsW'],
+                cnet['ohNotCorrectW'],
+                cnet['accR'],
+                cnet['accRC'],
+                cnet['predictionsR'],
+                cnet['ohNotCorrectR']]
 
-            out = cNet.session.run(fetches, feed_dict=feed)
+            out = cnet.session.run(fetches, feed_dict=feed)
             if len(out)==lenNH: out.append(None)
             loss, lossW, lossR, lossPAWR, dPAWRmn, dPAWRmx, accW, accWC, prW, ncW, accR, accRC, prR, ncR = out
 
@@ -291,26 +291,26 @@ def trainCardNet(
             lossMCACsum = tf.Summary(value=[tf.Summary.Value(tag='crdNT/5_lossPAWR', simple_value=lossPAWR)])
             dPAWRmnsum = tf.Summary(value=[tf.Summary.Value(tag='crdNT/6_dPAWRmn', simple_value=dPAWRmn)])
             dPAWRmxsum = tf.Summary(value=[tf.Summary.Value(tag='crdNT/7_dPAWRmx', simple_value=dPAWRmx)])
-            cNet.summWriter.add_summary(accsum, b)
-            cNet.summWriter.add_summary(accRsum, b)
-            cNet.summWriter.add_summary(losssum, b)
-            cNet.summWriter.add_summary(lossWsum, b)
-            cNet.summWriter.add_summary(lossRsum, b)
-            cNet.summWriter.add_summary(lossMCACsum, b)
-            cNet.summWriter.add_summary(dPAWRmnsum, b)
-            cNet.summWriter.add_summary(dPAWRmxsum, b)
+            cnet.summ_writer.add_summary(accsum, b)
+            cnet.summ_writer.add_summary(accRsum, b)
+            cnet.summ_writer.add_summary(losssum, b)
+            cnet.summ_writer.add_summary(lossWsum, b)
+            cnet.summ_writer.add_summary(lossRsum, b)
+            cnet.summ_writer.add_summary(lossMCACsum, b)
+            cnet.summ_writer.add_summary(dPAWRmnsum, b)
+            cnet.summ_writer.add_summary(dPAWRmxsum, b)
 
             accWC = accWC.tolist()
             accC01 = (accWC[0]+accWC[1])/2
             accC2 = accWC[2]
             c01sum = tf.Summary(value=[tf.Summary.Value(tag='WcaT/01ca', simple_value=1-accC01)])
             c2sum = tf.Summary(value=[tf.Summary.Value(tag='WcaT/2ca', simple_value=1-accC2)])
-            cNet.summWriter.add_summary(c01sum, b)
-            cNet.summWriter.add_summary(c2sum, b)
+            cnet.summ_writer.add_summary(c01sum, b)
+            cnet.summ_writer.add_summary(c2sum, b)
 
-    cNet.saver.save(step=cNet['globalStep'])
+    cnet.saver.save(step=cnet['globalStep'])
     qmp.close()
-    if verbLev > 0: print('%s done' % cNet['name'])
+    if verb > 0: print('%s done' % cnet['name'])
 
 # inference function
 def inferW(
@@ -330,12 +330,10 @@ def infer():
 
     verbLev = 1
 
-    loggingSet(None, manageGPUs=False)
-
     cNet = NNModel(  # model
-        mDict=      {'name': 'cNet'},
-        fwdF=       cardFWDng,
-        verbLev=    verbLev)
+        fwd_func=   card_net,
+        mdict=      {'name': 'cNet'},
+        verb=       verbLev)
 
     session = tf.Session( # session
         graph=      cNet['graph'],
@@ -366,21 +364,20 @@ def infer():
 
 if __name__ == "__main__":
 
+    nestarter(devices=None, verb=1)
+
     cndGD = {
-        'name':     'cNetGD',
-        'optClass': tf.train.GradientDescentOptimizer,
-        'iLR':      1e-2,
-        'warmUp':   None,
-        'annbLr':   1}
+        'name':         'cnet_test',
+        'opt_class':    tf.train.GradientDescentOptimizer,
+        'iLR':          3e-2,
+        'warm_up':      None,
+        'ann_base':     1}
 
-    cndA = {
-        'name':     'cNetA'}
-
-    trainCardNet(
-        cardNetDict=    cndGD,
-        nBatches=       200000,
-        trainSM=        (1000,10),
-        testSM=         (2000,10000000),
+    train_cn(
+        cn_dict=        cndGD,
+        n_batches=      200000,
+        tr_SM=          (1000,10),
+        ts_SM=          (2000,10000000),
         rQueTSize=      200,
-        verbLev=        1)
+        verb=           1)
     #infer()
