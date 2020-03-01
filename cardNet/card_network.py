@@ -111,6 +111,7 @@ def card_net(
         dtype=          tf.float32,
         initializer=    my_initializer())
 
+    #with tf.device('/device:CPU:0'):
     hist_summ = [tf.summary.histogram('cEMB', c_emb, family='cEMB')]
 
     inA_PH = tf.placeholder( # 7 cards of A
@@ -269,57 +270,57 @@ def card_net(
     if verb > 1: print(' > correct_W:', correct_W)
     correct_WF = tf.cast(correct_W, dtype=tf.float32)
     correct_WF_where = correct_WF * where_all_caF
-    avg_acc_W = tf.reduce_sum(correct_WF_where) / tf.reduce_sum(where_all_caF)
-    if verb > 1: print(' > avg_acc_W:', avg_acc_W)
+    acc_W = tf.reduce_sum(correct_WF_where) / tf.reduce_sum(where_all_caF)
+    if verb > 1: print(' > acc_W:', acc_W)
 
     # accuracy of winner classifier per class scaled by where all cards
-    ohWon = tf.one_hot(indices=won_PH, depth=3) # OH [batch,3], 1 where wins, dtype tf.float32
-    ohWonWhere = ohWon * tf.stack([where_all_caF]*3, axis=1) # masked where all cards
-    wonDensity = tf.reduce_mean(ohWonWhere, axis=0) # [3] measures density of 1 @batch per class
-    ohCorrect = tf.where(condition=correct_W, x=ohWonWhere, y=tf.zeros_like(ohWon)) # [batch,3]
-    wonCorrDensity = tf.reduce_mean(ohCorrect, axis=0)
-    avgAccWC = wonCorrDensity / wonDensity
+    oh_won = tf.one_hot(indices=won_PH, depth=3) # OH [batch,3], 1 where wins, dtype tf.float32
+    oh_won_where = oh_won * tf.stack([where_all_caF]*3, axis=1) # masked where all cards
+    won_density = tf.reduce_mean(oh_won_where, axis=0) # [3] measures density of 1 @batch per class
+    oh_correct = tf.where(condition=correct_W, x=oh_won_where, y=tf.zeros_like(oh_won)) # [batch,3]
+    won_corr_density = tf.reduce_mean(oh_correct, axis=0)
+    acc_WC = won_corr_density / won_density
 
-    ohNotCorrectW = tf.where(condition=tf.logical_not(correct_W), x=ohWon, y=tf.zeros_like(ohWon)) # OH wins where not correct
-    ohNotCorrectW *= tf.stack([where_all_caF]*3, axis=1) # masked with all cards
+    oh_notcorrect_W = tf.where(condition=tf.logical_not(correct_W), x=oh_won, y=tf.zeros_like(oh_won)) # OH wins where not correct
+    oh_notcorrect_W *= tf.stack([where_all_caF]*3, axis=1) # masked with all cards
 
     # acc of rank(B)
-    predictionsR = tf.argmax(logits_RB, axis=-1, output_type=tf.int32)
-    correctR = tf.equal(predictionsR, rnkB_PH)
-    avgAccR = tf.reduce_mean(tf.cast(correctR, dtype=tf.float32))
-    if verb > 1: print(' > avgAccR:', avgAccR)
+    predictions_R = tf.argmax(logits_RB, axis=-1, output_type=tf.int32)
+    correct_R = tf.equal(predictions_R, rnkB_PH)
+    acc_R = tf.reduce_mean(tf.cast(correct_R, dtype=tf.float32))
+    if verb > 1: print(' > acc_R:', acc_R)
 
     # acc of rank(B) per class
     ohRnkB = tf.one_hot(indices=rnkB_PH, depth=9)
     rnkBdensity = tf.reduce_mean(ohRnkB, axis=0)
-    ohCorrectR = tf.where(condition=correctR, x=ohRnkB, y=tf.zeros_like(ohRnkB))
+    ohCorrectR = tf.where(condition=correct_R, x=ohRnkB, y=tf.zeros_like(ohRnkB))
     rnkBcorrDensity = tf.reduce_mean(ohCorrectR, axis=0)
-    avgAccRC = rnkBcorrDensity/rnkBdensity
+    acc_RC = rnkBcorrDensity/rnkBdensity
 
-    ohNotCorrectR = tf.where(condition=tf.logical_not(correctR), x=ohRnkB, y=tf.zeros_like(ohRnkB)) # OH ranks where not correct
+    oh_notcorrect_R = tf.where(condition=tf.logical_not(correct_R), x=ohRnkB, y=tf.zeros_like(ohRnkB)) # OH ranks where not correct
 
     return{
-        'trPH':                 train_PH,
-        'inACPH':               inA_PH,
-        'inBCPH':               inB_PH,
-        'wonPH':                won_PH,
-        'rnkAPH':               rnkA_PH,
-        'rnkBPH':               rnkB_PH,
-        'mcACPH':               mcA_PH,
+        'train_PH':             train_PH,
+        'inA_PH':               inA_PH,
+        'inB_PH':               inB_PH,
+        'won_PH':               won_PH,
+        'rnkA_PH':              rnkA_PH,
+        'rnkB_PH':              rnkB_PH,
+        'mcA_PH':               mcA_PH,
         'loss':                 loss, # total loss for training (OPT)
-        'lossW':                loss_W, # loss of winner classifier
-        'lossR':                loss_R, # loss of rank classifier
-        'lossPAWR':             loss_AWP, # loss of prob win (value) of A
-        'diffPAWRmn':           diff_AWP_mn,
-        'diffPAWRmx':           diff_AWP_mx,
-        'avgAccW':              avg_acc_W,
-        'avgAccWC':             avgAccWC,
-        'predictionsW':         predictions_W,
-        'ohNotCorrectW':        ohNotCorrectW,
-        'accR':                 avgAccR,
-        'accRC':                avgAccRC,
-        'predictionsR':         predictionsR,
-        'ohNotCorrectR':        ohNotCorrectR,
-        'hist_summ':             tf.summary.merge(hist_summ),
-        'nn_zerosA':             nn_zerosA,
-        'nn_zerosB':             nn_zerosB}
+        'loss_W':               loss_W, # loss of winner classifier
+        'loss_R':               loss_R, # loss of rank classifier
+        'loss_AWP':             loss_AWP, # loss of prob win (value) of A
+        'diff_AWP_mn':          diff_AWP_mn,
+        'diff_AWP_mx':          diff_AWP_mx,
+        'acc_W':                acc_W,
+        'acc_WC':               acc_WC,
+        'predictions_W':        predictions_W,
+        'oh_notcorrect_W':      oh_notcorrect_W,
+        'acc_R':                acc_R,
+        'acc_RC':               acc_RC,
+        'predictions_R':        predictions_R,
+        'oh_notcorrect_R':      oh_notcorrect_R,
+        'hist_summ':            tf.summary.merge(hist_summ),
+        'nn_zerosA':            nn_zerosA,
+        'nn_zerosB':            nn_zerosB}

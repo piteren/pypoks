@@ -37,7 +37,7 @@ from putils.neuralmess.multi_saver import MultiSaver
 from putils.neuralmess.nemodel import NNModel
 from putils.que_MProcessor import QueMultiProcessor
 
-from pLogic.pDeck import PDeck
+from pologic.pDeck import PDeck
 from cardNet.card_batcher import prep2X7Batch, getTestBatch
 from cardNet.card_network import card_net
 
@@ -48,8 +48,8 @@ from cardNet.card_network import card_net
 def train_cn(
         cn_dict :dict,
         n_batches=  50000,
-        tr_SM=      (1000,10), # train (size,montecarlo)
-        ts_SM=      (2000,100),   # test (size,montecarlo)
+        tr_SM=      (1000,10), # train (size,montecarlo samples)
+        ts_SM=      (2000,100),   # test (size,montecarlo samples)
         do_test=    True,
         rQueTSize=  200,
         verb=       0):
@@ -88,29 +88,29 @@ def train_cn(
             batch = batches[ix]
             tNet = cnet.gFWD[ix]
             feed.update({
-                tNet['trPH']:       True,
-                tNet['inACPH']:     batch['crd7AB'],
-                tNet['inBCPH']:     batch['crd7BB'],
-                tNet['wonPH']:      batch['winsB'],
-                tNet['rnkAPH']:     batch['rankAB'],
-                tNet['rnkBPH']:     batch['rankBB'],
-                tNet['mcACPH']:     batch['mcAChanceB']})
+                tNet['train_PH']:   True,
+                tNet['inA_PH']:     batch['crd7AB'],
+                tNet['inB_PH']:     batch['crd7BB'],
+                tNet['won_PH']:     batch['winsB'],
+                tNet['rnkA_PH']:    batch['rankAB'],
+                tNet['rnkB_PH']:    batch['rankBB'],
+                tNet['mcA_PH']:     batch['mcAChanceB']})
         batch = batches[0]
 
         fetches = [
             cnet['optimizer'],
             cnet['loss'],
-            cnet['lossW'],
-            cnet['lossR'],
-            cnet['lossPAWR'],
-            cnet['avgAccW'],
-            cnet['avgAccWC'],
-            cnet['predictionsW'],
-            cnet['ohNotCorrectW'],
-            cnet['accR'],
-            cnet['accRC'],
-            cnet['predictionsR'],
-            cnet['ohNotCorrectR'],
+            cnet['loss_W'],
+            cnet['loss_R'],
+            cnet['loss_AWP'],
+            cnet['acc_W'],
+            cnet['acc_WC'],
+            cnet['predictions_W'],
+            cnet['oh_notcorrect_W'],
+            cnet['acc_R'],
+            cnet['acc_RC'],
+            cnet['predictions_R'],
+            cnet['oh_notcorrect_R'],
             cnet['gg_norm'],
             cnet['avt_gg_norm'],
             cnet['scaled_LR'],
@@ -121,9 +121,9 @@ def train_cn(
 
         out = cnet.session.run(fetches, feed_dict=feed)
         if len(out)==lenNH: out.append(None)
-        _, loss, lossW, lossR, lossPAWR, accW, accWC, prW, ncW, accR, accRC, prR, ncR, gN, agN, lRs, zerosA, zerosB, histSumm = out
+        _, loss, loss_W, loss_R, loss_AWP, acc_W, acc_WC, pred_W, ohnc_W, acc_R, acc_RC, pred_R, ohnc_R, gn, agn, lRs, zerosA, zerosB, hist_summ = out
 
-        if histSumm: cnet.summ_writer.add_summary(histSumm, b)
+        if hist_summ: cnet.summ_writer.add_summary(hist_summ, b)
 
         if not zerosA.size: zerosA = np.asarray([0])
         for ls in indZerosA: ls.append(zerosA)
@@ -154,43 +154,43 @@ def train_cn(
                 print()
             #"""
 
-            print('%6d, loss: %.6f, accW: %.6f, gN: %.6f, (%d/s)' % (b, loss, accW, gN, repFreq * tr_SM[0] / (time.time() - sTime)))
+            print('%6d, loss: %.6f, accW: %.6f, gn: %.6f, (%d/s)' % (b, loss, acc_W, gn, repFreq * tr_SM[0] / (time.time() - sTime)))
             sTime = time.time()
 
-            accsum = tf.Summary(value=[tf.Summary.Value(tag='crdN/0_accW', simple_value=1-accW)])
-            accRsum = tf.Summary(value=[tf.Summary.Value(tag='crdN/1_accR', simple_value=1-accR)])
-            losssum = tf.Summary(value=[tf.Summary.Value(tag='crdN/2_loss', simple_value=loss)])
-            lossWsum = tf.Summary(value=[tf.Summary.Value(tag='crdN/3_lossW', simple_value=lossW)])
-            lossRsum = tf.Summary(value=[tf.Summary.Value(tag='crdN/4_lossR', simple_value=lossR)])
-            lossMCACsum = tf.Summary(value=[tf.Summary.Value(tag='crdN/5_lossPAWR', simple_value=lossPAWR)])
-            gNsum = tf.Summary(value=[tf.Summary.Value(tag='crdN/6_gN', simple_value=gN)])
-            agNsum = tf.Summary(value=[tf.Summary.Value(tag='crdN/7_agN', simple_value=agN)])
-            lRssum = tf.Summary(value=[tf.Summary.Value(tag='crdN/8_lRs', simple_value=lRs)])
+            accsum = tf.Summary(value=[tf.Summary.Value(tag='1_crdN/0_iacW', simple_value=1-acc_W)])
+            accRsum = tf.Summary(value=[tf.Summary.Value(tag='1_crdN/1_iacR', simple_value=1-acc_R)])
+            losssum = tf.Summary(value=[tf.Summary.Value(tag='1_crdN/2_loss', simple_value=loss)])
+            lossWsum = tf.Summary(value=[tf.Summary.Value(tag='1_crdN/3_lossW', simple_value=loss_W)])
+            lossRsum = tf.Summary(value=[tf.Summary.Value(tag='1_crdN/4_lossR', simple_value=loss_R)])
+            lossAWPsum = tf.Summary(value=[tf.Summary.Value(tag='1_crdN/5_lossAWP', simple_value=loss_AWP)])
+            gNsum = tf.Summary(value=[tf.Summary.Value(tag='1_crdN/6_gn', simple_value=gn)])
+            agNsum = tf.Summary(value=[tf.Summary.Value(tag='1_crdN/7_agn', simple_value=agn)])
+            lRssum = tf.Summary(value=[tf.Summary.Value(tag='1_crdN/8_lRs', simple_value=lRs)])
             cnet.summ_writer.add_summary(accsum, b)
             cnet.summ_writer.add_summary(accRsum, b)
             cnet.summ_writer.add_summary(losssum, b)
             cnet.summ_writer.add_summary(lossWsum, b)
             cnet.summ_writer.add_summary(lossRsum, b)
-            cnet.summ_writer.add_summary(lossMCACsum, b)
+            cnet.summ_writer.add_summary(lossAWPsum, b)
             cnet.summ_writer.add_summary(gNsum, b)
             cnet.summ_writer.add_summary(agNsum, b)
             cnet.summ_writer.add_summary(lRssum, b)
 
-            accRC = accRC.tolist()
-            for cx in range(len(accRC)):
-                csum = tf.Summary(value=[tf.Summary.Value(tag='Rca/%dca'%cx, simple_value=1-accRC[cx])])
+            acc_RC = acc_RC.tolist()
+            for cx in range(len(acc_RC)):
+                csum = tf.Summary(value=[tf.Summary.Value(tag='3_Rca/%dca'%cx, simple_value=1-acc_RC[cx])])
                 cnet.summ_writer.add_summary(csum, b)
 
-            accWC = accWC.tolist()
-            accC01 = (accWC[0]+accWC[1])/2
-            accC2 = accWC[2]
-            c01sum = tf.Summary(value=[tf.Summary.Value(tag='Wca/01ca', simple_value=1-accC01)])
-            c2sum = tf.Summary(value=[tf.Summary.Value(tag='Wca/2ca', simple_value=1-accC2)])
+            acc_WC = acc_WC.tolist()
+            accC01 = (acc_WC[0]+acc_WC[1])/2
+            accC2 = acc_WC[2]
+            c01sum = tf.Summary(value=[tf.Summary.Value(tag='5_Wca/01ca', simple_value=1-accC01)])
+            c2sum = tf.Summary(value=[tf.Summary.Value(tag='5_Wca/2ca', simple_value=1-accC2)])
             cnet.summ_writer.add_summary(c01sum, b)
             cnet.summ_writer.add_summary(c2sum, b)
 
             zerosAT0 = np.mean(zerosA)
-            naneT0Summ = tf.Summary(value=[tf.Summary.Value(tag='nane/naneAT0', simple_value=zerosAT0)])
+            naneT0Summ = tf.Summary(value=[tf.Summary.Value(tag='7_nane/naneAT0', simple_value=zerosAT0)])
             cnet.summ_writer.add_summary(naneT0Summ, b)
             for ix in range(len(izT)):
                 cizT = izT[ix]
@@ -198,10 +198,10 @@ def train_cn(
                     indZerosA[ix] = indZerosA[ix][-cizT:]
                     zerosAT = np.mean(np.where(np.mean(np.stack(indZerosA[ix], axis=0), axis=0)==1, 1, 0))
                     indZerosA[ix] = []
-                    naneTSumm = tf.Summary(value=[tf.Summary.Value(tag='nane/naneAT%d' % cizT, simple_value=zerosAT)])
+                    naneTSumm = tf.Summary(value=[tf.Summary.Value(tag='7_nane/naneAT%d' % cizT, simple_value=zerosAT)])
                     cnet.summ_writer.add_summary(naneTSumm, b)
             zerosBT0 = np.mean(zerosB)
-            naneT0Summ = tf.Summary(value=[tf.Summary.Value(tag='nane/naneBT0', simple_value=zerosBT0)])
+            naneT0Summ = tf.Summary(value=[tf.Summary.Value(tag='7_nane/naneBT0', simple_value=zerosBT0)])
             cnet.summ_writer.add_summary(naneT0Summ, b)
             for ix in range(len(izT)):
                 cizT = izT[ix]
@@ -209,16 +209,16 @@ def train_cn(
                     indZerosB[ix] = indZerosB[ix][-cizT:]
                     zerosBT = np.mean(np.where(np.mean(np.stack(indZerosB[ix], axis=0), axis=0) == 1, 1, 0))
                     indZerosB[ix] = []
-                    naneTSumm = tf.Summary(value=[tf.Summary.Value(tag='nane/naneBT%d' % cizT, simple_value=zerosBT)])
+                    naneTSumm = tf.Summary(value=[tf.Summary.Value(tag='7_nane/naneBT%d' % cizT, simple_value=zerosBT)])
                     cnet.summ_writer.add_summary(naneTSumm, b)
 
             #""" reporting of almost correct cases in late training
-            if accW > 0.99: nHighAcc += 1
-            if nHighAcc > 10 and accW < 1:
-                nS = prR.shape[0] # batch size (num samples)
+            if acc_W > 0.99: nHighAcc += 1
+            if nHighAcc > 10 and acc_W < 1:
+                nS = pred_R.shape[0] # batch size (num samples)
                 nBS = 0
                 for sx in range(nS):
-                    ncRsl = ncR[sx].tolist() # OH sample
+                    ncRsl = ohnc_R[sx].tolist() # OH sample
                     if max(ncRsl): # there is 1 >> not correct
                         nBS += 1
                         if nBS < 3: # print max 2
@@ -227,11 +227,11 @@ def train_cn(
                             for c in cards:
                                 cS7 += ' %s' % PDeck.cts(c)
                             cr = PDeck.cardsRank(cards)
-                            print(prR[sx],ncRsl.index(1),cS7,cr[-1])
+                            print(pred_R[sx],ncRsl.index(1),cS7,cr[-1])
                 if nBS: print(nBS)
                 nBS = 0
                 for sx in range(nS):
-                    ncWsl = ncW[sx].tolist()
+                    ncWsl = ohnc_W[sx].tolist()
                     if max(ncWsl):
                         nBS += 1
                         if nBS < 3:
@@ -245,7 +245,7 @@ def train_cn(
                             cS7B = cS7B[1:]
                             crA = PDeck.cardsRank(cardsA)
                             crB = PDeck.cardsRank(cardsB)
-                            print(prW[sx], ncWsl.index(1), crA[-1][:2], crB[-1][:2], '(%s - %s = %s - %s)'%(cS7A,cS7B,crA[-1][3:],crB[-1][3:]))
+                            print(pred_W[sx], ncWsl.index(1), crA[-1][:2], crB[-1][:2], '(%s - %s = %s - %s)'%(cS7A,cS7B,crA[-1][3:],crB[-1][3:]))
                 if nBS: print(nBS)
             #"""
 
@@ -254,61 +254,66 @@ def train_cn(
 
             batch = test_batch
             feed = {
-                cnet['inACPH']:     batch['crd7AB'],
-                cnet['inBCPH']:     batch['crd7BB'],
-                cnet['wonPH']:      batch['winsB'],
-                cnet['rnkAPH']:     batch['rankAB'],
-                cnet['rnkBPH']:     batch['rankBB'],
-                cnet['mcACPH']:     batch['mcAChanceB']}
+                cnet['inA_PH']:     batch['crd7AB'],
+                cnet['inB_PH']:     batch['crd7BB'],
+                cnet['won_PH']:     batch['winsB'],
+                cnet['rnkA_PH']:    batch['rankAB'],
+                cnet['rnkB_PH']:    batch['rankBB'],
+                cnet['mcA_PH']:     batch['mcAChanceB']}
 
             fetches = [
                 cnet['loss'],
-                cnet['lossW'],
-                cnet['lossR'],
-                cnet['lossPAWR'],
-                cnet['diffPAWRmn'],
-                cnet['diffPAWRmx'],
-                cnet['avgAccW'],
-                cnet['avgAccWC'],
-                cnet['predictionsW'],
-                cnet['ohNotCorrectW'],
-                cnet['accR'],
-                cnet['accRC'],
-                cnet['predictionsR'],
-                cnet['ohNotCorrectR']]
+                cnet['loss_W'],
+                cnet['loss_R'],
+                cnet['loss_AWP'],
+                cnet['diff_AWP_mn'],
+                cnet['diff_AWP_mx'],
+                cnet['acc_W'],
+                cnet['acc_WC'],
+                cnet['predictions_W'],
+                cnet['oh_notcorrect_W'],
+                cnet['acc_R'],
+                cnet['acc_RC'],
+                cnet['predictions_R'],
+                cnet['oh_notcorrect_R']]
 
             out = cnet.session.run(fetches, feed_dict=feed)
             if len(out)==lenNH: out.append(None)
-            loss, lossW, lossR, lossPAWR, dPAWRmn, dPAWRmx, accW, accWC, prW, ncW, accR, accRC, prR, ncR = out
+            loss, loss_W, loss_R, loss_AWP, dAWPmn, dAWPmx, acc_W, acc_WC, pred_W, ohnc_W, acc_R, acc_RC, pred_R, ohnc_R = out
 
-            print('%6dT loss: %.7f accW: %.7f' % (b, loss, accW))
+            print('%6dT loss: %.7f accW: %.7f' % (b, loss, acc_W))
 
-            accsum = tf.Summary(value=[tf.Summary.Value(tag='crdNT/0_accW', simple_value=1-accW)])
-            accRsum = tf.Summary(value=[tf.Summary.Value(tag='crdNT/1_accR', simple_value=1-accR)])
-            losssum = tf.Summary(value=[tf.Summary.Value(tag='crdNT/2_loss', simple_value=loss)])
-            lossWsum = tf.Summary(value=[tf.Summary.Value(tag='crdNT/3_lossW', simple_value=lossW)])
-            lossRsum = tf.Summary(value=[tf.Summary.Value(tag='crdNT/4_lossR', simple_value=lossR)])
-            lossMCACsum = tf.Summary(value=[tf.Summary.Value(tag='crdNT/5_lossPAWR', simple_value=lossPAWR)])
-            dPAWRmnsum = tf.Summary(value=[tf.Summary.Value(tag='crdNT/6_dPAWRmn', simple_value=dPAWRmn)])
-            dPAWRmxsum = tf.Summary(value=[tf.Summary.Value(tag='crdNT/7_dPAWRmx', simple_value=dPAWRmx)])
+            accsum = tf.Summary(value=[tf.Summary.Value(tag='2_crdNT/0_iacW', simple_value=1-acc_W)])
+            accRsum = tf.Summary(value=[tf.Summary.Value(tag='2_crdNT/1_iacR', simple_value=1-acc_R)])
+            losssum = tf.Summary(value=[tf.Summary.Value(tag='2_crdNT/2_loss', simple_value=loss)])
+            lossWsum = tf.Summary(value=[tf.Summary.Value(tag='2_crdNT/3_lossW', simple_value=loss_W)])
+            lossRsum = tf.Summary(value=[tf.Summary.Value(tag='2_crdNT/4_lossR', simple_value=loss_R)])
+            lossAWPsum = tf.Summary(value=[tf.Summary.Value(tag='2_crdNT/5_lossAWP', simple_value=loss_AWP)])
+            dAWPmnsum = tf.Summary(value=[tf.Summary.Value(tag='2_crdNT/6_dAWPmn', simple_value=dAWPmn)])
+            dAWPmxsum = tf.Summary(value=[tf.Summary.Value(tag='2_crdNT/7_dAWPmx', simple_value=dAWPmx)])
             cnet.summ_writer.add_summary(accsum, b)
             cnet.summ_writer.add_summary(accRsum, b)
             cnet.summ_writer.add_summary(losssum, b)
             cnet.summ_writer.add_summary(lossWsum, b)
             cnet.summ_writer.add_summary(lossRsum, b)
-            cnet.summ_writer.add_summary(lossMCACsum, b)
-            cnet.summ_writer.add_summary(dPAWRmnsum, b)
-            cnet.summ_writer.add_summary(dPAWRmxsum, b)
+            cnet.summ_writer.add_summary(lossAWPsum, b)
+            cnet.summ_writer.add_summary(dAWPmnsum, b)
+            cnet.summ_writer.add_summary(dAWPmxsum, b)
 
-            accWC = accWC.tolist()
-            accC01 = (accWC[0]+accWC[1])/2
-            accC2 = accWC[2]
-            c01sum = tf.Summary(value=[tf.Summary.Value(tag='WcaT/01ca', simple_value=1-accC01)])
-            c2sum = tf.Summary(value=[tf.Summary.Value(tag='WcaT/2ca', simple_value=1-accC2)])
+            acc_RC = acc_RC.tolist()
+            for cx in range(len(acc_RC)):
+                csum = tf.Summary(value=[tf.Summary.Value(tag='4_RcaT/%dca'%cx, simple_value=1-acc_RC[cx])])
+                cnet.summ_writer.add_summary(csum, b)
+
+            acc_WC = acc_WC.tolist()
+            accC01 = (acc_WC[0]+acc_WC[1])/2
+            accC2 = acc_WC[2]
+            c01sum = tf.Summary(value=[tf.Summary.Value(tag='6_WcaT/01ca', simple_value=1-accC01)])
+            c2sum = tf.Summary(value=[tf.Summary.Value(tag='6_WcaT/2ca', simple_value=1-accC2)])
             cnet.summ_writer.add_summary(c01sum, b)
             cnet.summ_writer.add_summary(c2sum, b)
 
-    cnet.saver.save(step=cnet['globalStep'])
+    cnet.saver.save(step=cnet['g_step'])
     qmp.close()
     if verb > 0: print('%s done' % cnet['name'])
 
@@ -318,10 +323,10 @@ def inferW(
         batch):
 
     feed = {
-        cNet['inACPH']: batch['crd7AB'],
-        cNet['inBCPH']: batch['crd7BB']}
+        cNet['inA_PH']: batch['crd7AB'],
+        cNet['inB_PH']: batch['crd7BB']}
 
-    fetches = [cNet['predictionsW']]
+    fetches = [cNet['predictions_W']]
     return cNet.session.run(fetches, feed_dict=feed)
 
 # inference wrap
@@ -368,14 +373,15 @@ if __name__ == "__main__":
 
     cndGD = {
         'name':         'cnet_test',
-        'opt_class':    tf.train.GradientDescentOptimizer,
-        'iLR':          3e-2,
-        'warm_up':      None,
-        'ann_base':     1}
+        #'opt_class':    tf.train.GradientDescentOptimizer,
+        #'iLR':          3e-2,
+        #'warm_up':      None,
+        #'ann_base':     1
+        }
 
     train_cn(
         cn_dict=        cndGD,
-        n_batches=      200000,
+        n_batches=      50000,
         tr_SM=          (1000,10),
         ts_SM=          (2000,10000000),
         rQueTSize=      200,

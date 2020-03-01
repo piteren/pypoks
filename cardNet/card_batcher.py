@@ -29,7 +29,7 @@ import random
 from tqdm import tqdm
 
 import putils.lipytools.little_methods as lM
-from pLogic.pDeck import PDeck, getASC
+from pologic.pDeck import PDeck, getASC
 
 
 # prepares batch of 2x 7cards with regression, MP ready
