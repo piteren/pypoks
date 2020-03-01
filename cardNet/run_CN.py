@@ -37,8 +37,8 @@ from putils.neuralmess.multi_saver import MultiSaver
 from putils.neuralmess.nemodel import NNModel
 from putils.que_MProcessor import QueMultiProcessor
 
-from pologic.pDeck import PDeck
-from cardNet.card_batcher import prep2X7Batch, getTestBatch
+from pologic.podeck import PDeck
+from cardNet.card_batcher import prep2X7Batch, get_test_batch
 from cardNet.card_network import card_net
 
 #TODO: - loss components influence
@@ -55,9 +55,9 @@ def train_cn(
         verb=       0):
 
     test_batch, c_tuples = None, None
-    if do_test: test_batch, c_tuples = getTestBatch(ts_SM[0], ts_SM[1])
+    if do_test: test_batch, c_tuples = get_test_batch(ts_SM[0], ts_SM[1])
 
-    iPF = partial(prep2X7Batch, bs=tr_SM[0], nMonte=tr_SM[1])
+    iPF = partial(prep2X7Batch, bs=tr_SM[0], n_monte=tr_SM[1])
     qmp = QueMultiProcessor( # QMP
         iProcFunction=  iPF,
         #taskObject=     c_tuples,
@@ -89,12 +89,12 @@ def train_cn(
             tNet = cnet.gFWD[ix]
             feed.update({
                 tNet['train_PH']:   True,
-                tNet['inA_PH']:     batch['crd7AB'],
-                tNet['inB_PH']:     batch['crd7BB'],
-                tNet['won_PH']:     batch['winsB'],
-                tNet['rnkA_PH']:    batch['rankAB'],
-                tNet['rnkB_PH']:    batch['rankBB'],
-                tNet['mcA_PH']:     batch['mcAChanceB']})
+                tNet['inA_PH']:     batch['cA'],
+                tNet['inB_PH']:     batch['cB'],
+                tNet['won_PH']:     batch['wins'],
+                tNet['rnkA_PH']:    batch['rA'],
+                tNet['rnkB_PH']:    batch['rB'],
+                tNet['mcA_PH']:     batch['mAWP']})
         batch = batches[0]
 
         fetches = [
@@ -222,11 +222,11 @@ def train_cn(
                     if max(ncRsl): # there is 1 >> not correct
                         nBS += 1
                         if nBS < 3: # print max 2
-                            cards = sorted(batch['crd7BB'][sx])
+                            cards = sorted(batch['cB'][sx])
                             cS7 = ''
                             for c in cards:
                                 cS7 += ' %s' % PDeck.cts(c)
-                            cr = PDeck.cardsRank(cards)
+                            cr = PDeck.cards_rank(cards)
                             print(pred_R[sx],ncRsl.index(1),cS7,cr[-1])
                 if nBS: print(nBS)
                 nBS = 0
@@ -235,16 +235,16 @@ def train_cn(
                     if max(ncWsl):
                         nBS += 1
                         if nBS < 3:
-                            cardsA = batch['crd7AB'][sx]
-                            cardsB = batch['crd7BB'][sx]
+                            cardsA = batch['cA'][sx]
+                            cardsB = batch['cB'][sx]
                             cS7A = ''
                             for c in cardsA: cS7A += ' %s' % PDeck.cts(c)
                             cS7A = cS7A[1:]
                             cS7B = ''
                             for c in cardsB: cS7B += ' %s' % PDeck.cts(c)
                             cS7B = cS7B[1:]
-                            crA = PDeck.cardsRank(cardsA)
-                            crB = PDeck.cardsRank(cardsB)
+                            crA = PDeck.cards_rank(cardsA)
+                            crB = PDeck.cards_rank(cardsB)
                             print(pred_W[sx], ncWsl.index(1), crA[-1][:2], crB[-1][:2], '(%s - %s = %s - %s)'%(cS7A,cS7B,crA[-1][3:],crB[-1][3:]))
                 if nBS: print(nBS)
             #"""
@@ -254,12 +254,12 @@ def train_cn(
 
             batch = test_batch
             feed = {
-                cnet['inA_PH']:     batch['crd7AB'],
-                cnet['inB_PH']:     batch['crd7BB'],
-                cnet['won_PH']:     batch['winsB'],
-                cnet['rnkA_PH']:    batch['rankAB'],
-                cnet['rnkB_PH']:    batch['rankBB'],
-                cnet['mcA_PH']:     batch['mcAChanceB']}
+                cnet['inA_PH']:     batch['cA'],
+                cnet['inB_PH']:     batch['cB'],
+                cnet['won_PH']:     batch['wins'],
+                cnet['rnkA_PH']:    batch['rA'],
+                cnet['rnkB_PH']:    batch['rB'],
+                cnet['mcA_PH']:     batch['mAWP']}
 
             fetches = [
                 cnet['loss'],
@@ -323,8 +323,8 @@ def inferW(
         batch):
 
     feed = {
-        cNet['inA_PH']: batch['crd7AB'],
-        cNet['inB_PH']: batch['crd7BB']}
+        cNet['inA_PH']: batch['cA'],
+        cNet['inB_PH']: batch['cB']}
 
     fetches = [cNet['predictions_W']]
     return cNet.session.run(fetches, feed_dict=feed)
@@ -356,10 +356,10 @@ def infer():
     rs = 20
     inferBatch = prep2X7Batch(
         bs=         bs,
-        rBalance=   False,
-        dBalance=   False,
-        nMonte=     0,
-        verbLev=    verbLev)
+        r_balance=   False,
+        d_balance=   False,
+        n_monte=     0,
+        verb=    verbLev)
     sTime = time.time()
     for ix in range(rs):
         res = inferW(cNet,inferBatch)
@@ -372,7 +372,7 @@ if __name__ == "__main__":
     nestarter(devices=None, verb=1)
 
     cndGD = {
-        'name':         'cnet_test',
+        'name':         'cnet_tt',
         #'opt_class':    tf.train.GradientDescentOptimizer,
         #'iLR':          3e-2,
         #'warm_up':      None,

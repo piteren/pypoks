@@ -230,7 +230,7 @@ class PTable(Process):
 
         # reset table data
         self.cards = []
-        self.deck.resetDeck()
+        self.deck.reset_deck()
         self.state = 0
 
         self.handID += 1
@@ -376,7 +376,7 @@ class PTable(Process):
             topRank = 0
             for pl in handPlayers:
                 cards = list(pl.hand)+self.cards
-                rank = PDeck.cardsRank(cards)
+                rank = PDeck.cards_rank(cards)
                 plIX = self.players.index(pl)
                 if topRank < rank[1]:
                     topRank = rank[1]

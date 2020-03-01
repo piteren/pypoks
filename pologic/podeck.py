@@ -55,10 +55,10 @@ class PDeck:
 
         self.__fullInitDeck = [PDeck.itc(ci) for ci in range(52)]
         self.cards = None
-        self.resetDeck()
+        self.reset_deck()
 
     # resets deck to initial state
-    def resetDeck(self):
+    def reset_deck(self):
         self.cards = [] + self.__fullInitDeck
         random.shuffle(self.cards)
 
@@ -79,22 +79,22 @@ class PDeck:
         seven = []
         if rank == 0:
             while True:
-                self.resetDeck()
+                self.reset_deck()
                 seven = [self.getCard() for _ in range(7)]
-                if self.cardsRank(seven)[0] == 0: break
+                if self.cards_rank(seven)[0] == 0: break
         if rank == 1:
             while True:
-                self.resetDeck()
+                self.reset_deck()
                 seven = [self.getCard() for _ in range(7)]
-                if self.cardsRank(seven)[0] == 1: break
+                if self.cards_rank(seven)[0] == 1: break
         if rank == 2:
             while True:
-                self.resetDeck()
+                self.reset_deck()
                 seven = [self.getCard() for _ in range(7)]
-                if self.cardsRank(seven)[0] == 2: break
+                if self.cards_rank(seven)[0] == 2: break
         if rank == 3:
             while True:
-                self.resetDeck()
+                self.reset_deck()
                 fig = random.randrange(12)
                 col = [c for c in range(4)]
                 random.shuffle(col)
@@ -102,18 +102,18 @@ class PDeck:
                 seven = [(fig,c) for c in col]
                 for card in seven: self.cards.remove(card)
                 seven += [self.getCard() for _ in range(4)]
-                if self.cardsRank(seven)[0] == 3: break
+                if self.cards_rank(seven)[0] == 3: break
         if rank == 4:
             while True:
-                self.resetDeck()
+                self.reset_deck()
                 fig = random.randrange(8)
                 seven = [(fig+ix,random.randrange(4)) for ix in range(5)]
                 for card in seven: self.cards.remove(card)
                 seven += [self.getCard() for _ in range(2)]
-                if self.cardsRank(seven)[0] == 4: break
+                if self.cards_rank(seven)[0] == 4: break
         if rank == 5:
             while True:
-                self.resetDeck()
+                self.reset_deck()
                 col = random.randrange(4)
                 fig = [f for f in range(12)]
                 random.shuffle(fig)
@@ -121,10 +121,10 @@ class PDeck:
                 seven = [(f,col) for f in fig]
                 for card in seven: self.cards.remove(card)
                 seven += [self.getCard() for _ in range(2)]
-                if self.cardsRank(seven)[0] == 5: break
+                if self.cards_rank(seven)[0] == 5: break
         if rank == 6:
             while True:
-                self.resetDeck()
+                self.reset_deck()
                 fig = [f for f in range(12)]
                 random.shuffle(fig)
                 fig = fig[:2]
@@ -138,24 +138,24 @@ class PDeck:
                 seven += [(fig[1],c) for c in col]
                 for card in seven: self.cards.remove(card)
                 seven += [self.getCard() for _ in range(2)]
-                if self.cardsRank(seven)[0] == 6: break
+                if self.cards_rank(seven)[0] == 6: break
         if rank == 7:
             while True:
-                self.resetDeck()
+                self.reset_deck()
                 fig = random.randrange(12)
                 seven = [(fig,c) for c in range(4)]
                 for card in seven: self.cards.remove(card)
                 seven += [self.getCard() for _ in range(3)]
-                if self.cardsRank(seven)[0] == 7: break
+                if self.cards_rank(seven)[0] == 7: break
         if rank == 8:
             while True:
-                self.resetDeck()
+                self.reset_deck()
                 fig = random.randrange(8)
                 col = random.randrange(4)
                 seven = [(fig + ix, col) for ix in range(5)]
                 for card in seven: self.cards.remove(card)
                 seven += [self.getCard() for _ in range(2)]
-                if self.cardsRank(seven)[0] == 8: break
+                if self.cards_rank(seven)[0] == 8: break
         random.shuffle(seven)
         return seven
 
@@ -179,7 +179,7 @@ class PDeck:
     # returns rank of 5 from 7 given cards
     # simple implementation evaluates about:  12,3K*7cards/sec   or  66K*5cards/sec
     @staticmethod
-    def cardsRank(cards: list):
+    def cards_rank(cards: list):
 
         if type(cards[0]) is int: cards = [PDeck.itc(c) for c in cards]
         cards = sorted(cards)
@@ -255,72 +255,72 @@ class PDeck:
 
                 if len(colInRow) > 5: colInRow = colInRow[len(colInRow)-5:] # trim
 
-        if possibleStraightFlush:                               topRank = 8 # straightFlush
-        elif 4 in nFig:                                         topRank = 7 # fourOf
-        elif (3 in nFig and 2 in nFig) or nFig.count(3) > 1:    topRank = 6 # fullHouse
-        elif colCards:                                          topRank = 5 # flush
-        elif possibleStraight:                                  topRank = 4 # straight
-        elif 3 in nFig:                                         topRank = 3 # threeOf
-        elif nFig.count(2) > 1:                                 topRank = 2 # twoPairs
-        elif 2 in nFig:                                         topRank = 1 # pair
-        else:                                                   topRank = 0 # highCard
+        if possibleStraightFlush:                               top_rank = 8 # straightFlush
+        elif 4 in nFig:                                         top_rank = 7 # fourOf
+        elif (3 in nFig and 2 in nFig) or nFig.count(3) > 1:    top_rank = 6 # fullHouse
+        elif colCards:                                          top_rank = 5 # flush
+        elif possibleStraight:                                  top_rank = 4 # straight
+        elif 3 in nFig:                                         top_rank = 3 # threeOf
+        elif nFig.count(2) > 1:                                 top_rank = 2 # twoPairs
+        elif 2 in nFig:                                         top_rank = 1 # pair
+        else:                                                   top_rank = 0 # highCard
 
         # find five cards
-        fiveCards = []
-        if topRank == 8: fiveCards = colInRow
-        if topRank == 7:
+        five_cards = []
+        if top_rank == 8: five_cards = colInRow
+        if top_rank == 7:
             four = []
             for cL in cFig:
                 if len(cL) == 4:
                     four = cL
                     break
             for c in four: cards.remove(c)
-            fiveCards = [cards[-1]] + four
-        if topRank == 6:
-            fiveCards = []
+            five_cards = [cards[-1]] + four
+        if top_rank == 6:
+            five_cards = []
             for cL in cFig:
-                if len(cL) == 2: fiveCards += cL
+                if len(cL) == 2: five_cards += cL
             for cL in cFig:
-                if len(cL) == 3: fiveCards += cL
-            fiveCards = fiveCards[-5:]
-        if topRank == 5:
+                if len(cL) == 3: five_cards += cL
+            five_cards = five_cards[-5:]
+        if top_rank == 5:
             if len(colCards) > 5: colCards = colCards[len(colCards)-5:]
-            fiveCards = colCards
-        if topRank == 4:
+            five_cards = colCards
+        if top_rank == 4:
             if len(inRow) > 5: inRow = inRow[len(inRow)-5:]
-            fiveCards = inRow
-        if topRank == 3:
+            five_cards = inRow
+        if top_rank == 3:
             three = []
             for cL in cFig:
                 if len(cL) == 3: three = cL
             for c in three: cards.remove(c)
-            fiveCards = cards[-2:] + three
-        if topRank == 2:
+            five_cards = cards[-2:] + three
+        if top_rank == 2:
             two2 = []
             for cL in cFig:
                 if len(cL) == 2: two2 += cL
             if len(two2) > 4: two2 = two2[len(two2)-4:]
             for c in two2: cards.remove(c)
-            fiveCards = cards[-1:] + two2
-        if topRank == 1:
+            five_cards = cards[-1:] + two2
+        if top_rank == 1:
             two = []
             for cL in cFig:
                 if len(cL) == 2: two = cL
             for c in two: cards.remove(c)
-            fiveCards = cards[-3:] + two
-        if topRank == 0:
-            fiveCards = cards[-5:]
+            five_cards = cards[-3:] + two
+        if top_rank == 0:
+            five_cards = cards[-5:]
 
-        # calc rankValue
-        rankValue = 0
-        for ix in range(5): rankValue += fiveCards[ix][0]*13**ix
-        rankValue += 1000000*topRank
+        # calc rank_value
+        rank_value = 0
+        for ix in range(5): rank_value += five_cards[ix][0]*13**ix
+        rank_value += 1000000*top_rank
 
         # prep string
-        string = CRD_RNK[topRank] + ' %7s'%rankValue
-        for c in fiveCards: string += ' %s' % PDeck.cts(c)
+        string = CRD_RNK[top_rank] + ' %7s'%rank_value
+        for c in five_cards: string += ' %s' % PDeck.cts(c)
 
-        return topRank, rankValue, fiveCards, string
+        return top_rank, rank_value, five_cards, string
 
 # returns a dictionary with rank values of every (tuple of sorted ints) 5 cards
 def getASC(useQMP=True):
@@ -339,7 +339,7 @@ def getASC(useQMP=True):
         if useQMP:
             def iPF(task):
                 tv = []
-                for t in task: tv.append((t,PDeck.cardsRank(t)[1]))
+                for t in task: tv.append((t,PDeck.cards_rank(t)[1]))
                 return tv
 
             qmp = QueMultiProcessor( # QMP
@@ -365,7 +365,7 @@ def getASC(useQMP=True):
                     asCards[r[0]] = r[1]
             qmp.close()
 
-        else: asCards = {cmb: PDeck.cardsRank(cmb)[1] for cmb in tqdm(combList)}
+        else: asCards = {cmb: PDeck.cards_rank(cmb)[1] for cmb in tqdm(combList)}
 
         lM.w_pickle(asCards, pickleDictFN)
 
@@ -419,7 +419,7 @@ if __name__ == "__main__":
     print('speed %d/sec' % (num / (time.time() - sTime)))
 
     sTime = time.time()
-    for c in tqdm(askCards): res = PDeck.cardsRank(c)
+    for c in tqdm(askCards): res = PDeck.cards_rank(c)
     print('speed %d/sec' % (num / (time.time() - sTime)))
 
 
