@@ -372,7 +372,7 @@ if __name__ == "__main__":
     nestarter(devices=None, verb=1)
 
     cndGD = {
-        'name':         'cnet_tt',
+        'name':         'cnet_ttt',
         #'opt_class':    tf.train.GradientDescentOptimizer,
         #'iLR':          3e-2,
         #'warm_up':      None,
@@ -381,7 +381,7 @@ if __name__ == "__main__":
 
     train_cn(
         cn_dict=        cndGD,
-        n_batches=      50000,
+        n_batches=      500,
         tr_SM=          (1000,10),
         ts_SM=          (2000,10000000),
         rQueTSize=      200,

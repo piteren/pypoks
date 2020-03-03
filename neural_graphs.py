@@ -6,13 +6,14 @@
 
 import tensorflow as tf
 
-from pUtils.littleTools.littleMethods import shortSCIN
-from pUtils.nnTools.nnBaseElements import defInitializer, layDENSE, numVFloats
-from pUtils.nnTools.nnEncoders import encDR
+from putils.lipytools.little_methods import short_scin
+from putils.neuralmess.base_elements import my_initializer, num_var_floats
+from putils.neuralmess.layers import lay_dense
+from putils.neuralmess.encoders import encDRT
 
 
 # base LSTM neural graph
-def lstmGraphFN(
+def lstm_GFN(
         scope :str,
         wC=         16,     # card emb width
         wMT=        1,      # move type emb width
@@ -34,7 +35,7 @@ def lstmGraphFN(
             name=           'cEMB',
             shape=          [53, wC],  # one card for 'no_card'
             dtype=          tf.float32,
-            initializer=    defInitializer())
+            initializer=    my_initializer())
 
         inCemb = tf.nn.embedding_lookup(params=cEMB, ids=inC)
         print(' > inCemb:', inCemb)
@@ -51,7 +52,7 @@ def lstmGraphFN(
             name=           'mtEMB',
             shape=          [5, wMT],  # 4 moves + no_move
             dtype=          tf.float32,
-            initializer=    defInitializer())
+            initializer=    my_initializer())
 
         inMTemb = tf.nn.embedding_lookup(params=mtEMB, ids=inMT)
         print(' > inMTemb:', inMTemb)
@@ -71,12 +72,12 @@ def lstmGraphFN(
         input = tf.concat([inCemb, inMTemb, inVec], axis=-1)
         print(' > input (concatenated):', input)  # width = self.wC*3 + (self.wMT + self.wV)*2
 
-        encDRout = encDR(
+        encDRout = encDRT(
             input=      input,
-            nLayers=    nDR,
-            layWidth=   cellW,
+            n_layers=   nDR,
+            lay_width=  cellW,
             nHL=        0,
-            verbLev=    1)
+            verb=       1)
         input = encDRout['output']
 
         inState = tf.placeholder(
@@ -104,7 +105,7 @@ def lstmGraphFN(
         finState = tf.reshape(state, shape=[-1, 2, cellW])
         print(' > finState:', finState)
 
-        denseOut = layDENSE(
+        denseOut = lay_dense(
             input=      out,
             units=      4,
             #activation= tf.nn.relu,
@@ -115,7 +116,7 @@ def lstmGraphFN(
         probs = tf.nn.softmax(logits)
 
         vars = tf.trainable_variables(scope=tf.get_variable_scope().name)
-        print(' ### num of vars %s' % shortSCIN(numVFloats(vars)))
+        print(' ### num of vars %s' % short_scin(num_var_floats(vars)))
 
         move = tf.placeholder(  # "correct" move (class)
             name=           'move',
@@ -169,7 +170,7 @@ def lstmGraphFN(
             'optVars':              optVars}
 
 # base CNN+RES neural graph
-def cnnRGraphFN(
+def cnn_GFN(
         scope :str,
         wC=         16,     # card emb width
         wMT=        1,      # move type emb width
@@ -191,7 +192,7 @@ def cnnRGraphFN(
             name=           'cEMB',
             shape=          [53, wC],  # one card for 'no_card'
             dtype=          tf.float32,
-            initializer=    defInitializer())
+            initializer=    my_initializer())
 
         inCemb = tf.nn.embedding_lookup(params=cEMB, ids=inC)
         print(' > inCemb:', inCemb)
@@ -208,7 +209,7 @@ def cnnRGraphFN(
             name=           'mtEMB',
             shape=          [5, wMT],  # 4 moves + no_move
             dtype=          tf.float32,
-            initializer=    defInitializer())
+            initializer=    my_initializer())
 
         inMTemb = tf.nn.embedding_lookup(params=mtEMB, ids=inMT)
         print(' > inMTemb:', inMTemb)
@@ -229,7 +230,7 @@ def cnnRGraphFN(
         print(' > input (concatenated):', input)  # width = self.wC*3 + (self.wMT + self.wV)*2
 
         # projection without activation and bias
-        denseOut = layDENSE(
+        denseOut = lay_dense(
             input=          input,
             units=          reW,
             useBias=        False)
@@ -266,7 +267,7 @@ def cnnRGraphFN(
                     dilation_rate=      1,
                     activation=         None,
                     use_bias=           True,
-                    kernel_initializer= defInitializer(),
+                    kernel_initializer= my_initializer(),
                     padding=            'valid',
                     data_format=        'channels_last')
 
@@ -289,7 +290,7 @@ def cnnRGraphFN(
         print(' > finState (split):', finState)
 
         # projection to logits
-        denseOut = layDENSE(
+        denseOut = lay_dense(
             input=          out,
             units=          4,
             useBias=        False)
@@ -299,7 +300,7 @@ def cnnRGraphFN(
         probs = tf.nn.softmax(logits)
 
         vars = tf.trainable_variables(scope=tf.get_variable_scope().name)
-        print(' ### num of vars %s' % shortSCIN(numVFloats(vars)))
+        print(' ### num of vars %s' % short_scin(num_var_floats(vars)))
 
         move = tf.placeholder(  # "correct" move (class)
             name=           'move',

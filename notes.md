@@ -37,7 +37,7 @@ this implementation runs about 10H/s (F+B)
 
 Implemented tables as separate processes with neural DMK supporting many players.
 Each DMK makes decisions with one NN(LSTM) and runs many players on many tables.
-In forward DMK amkes decision for 1/3 of its players in single pass. In backward runs single batch of 1000 moves
+In forward DMK makes decision for 1/3 of its players in single pass. In backward runs single batch of 1000 moves
 TF runs from (single) main process.
 this implementation runs about 830-960H/s (F+B) on GPU and 600H/s on CPU
 
