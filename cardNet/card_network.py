@@ -9,7 +9,7 @@ import tensorflow as tf
 
 from putils.neuralmess.base_elements import my_initializer
 from putils.neuralmess.layers import lay_dense
-from putils.neuralmess.encoders import encDR, encTRNS
+from putils.neuralmess.encoders import encDRT, encTRNS
 
 
 # cards encoder graph (Transformer for 7 cards representations)
@@ -213,15 +213,15 @@ def card_net(
         out_conc = tf.concat([enc_outL[0]['output'],enc_outL[1]['output']], axis=-1)
         if verb > 1: print(' > out_conc:', out_conc)
         if dr_layers:
-            enc_out = encDR(
-                input=      out_conc,
-                name=       'drC',
-                layWidth=   dense_proj,
-                nLayers=    dr_layers,
-                dropout=    dropout_DR,
-                dropFlagT=  train_PH,
-                nHL=        0,
-                verbLev=    verb)
+            enc_out = encDRT(
+                input=          out_conc,
+                name=           'drC',
+                lay_width=      dense_proj,
+                n_layers=       dr_layers,
+                dropout=        dropout_DR,
+                training_flag=  train_PH,
+                nHL=            0,
+                verb=           verb)
             out_conc = enc_out['output']
 
         # projection to 3 winner logits

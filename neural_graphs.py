@@ -169,6 +169,7 @@ def lstm_GFN(
             'vars':                 vars,
             'optVars':              optVars}
 
+"""  
 # base CNN+RES neural graph
 def cnn_GFN(
         scope :str,
@@ -352,3 +353,172 @@ def cnn_GFN(
             'gN':                   gN,
             'vars':                 vars,
             'optVars':              optVars}
+"""
+
+# base CNN+RES neural graph (nemodel compatible)
+def cnn_GFN(
+        name :str,
+        c_embW :int=    16,     # card emb width
+        mt_embW :int=   1,      # move type emb width
+        mvW :int=       11,     # values vector width, holds player move data(type, pos, cash)
+        n_lay=          24,     # number of CNNR layers
+        width=          512,    # representation width (number of filters)
+        iLR=            7e-7,
+        **kwargs):
+
+    with tf.variable_scope(name):
+
+        print()
+        c_PH = tf.placeholder(  # 7 cards
+            name=           'c_PH',
+            dtype=          tf.int32,
+            shape=          [None, None, 7])  # [bsz,seq,7cards]
+
+        c_emb = tf.get_variable(  # cards embeddings
+            name=           'c_emb',
+            shape=          [53, c_embW],  # one card for 'no_card'
+            dtype=          tf.float32,
+            initializer=    my_initializer())
+
+        in_cemb = tf.nn.embedding_lookup(params=c_emb, ids=c_PH)
+        print(' > in_cemb:', in_cemb)
+        in_cemb = tf.unstack(in_cemb, axis=-2)
+        in_cemb = tf.concat(in_cemb, axis=-1)
+        print(' > in_cemb (flattened):', in_cemb)
+
+        mt_PH = tf.placeholder(  # event type
+            name=           'mt_PH',
+            dtype=          tf.int32,
+            shape=          [None, None, 4])  # [bsz,seq,2*2oppon]
+
+        mt_emb = tf.get_variable(  # event type embeddings
+            name=           'mt_emb',
+            shape=          [5, mt_embW],  # 4 moves + no_move
+            dtype=          tf.float32,
+            initializer=    my_initializer())
+
+        in_mt = tf.nn.embedding_lookup(params=mt_emb, ids=mt_PH)
+        print(' > in_memb:', in_mt)
+        in_mt = tf.unstack(in_mt, axis=-2)
+        in_mt = tf.concat(in_mt, axis=-1)
+        print(' > mt_emb (flattened):', in_mt)
+
+        mv_PH = tf.placeholder(  # event float values
+            name=           'mv_PH',
+            dtype=          tf.float32,
+            shape=          [None, None, 4, mvW])  # [bsz,seq,2*2,vec]
+
+        in_mv = tf.unstack(mv_PH, axis=-2)
+        in_mv = tf.concat(in_mv, axis=-1)
+        print(' > inV (flattened):', in_mv)
+
+        input = tf.concat([in_cemb, in_mt, in_mv], axis=-1)
+        print(' > input (concatenated):', input)  # width = self.wC*3 + (self.wMT + self.wV)*2
+
+        # projection without activation and bias
+        dense_out = lay_dense(
+            input=          input,
+            units=          width,
+            useBias=        False)
+        input = dense_out['output']
+        print(' > projected input (projected):', input)
+
+        state_shape = [n_lay, 2, width]
+        state_PH = tf.placeholder(
+            name=           'state_PH',
+            dtype=          tf.float32,
+            shape=          [None] + state_shape) # [bsz,nLay,2,reW]
+
+        single_zero_state = tf.zeros(shape=state_shape) # [nLay,2,reW]
+
+        # unstack layers of state_PH
+        state_lays = tf.unstack(state_PH, axis=-3)
+        print(' > state_lays len %d of:' %len(state_lays), state_lays[0])
+
+        # layer_norm
+        sub_output = tf.contrib.layers.layer_norm(
+            inputs=             input,
+            begin_norm_axis=    -1,
+            begin_params_axis=  -1)
+
+        input_lays = []
+        for depth in range(n_lay):
+
+            input_lays.append(tf.concat([state_lays[depth],sub_output], axis=-2))
+            print(' > lay input of %d lay'%depth, input_lays[-1])
+
+            with tf.variable_scope('cnnREncLay_%d' % depth):
+                cnn_lay = tf.layers.Conv1D(
+                    filters=            width,
+                    kernel_size=        3,
+                    dilation_rate=      1,
+                    activation=         None,
+                    use_bias=           True,
+                    kernel_initializer= my_initializer(),
+                    padding=            'valid',
+                    data_format=        'channels_last')
+
+            cnn_out = cnn_lay(input_lays[-1]) # cnn
+            cnn_out = tf.nn.relu(cnn_out) # activation
+            print(' > cnn_out (%d lay)' % depth, cnn_out)
+            sub_output += cnn_out
+            print(' > sub_output (RES %d lay)' % depth, cnn_out)
+            sub_output = tf.contrib.layers.layer_norm(
+                inputs=             sub_output,
+                begin_norm_axis=    -1,
+                begin_params_axis=  -1)
+
+        out = sub_output
+        print(' > out:', out)
+
+        state = tf.stack(input_lays, axis=-3)
+        print(' > state (stacked):', state)
+        fin_state = tf.split(state, num_or_size_splits=[-1,2], axis=-2)[1] # TODO: may fin state be wider than 2 ...?
+        print(' > finState (split):', fin_state)
+
+        # projection to logits
+        dense_out = lay_dense(
+            input=          out,
+            units=          4, #TODO: hardcoded
+            useBias=        False)
+        logits = dense_out['output']
+        print(' > logits:', logits)
+
+        probs = tf.nn.softmax(logits)
+
+        train_vars = tf.trainable_variables(scope=tf.get_variable_scope().name)
+        print(' ### num of train_vars %s' % short_scin(num_var_floats(train_vars)))
+
+        cmv_PH = tf.placeholder(  # "correct" move (label)
+            name=           'cmv_PH',
+            dtype=          tf.int32,
+            shape=          [None, None])  # [bsz,seq]
+
+        rew_PH = tf.placeholder(  # reward for "correct" move
+            name=           'rew_PH',
+            dtype=          tf.float32,
+            shape=          [None, None])  # [bsz,seq]
+
+        rew = rew_PH/500 # lineary scale rewards #TODO: hardcoded
+
+        # this loss is auto averaged with reduction parameter
+        # loss = tf.losses.SparseCategoricalCrossentropy(from_logits=True)
+        # loss = loss(y_true=move, y_pred=logits, sample_weight=rew)
+        loss = tf.losses.sparse_softmax_cross_entropy(
+            labels=     cmv_PH,
+            logits=     logits,
+            weights=    rew)
+
+        return{
+            'name':                 name,
+            'c_PH':                 c_PH,
+            'mt_PH':                mt_PH,
+            'mv_PH':                mv_PH,
+            'cmv_PH':               cmv_PH,
+            'rew_PH':               rew_PH,
+            'state_PH':             state_PH,
+            'single_zero_state':    single_zero_state,
+            'probs':                probs,
+            'fin_state':            fin_state,
+            'loss':                 loss,
+            'train_vars':           train_vars}

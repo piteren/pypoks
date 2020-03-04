@@ -4,6 +4,11 @@
 
  DMK (decision maker) is an object that makes decisions for poker players
 
+    receives States in form of constant size vector
+    for every state outputs Decision, every Decision is rewarded with cash
+
+    first implementation: training time: 10.7sec/1KH = 93.4H/s
+
 """
 
 import numpy as np
@@ -12,6 +17,8 @@ import tensorflow as tf
 import time
 
 from pologic.podeck import PDeck
+
+from putils.neuralmess.nemodel import NNModel
 
 
 # basic implementation of DMK (random sampling)
@@ -94,7 +101,7 @@ class DMK:
 
     # table state encoder (into decState form - readable by DMC.getProbs method)
     # + updates some info (pos, pre/postflop tableState) in self variables
-    def _encState(
+    def _enc_state(
             self,
             pIX :int,
             tableStateChanges :list):
@@ -261,55 +268,39 @@ class DMK:
             possibleMoves):
 
         dix, pix = pAddr
-        decState = self._encState(pix, stateChanges)  # encode table state with DMK encoder
+        decState = self._enc_state(pix, stateChanges)  # encode table state with DMK encoder
         decs = self._make_dec(pix, decState, possibleMoves) if possibleMoves is not None else None
         return decs
 
     # runs update of DMK based on saved: dec_states, moves and rewards
     def run_update(self): pass
 
-# Base-Neural-DMK (for neural graph)
+# Base-Neural-DMK (for neural model)
 class BaNeDMK(DMK):
 
     def __init__(
             self,
-            session :tf.Session,
-            gfd :dict,          # graph function dictionary
+            fwd_func,
+            mdict :dict,
             n_players=  100,
             rand_move=  0.01,
             nH4UP=      1000):  # number of moves for update
 
         super().__init__(
-            name=       gfd['scope'],
+            name=       mdict['name'],
             n_players=  n_players,
             rand_move=  rand_move,
             run_TB=     True)
 
-        self.session = session
+        self.mdl = NNModel(
+            fwd_func=   fwd_func,
+            mdict=      mdict)
 
-        self.inC =          gfd['inC']
-        self.inMT =         gfd['inMT']
-        self.inV =          gfd['inV']
-        self.wV =           gfd['wV']
-        self.move =         gfd['move']
-        self.reward =       gfd['reward']
-        self.inState =      gfd['inState']
-        singleZeroState =   gfd['singleZeroState']
-        self.probs =        gfd['probs']
-        self.finState =     gfd['finState']
-        self.optimizer =    gfd['optimizer']
-        self.loss =         gfd['loss']
-        self.gN =           gfd['gN']
-        vars =              gfd['vars']
-        optVars =           gfd['optVars']
-
-        zeroState = self.session.run(singleZeroState)
-        self.lastFwdState = {ix: zeroState for ix in range(self.n_players)} # netState after last fwd
-        self.lastUpdState = {ix: zeroState for ix in range(self.n_players)} # netState after last update
+        zero_state = self.mdl.session.run(self.mdl['single_zero_state'])
+        self.lastFwdState = {ix: zero_state for ix in range(self.n_players)} # net state after last fwd
+        self.lastUpdState = {ix: zero_state for ix in range(self.n_players)} # net state after last update
         self.myCards =      {ix: None for ix in range(self.n_players)} # player+table cards
         self.dec_states =    {}
-
-        self.session.run(tf.initializers.variables(var_list=vars+optVars))
 
         self.nH4UP = nH4UP
 
@@ -320,12 +311,12 @@ class BaNeDMK(DMK):
     """
 
     # prepares state in form of nn input
-    def _encState(
+    def _enc_state(
             self,
             pIX: int,
             tableStateChanges: list):
 
-        super()._encState(pIX, tableStateChanges)
+        super()._enc_state(pIX, tableStateChanges)
 
         inMT = []  # list of moves (2)
         inV = []  # list of vectors (2)
@@ -346,7 +337,7 @@ class BaNeDMK(DMK):
 
                     inMT.append(int(state[key]['plMove'][0]))  # move type
 
-                    vec = np.zeros(shape=self.wV)
+                    vec = np.zeros(shape=self.mdl['mvW'])
 
                     vec[0] = who
                     vec[1] = self.plsHpos[pIX][who] # what position
@@ -366,7 +357,7 @@ class BaNeDMK(DMK):
         inC = [] + self.myCards[pIX]
         while len(inC) < 7: inC.append(52) # pad cards
         while len(inMT) < 2*(len(self.plsHpos[pIX])-1): inMT.append(4) # pad moves
-        while len(inV) < 2*(len(self.plsHpos[pIX])-1): inV.append(np.zeros(shape=self.wV)) # pad vectors
+        while len(inV) < 2*(len(self.plsHpos[pIX])-1): inV.append(np.zeros(shape=self.mdl['mvW'])) # pad vectors
         nnInput = [inC], [inMT], [inV] # seq of values (seq because of shape)
         """
         print()
@@ -404,21 +395,21 @@ class BaNeDMK(DMK):
                 statesBatch.append(self.lastFwdState[pIX])
 
             feed = {
-                self.inC:       inCbatch,
-                self.inMT:      inMTbatch,
-                self.inV:       inVbatch,
-                self.inState:   statesBatch}
+                self.mdl['c_PH']:       inCbatch,
+                self.mdl['mt_PH']:      inMTbatch,
+                self.mdl['mv_PH']:      inVbatch,
+                self.mdl['state_PH']:   statesBatch}
 
-            fetches = [self.probs, self.finState]
-            probs, fwdStates = self.session.run(fetches, feed_dict=feed)
+            fetches = [self.mdl['probs'], self.mdl['fin_state']]
+            probs, fwd_states = self.mdl.session.run(fetches, feed_dict=feed)
 
             probs = np.reshape(probs, newshape=(probs.shape[0],probs.shape[-1])) # TODO: maybe smarter way
 
             probsL = []
-            for ix in range(fwdStates.shape[0]):
+            for ix in range(fwd_states.shape[0]):
                 pIX = pIXsl[ix]
                 probsL.append((pIX,probs[ix]))
-                self.lastFwdState[pIX] = fwdStates[ix]
+                self.lastFwdState[pIX] = fwd_states[ix]
 
             self.dec_states = {}
 
@@ -493,15 +484,19 @@ class BaNeDMK(DMK):
                 """
 
                 feed = {
-                    self.inC:       inCbatch,
-                    self.inMT:      inMTbatch,
-                    self.inV:       inVbatch,
-                    self.move:      moveBatch,
-                    self.reward:    rewBatch,
-                    self.inState:   statesBatch}
+                    self.mdl['c_PH']:       inCbatch,
+                    self.mdl['mt_PH']:      inMTbatch,
+                    self.mdl['mv_PH']:      inVbatch,
+                    self.mdl['cmv_PH']:     moveBatch,
+                    self.mdl['rew_PH']:     rewBatch,
+                    self.mdl['state_PH']:   statesBatch}
 
-                fetches = [self.optimizer, self.loss, self.gN, self.finState]
-                _, loss, gN, updStates = self.session.run(fetches, feed_dict=feed)
+                fetches = [
+                    self.mdl['optimizer'],
+                    self.mdl['loss'],
+                    self.mdl['gg_norm'],
+                    self.mdl['fin_state']]
+                _, loss, gN, updStates = self.mdl.session.run(fetches, feed_dict=feed)
 
                 for ix in range(len(uPIX)):
                     pIX = uPIX[ix]
