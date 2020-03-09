@@ -14,15 +14,17 @@ from putils.neuralmess.encoders import encDRT, encTRNS
 
 # cards encoder graph (Transformer for 7 cards representations)
 def card_enc(
-        c_ids,              # seven cards (tensor of ids)
-        c_embW :int,        # cards embedding width
-        train_flag,         # train flag tensor
-        tat_case :bool,     # task attention transformer architecture
-        in_proj,
-        dense_mul,          # transformer dense multiplication
-        dropout=    0.0,    # transformer dropout
-        n_layers=   6,
-        verb=       0):
+        train_flag,                 # train flag (bool tensor)
+        c_ids,                      # seven cards (ids tensor)
+        tat_case :bool=     False,  # task attention transformer architecture
+        c_embW :int=        24,     # cards embedding width
+        intime_drop :float= 0.0,
+        infeat_drop :float= 0.0,
+        in_proj :int=       None,
+        n_layers :int=      8,
+        dense_mul :int=     4,      # transformer dense multiplication
+        dropout :float=     0.0,    # transformer dropout
+        verb=               0):
 
     if verb > 0: print('\nBuilding card encoder...')
 
@@ -35,7 +37,7 @@ def card_enc(
             initializer=    my_initializer())
         in_cemb = tf.nn.embedding_lookup(params=c_emb, ids=c_ids)
         if verb > 1: print(' > in_cemb:', in_cemb)
-        hist_summ = [tf.summary.histogram('cEMB', c_emb, family='cEMB')]
+        hist_summ = [tf.summary.histogram('1.c_emb', c_emb, family='enc_input')]
 
         my_cemb = tf.get_variable(  # my cards embeddings
             name=           'my_cemb',
@@ -46,7 +48,41 @@ def card_enc(
         if verb > 1: print(' > my_celook:', my_celook)
         in_cemb += my_celook
 
-        # input projection
+        seq_len = 7  # sequence length (time)
+        seq_width = c_embW  # sequence width (features)
+        batch_size = tf.shape(in_cemb)[-3]
+
+        # time (per vector) dropout
+        if intime_drop:
+            time_drop = tf.ones(shape=[batch_size,seq_len])
+            time_drop = tf.layers.dropout(
+                inputs=     time_drop,
+                rate=       intime_drop,
+                training=   train_flag,
+                seed=       121)
+            in_cemb = in_cemb * tf.expand_dims(time_drop, axis=-1)
+
+        # feature (constant in time) dropout
+        if infeat_drop:
+            feats_drop = tf.ones(shape=[batch_size, seq_width])
+            feats_drop = tf.layers.dropout(
+                inputs=     feats_drop,
+                rate=       infeat_drop,
+                training=   train_flag,
+                seed=       121)
+            in_cemb = in_cemb * tf.expand_dims(feats_drop, axis=-2)
+
+        """
+        # sequence layer norm (on (dropped)input, always)
+        in_cemb = tf.contrib.layers.layer_norm(
+            inputs=             in_cemb,
+            begin_norm_axis=    -2,
+            begin_params_axis=  -2)
+        if verb > 1: print(' > normalized in_cemb:', in_cemb)
+        hist_summ.append(tf.summary.histogram('2.in_cemb.LN', in_cemb, family='enc_input'))
+        """
+
+        # input projection (without activation)
         if in_proj:
             proj_out = lay_dense(
                 input=          in_cemb,
@@ -89,26 +125,30 @@ def card_enc(
 
 # cards netetwork graph (FWD)
 def card_net(
-        tat_case :bool= False,
-        c_embW :int=    24,
-        n_layers :int=  8,
-        in_proj :int=   None,   # None, 0 or int
-        dense_mul=      4,
-        dense_proj=     None,   # None, 0 or int
-        dr_layers=      2,      # None, 0 or int
-        dropout=        0.0,    # dropout of encoder transformer
-        dropout_DR=     0.0,    # DR dropout
+        tat_case :bool=     False,
+        c_embW :int=        24,
+        intime_drop: float= 0.0,
+        infeat_drop: float= 0.0,
+        in_proj :int=       None,   # None, 0 or int
+        # TRNS
+        n_layers :int=      8,
+        dense_mul=          4,
+        dropout=            0.0,    # dropout of encoder transformer
+        # DRT
+        dense_proj=         None,   # None, 0 or int
+        dr_layers=          2,      # None, 0 or int
+        dropout_DR=         0.0,    # DR dropout
         # train parameters
-        opt_class=      partial(tf.train.AdamOptimizer, beta1=0.7, beta2=0.7),
-        iLR=            1e-3,
-        warm_up=        10000,
-        ann_base=       0.999,
-        ann_step=       0.04,
-        avt_SVal=       0.1,
-        avt_window=     500,
-        avt_max_upd=    1.5,
-        do_clip=        True,
-        verb=           0,
+        opt_class=          partial(tf.train.AdamOptimizer, beta1=0.7, beta2=0.7),
+        iLR=                1e-3,
+        warm_up=            10000,
+        ann_base=           0.999,
+        ann_step=           0.04,
+        avt_SVal=           0.1,
+        avt_window=         500,
+        avt_max_upd=        1.5,
+        do_clip=            False,#True,
+        verb=               0,
         **kwargs):
 
     with tf.variable_scope('card_net'):
@@ -156,6 +196,8 @@ def card_net(
                 c_embW=         c_embW,
                 train_flag=     train_PH,
                 tat_case=       tat_case,
+                intime_drop=    intime_drop,
+                infeat_drop=    infeat_drop,
                 in_proj=        in_proj,
                 dense_mul=      dense_mul,
                 dropout=        dropout,

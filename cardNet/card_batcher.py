@@ -152,21 +152,21 @@ def get_test_batch(
         mcs :int,           # n montecarlo samples
         with_ASC=    True): # with all seven cards (dict)
 
-    fn = '_cache/s%d_m%d.batch' % (size, mcs)
+    fn = '_cache/s%d_m%d.batch'%(size,mcs)
     test_batch = lM.r_pickle(fn)
     if test_batch: print('\nGot test batch from file: %s'%fn)
     else:
         print('\nPreparing test batch (%d,%d)...'%(size,mcs))
         test_batch = prep2X7Batch(
             bs=         size,
-            n_monte=     mcs,
+            n_monte=    mcs,
             asc=        getASC() if with_ASC else None,
-            verb=    1)
+            verb=       1)
         lM.w_pickle(test_batch, fn)
     c_tuples = []
     for ix in range(size):
-        c_tuples.append(tuple(sorted(test_batch['crd7AB'][ix])))
-        c_tuples.append(tuple(sorted(test_batch['crd7BB'][ix])))
+        c_tuples.append(tuple(sorted(test_batch['cA'][ix])))
+        c_tuples.append(tuple(sorted(test_batch['cB'][ix])))
     print('Got %d of hands in test_batch' % len(c_tuples))
     c_tuples = dict.fromkeys(c_tuples, 1)
     print('of which %d is unique' % len(c_tuples))
@@ -189,4 +189,5 @@ if __name__ == "__main__":
             if c!=52: print(PDeck.cts(c), end=' ')
         print(mcAC[ix])
     """
-    get_test_batch(2000, 10000000)
+    get_test_batch(2000,100000)
+    #get_test_batch(2000,10000000)

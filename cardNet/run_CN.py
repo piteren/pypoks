@@ -369,10 +369,10 @@ def infer():
 
 if __name__ == "__main__":
 
-    nestarter(devices=None, verb=1)
+    nestarter(devices=-1, verb=1)
 
     cndGD = {
-        'name':         'cnet_ttt',
+        'name':         'cnet_rf_nln',
         #'opt_class':    tf.train.GradientDescentOptimizer,
         #'iLR':          3e-2,
         #'warm_up':      None,
@@ -381,9 +381,10 @@ if __name__ == "__main__":
 
     train_cn(
         cn_dict=        cndGD,
-        n_batches=      500,
+        n_batches=      50000,
         tr_SM=          (1000,10),
-        ts_SM=          (2000,10000000),
+        #ts_SM=          (2000,10000000), # 10M
+        ts_SM=          (2000,100000),
         rQueTSize=      200,
         verb=           1)
     #infer()

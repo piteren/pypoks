@@ -65,7 +65,7 @@ class PTable(Process):
                 o_que :Queue):  # player output que
 
             self.addr = addr
-            self.name = 'p%d_%d' % (addr[0],addr[1])  # player takes name after DMK
+            self.name = 'p%s_%s' % (addr[0],addr[1])  # player takes name after DMK
             self.i_que = i_que
             self.o_que = o_que
 
