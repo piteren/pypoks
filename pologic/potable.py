@@ -131,6 +131,7 @@ class PTable(Process):
             # below move (decision) is made
             self.o_que.put([self.addr, state_changes, possible_moves]) # put current state
             selected_move = self.i_que.get() # get move from DMK
+            if selected_move == 'game_end': return None # breaks game
 
             return selected_move, moves_cash[selected_move]
 
@@ -195,7 +196,7 @@ class PTable(Process):
     # runs hands in loop (for sep. process)
     def rh_proc(self):
         while True:
-            self.run_hand()
+            if not self.run_hand(): break
 
     # runs single hand
     def run_hand(self):
@@ -290,9 +291,10 @@ class PTable(Process):
 
                     # player makes move
                     plMV = h_pls[cm_pIX].make_move(
-                        hahi=      hahi,
-                        tbl_cash=    self.cash,
-                        tbl_cash_tc=  self.cash_tc)
+                        hahi=           hahi,
+                        tbl_cash=       self.cash,
+                        tbl_cash_tc=    self.cash_tc)
+                    if plMV is None: return False # breaks hand and game
                     mvD['plMove'] = plMV
 
                     pl.cash -= plMV[1]
@@ -394,3 +396,5 @@ class PTable(Process):
         if self.verb > 2:
             print('HandHistory:')
             for el in hahi: print(el)
+
+        return True
