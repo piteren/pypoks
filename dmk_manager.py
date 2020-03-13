@@ -11,6 +11,7 @@ from multiprocessing import Queue
 import os
 import random
 import time
+from tqdm import tqdm
 
 from putils.neuralmess.dev_manager import nestarter
 from putils.neuralmess.base_elements import mrg_ckpts
@@ -19,6 +20,7 @@ from pologic.potable import PTable
 from decision_maker import BaNeDMK
 from neural_graphs import lstm_GFN, cnn_GFN, cnnCE_GFN
 
+
 class DMKManager:
 
     def __init__(
@@ -26,14 +28,18 @@ class DMKManager:
             fwd_func,
             n_dmk :int=     5,      # number of dmks
             n_players :int= 30,     # number of players per dmk
+            dec_trigger=    0.9,    # factor of tables waiting for decision to run deciding method
             verb=           0):
 
         self.verb = verb
         self.fwd_func = fwd_func
         self.n_players = n_players
+        self.dec_trigger = dec_trigger
+        self.n_waiting_tbl = 0
 
         self.dmkIX = 0 # index of next dmk
         dmk_names = self._get_new_names(n_dmk)
+        self._init_folders(dmk_names)
 
         self.dmks = {dmk_name: BaNeDMK(
             fwd_func=   self.fwd_func,
@@ -50,6 +56,23 @@ class DMKManager:
         self.dmkIX += n
         return dmk_names
 
+    def _init_folders(self, nameL):
+
+        s_ckpt_FD = '_models/_CKPTs/'
+        ckptL = [dI for dI in os.listdir(s_ckpt_FD) if os.path.isdir(os.path.join(s_ckpt_FD,dI))]
+
+        for name in nameL:
+            os.mkdir('_models/' + name)
+            for ckpt in ckptL:
+                mrg_ckpts(
+                    ckptA=          ckpt,
+                    ckptA_FD=       '_models/_CKPTs/',
+                    ckptB=          None,
+                    ckptB_FD=       None,
+                    ckptM=          ckpt,
+                    ckptM_FD=       '_models/%s/'%name,
+                    replace_scope=  name)
+
     # builds game envy based on self.dmks (dictionary)
     def _build_game_env(
             self,
@@ -57,15 +80,10 @@ class DMKManager:
 
         # close everything
         for pa in self.pl_in_queD: self.pl_in_queD[pa].put('game_end')
-        print('game ended')
-        for table in self.tables:
-            table.join()
-            table.close()
-        print('tables closed')
-        for pa in self.pl_in_queD: self.pl_in_queD[pa].join()
-        print('pl ques joined')
-        if self.pl_out_que: self.pl_out_que.join()
-        print('pl out que joined')
+        print('old game ended')
+        for table in tqdm(self.tables): table.join()
+        print('tables joined')
+        # TODO: Do queues need to close?
 
         # prepare player addresses (tuples)
         pl_addrL = []
@@ -97,89 +115,103 @@ class DMKManager:
     def run_games(
             self,
             n_mprn=     5,      # n minutes to print hand
-            n_mgxc=     1):     # n minutes to apply genetic crossing
+            n_mgxc=     21):     # n minutes to apply genetic crossing
 
-        print('DMKMan running games, starting %d tables...'%len(self.tables))
-        for tbl in self.tables: tbl.start() # start table
-        print('tables started!')
-
-        p_time = time.time()
-        g_time = p_time
+        print('DMKMan running games...')
+        gxcIX = 0
 
         while True:
-            pAddr, stateChanges, possibleMoves = self.pl_out_que.get() # wait for player data
-            dk, pix = pAddr # resolve address
-            dec = self.dmks[dk].proc_player_data(pAddr, stateChanges, possibleMoves)
+            print(' > starting %d tables (GXC %d)...'%(len(self.tables),gxcIX))
+            for tbl in self.tables: tbl.start() # start table
+            print(' >> tables started!')
 
-            # split dec among ques
-            if dec is not None:
+            p_time = time.time()
+            g_time = p_time
+
+            # one GXC loop
+            while True:
+                p_addr, state_changes, possible_moves = self.pl_out_que.get() # wait for player data
+                print('@@@ possible_moves',possible_moves)
+                dk, pIX = p_addr # resolve address
+                self.n_waiting_tbl += 1
+                self.dmks[dk].take_player_state(pIX, state_changes, possible_moves) # TODO: when possible_moves is None ???
+
+                if self.n_waiting_tbl >= len(self.tables)*self.dec_trigger:
+                    dmk_updating = sorted(list(self.dmks.values()), key= lambda x: x.get_waiting_num(), reverse=True)[0] # take dmk with the highest number of waiting decisions
+                    self.n_waiting_tbl -= dmk_updating.get_waiting_num()
+                    dec = dmk_updating.get_decisions()
+
+                    # split dec among ques
+                    for d in dec:
+                        pIX, move = d
+                        self.pl_in_queD[(dk, pIX)].put(move)
 
                 # take random dmk and print one hand
-                if n_mprn and (time.time() - p_time)/60 > n_mprn:
-                    dks = list(self.dmks.keys())
-                    dk = random.choice(dks)
+                if n_mprn and (time.time() - p_time) / 60 > n_mprn:
+                    dk = random.choice(list(self.dmks.keys()))
                     self.dmks[dk].store_next_hand = True
                     p_time = time.time()
 
                 # GXC
-                if n_mgxc and (time.time() - g_time)/60 > n_mgxc:
-                    g_time = time.time()
-                    self._gxc()
+                if n_mgxc and (time.time()-g_time)/60 > n_mgxc: break
 
-                for d in dec:
-                    pIX, move = d
-                    self.pl_in_queD[(dk, pIX)].put(move)
+            self._gxc()
+            gxcIX += 1
 
     # genetic crossing
     def _gxc(
             self,
             xcF=    0.5):
 
-        print('GXC')
+        print('GXC (mixing)...')
 
         dmkl = [self.dmks[k] for k in self.dmks]
         dmk_xc = sorted(dmkl, key= lambda x: x.stats['$'][0], reverse=True)
-        for dmk in dmk_xc: print(dmk.stats['$'][0])
+        for dmk in dmk_xc: print('%10s %d'%(dmk.name,dmk.stats['$'][0]))
         dmk_xc = dmk_xc[:int(len(dmk_xc)*xcF)]
 
         for dmk in dmk_xc:
             dmk.save()
             dmk.stats['$'][0] = 0
 
-        dmk_names = [dmk.name for dmk in dmk_xc]
-        print(dmk_names)
+        xc_dmk_names = [dmk.name for dmk in dmk_xc]
 
-        mfd = '_models/'+dmk_names[0]
+        mfd = '_models/'+xc_dmk_names[0]
         ckptL = [dI for dI in os.listdir(mfd) if os.path.isdir(os.path.join(mfd,dI))]
         ckptL.remove('opt_vars')
-        print(ckptL)
 
-        new_dmk_names = self._get_new_names(len(self.dmks)-len(dmk_names))
-        print(new_dmk_names)
+        new_dmk_names = self._get_new_names(len(self.dmks)-len(xc_dmk_names))
         for name in new_dmk_names: os.mkdir('_models/'+name)
 
         # merge checkpoints
-        mrg_dna = {name: [random.sample(dmk_xc,2),random.random()] for name in new_dmk_names}
+        mrg_dna = {name: [[dmk.name for dmk in random.sample(dmk_xc,2)],random.random()] for name in new_dmk_names}
+        print(' % mrg_dna:',mrg_dna)
+        for key in sorted(list(mrg_dna.keys())):
+            print('%10s %s'%(key,mrg_dna[key]))
         for name in mrg_dna:
-            dmka = mrg_dna[name][0][0]
-            dmkb = mrg_dna[name][0][0]
+            dmka_name = mrg_dna[name][0][0]
+            dmkb_name = mrg_dna[name][0][1]
             rat = mrg_dna[name][1]
             for ckpt in ckptL:
                 mrg_ckpts(
-                    ckptA=      ckpt,
-                    ckptA_FD=   '_models/%s/'%dmka.name,
-                    ckptB=      ckpt,
-                    ckptB_FD=   '_models/%s/'%dmkb.name,
-                    ckptM=      ckpt,
-                    ckptM_FD=   '_models/%s/'%name,
-                    mrgF=       rat)
+                    ckptA=          ckpt,
+                    ckptA_FD=       '_models/%s/'%dmka_name,
+                    ckptB=          ckpt,
+                    ckptB_FD=       '_models/%s/'%dmkb_name,
+                    ckptM=          ckpt,
+                    ckptM_FD=       '_models/%s/'%name,
+                    replace_scope=  name,
+                    mrgF=           rat)
+
         new_dmks = [BaNeDMK(
             fwd_func=   self.fwd_func,
             mdict=      {'name':dmk_name},
-            n_players=  self.n_players) for dmk_name in new_dmk_names]
-        self.dmks = dmk_xc + new_dmks
-        self.dmks = {dmk.name: dmk for dmk in self.dmks}
+            n_players=  self.n_players) for dmk_name in xc_dmk_names + new_dmk_names]
+        self.dmks = {dmk.name: dmk for dmk in new_dmks}
+
         self._build_game_env()
+
+
 
 if __name__ == "__main__":
 
@@ -188,6 +220,8 @@ if __name__ == "__main__":
     dmkm = DMKManager(
         fwd_func=   cnnCE_GFN,
         n_dmk=      5,
-        n_players=  9,
+        n_players=  30,
         verb=       0)
     dmkm.run_games()
+
+    # cng5/card_enc/TNS/LayerNorm/beta

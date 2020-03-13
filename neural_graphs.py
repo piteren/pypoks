@@ -349,11 +349,12 @@ def cnnCE_GFN(
         n_lay=          6,#24,     # number of CNNR layers
         width=          128,#512,    # representation width (number of filters)
         iLR=            1e-5,
+        verb=           1,
         **kwargs):
 
-    print('\nBuilding CNN+RES+CE graph...')
+    if verb>0: print('\nBuilding %s (CNN+RES+CE) graph...'%name)
 
-    with tf.variable_scope('card_net'):
+    with tf.variable_scope(name):
 
         c_PH = tf.placeholder(  # 7 cards
             name=   'c_PH',
@@ -368,10 +369,8 @@ def cnnCE_GFN(
         cenc_out = card_enc(train_flag= train_PH, c_ids=c_PH, c_embW=c_embW)
         in_cenc =   cenc_out['output']
         enc_vars =  cenc_out['enc_vars']
-        print(' ### num of enc_vars %s' % short_scin(num_var_floats(enc_vars)))
-        print(' > input cards encoded:', in_cenc)
-
-    with tf.variable_scope(name):
+        if verb>0: print(' ### num of enc_vars (%d) %s'%(len(enc_vars),short_scin(num_var_floats(enc_vars))))
+        if verb>1: print(' > input cards encoded:', in_cenc)
 
         mt_PH = tf.placeholder(  # event type
             name=           'mt_PH',
@@ -380,15 +379,15 @@ def cnnCE_GFN(
 
         mt_emb = tf.get_variable(  # event type embeddings
             name=           'mt_emb',
-            shape=          [5, mt_embW],  # 4 moves + no_move
+            shape=          [5, mt_embW],  # 4 moves + no_move(pad)
             dtype=          tf.float32,
             initializer=    my_initializer())
 
         in_mt = tf.nn.embedding_lookup(params=mt_emb, ids=mt_PH)
-        print(' > in_memb:', in_mt)
+        if verb>1: print(' > in_memb:', in_mt)
         in_mt = tf.unstack(in_mt, axis=-2)
         in_mt = tf.concat(in_mt, axis=-1)
-        print(' > mt_emb (flattened):', in_mt)
+        if verb>1: print(' > mt_emb (flattened):', in_mt)
 
         mv_PH = tf.placeholder(  # event float values
             name=           'mv_PH',
@@ -397,10 +396,10 @@ def cnnCE_GFN(
 
         in_mv = tf.unstack(mv_PH, axis=-2)
         in_mv = tf.concat(in_mv, axis=-1)
-        print(' > inV (flattened):', in_mv)
+        if verb>1: print(' > inV (flattened):', in_mv)
 
         input = tf.concat([in_cenc, in_mt, in_mv], axis=-1)
-        print(' > input (concatenated):', input)  # width = self.wC*3 + (self.wMT + self.wV)*2
+        if verb>1: print(' > input (concatenated):', input)  # width = self.wC*3 + (self.wMT + self.wV)*2
 
         # projection without activation and bias
         dense_out = lay_dense(
@@ -408,7 +407,7 @@ def cnnCE_GFN(
             units=          width,
             useBias=        False)
         input = dense_out['output']
-        print(' > projected input (projected):', input)
+        if verb>1: print(' > projected input (projected):', input)
 
         state_shape = [n_lay, 2, width]
         state_PH = tf.placeholder(
@@ -420,7 +419,7 @@ def cnnCE_GFN(
 
         # unstack layers of state_PH
         state_lays = tf.unstack(state_PH, axis=-3)
-        print(' > state_lays len %d of:' %len(state_lays), state_lays[0])
+        if verb>1: print(' > state_lays len %d of:' %len(state_lays), state_lays[0])
 
         # layer_norm
         sub_output = tf.contrib.layers.layer_norm(
@@ -432,7 +431,7 @@ def cnnCE_GFN(
         for depth in range(n_lay):
 
             input_lays.append(tf.concat([state_lays[depth],sub_output], axis=-2))
-            print(' > lay input of %d lay'%depth, input_lays[-1])
+            if verb>1: print(' > lay input of %d lay'%depth, input_lays[-1])
 
             with tf.variable_scope('cnnREncLay_%d' % depth):
                 cnn_lay = tf.layers.Conv1D(
@@ -447,21 +446,21 @@ def cnnCE_GFN(
 
             cnn_out = cnn_lay(input_lays[-1]) # cnn
             cnn_out = tf.nn.relu(cnn_out) # activation
-            print(' > cnn_out (%d lay)' % depth, cnn_out)
+            if verb>1: print(' > cnn_out (%d lay)' % depth, cnn_out)
             sub_output += cnn_out
-            print(' > sub_output (RES %d lay)' % depth, cnn_out)
+            if verb>1: print(' > sub_output (RES %d lay)' % depth, cnn_out)
             sub_output = tf.contrib.layers.layer_norm(
                 inputs=             sub_output,
                 begin_norm_axis=    -1,
                 begin_params_axis=  -1)
 
         out = sub_output
-        print(' > out:', out)
+        if verb>1: print(' > out:', out)
 
         state = tf.stack(input_lays, axis=-3)
-        print(' > state (stacked):', state)
+        if verb>1: print(' > state (stacked):', state)
         fin_state = tf.split(state, num_or_size_splits=[-1,2], axis=-2)[1] # TODO: may fin state be wider than 2 ...?
-        print(' > finState (split):', fin_state)
+        if verb>1: print(' > finState (split):', fin_state)
 
         # projection to logits
         dense_out = lay_dense(
@@ -469,12 +468,13 @@ def cnnCE_GFN(
             units=          4, #TODO: hardcoded
             useBias=        False)
         logits = dense_out['output']
-        print(' > logits:', logits)
+        if verb>1: print(' > logits:', logits)
 
         probs = tf.nn.softmax(logits)
 
         cnn_vars = tf.trainable_variables(scope=tf.get_variable_scope().name)
-        print(' ### num of cnn_vars %s' % short_scin(num_var_floats(cnn_vars)))
+        cnn_vars = [var for var in cnn_vars if var not in enc_vars]
+        if verb>0: print(' ### num of cnn_vars (%d) %s'%(len(cnn_vars),short_scin(num_var_floats(cnn_vars))))
 
         cmv_PH = tf.placeholder(  # "correct" move (label)
             name=           'cmv_PH',

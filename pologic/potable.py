@@ -294,7 +294,11 @@ class PTable(Process):
                         hahi=           hahi,
                         tbl_cash=       self.cash,
                         tbl_cash_tc=    self.cash_tc)
-                    if plMV is None: return False # breaks hand and game
+                    if plMV is None:
+                        #for pl in self.players:
+                        #    if not pl.i_que.empty():
+                         #       pl.i_que.get_nowait()
+                        return False # breaks hand and game
                     mvD['plMove'] = plMV
 
                     pl.cash -= plMV[1]

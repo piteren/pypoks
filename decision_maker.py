@@ -30,7 +30,6 @@ class DMK:
             n_players=      100,    # number of managed players
             n_moves=        4,      # number of (all) moves supported by DM, has to match table/player
             rand_moveF=     0.2,    # how often move will be sampled from random
-            batch_factor=   0.3,    # sets batch size (n_players*batch_factor), for safety it should be lower than 1/(n_players_per_table)
             stats_iv=       1000,   # stats interval
             run_TB=         False):
 
@@ -38,13 +37,14 @@ class DMK:
         self.n_players = n_players
         self.n_moves = n_moves
         self.rand_move = rand_moveF
-        self.batch_size = int(n_players*batch_factor)
 
         # variables below store data for FWD and BWD batches and state evaluation, updated (by encState, runUpdate...)
-        self.lDMR =         {ix: [] for ix in range(self.n_players)} # dict of dicts {'decState': 'move': 'reward':}
-        self.preflop =      {ix: True for ix in range(self.n_players)} # preflop indicator
-        self.plsHpos =      {ix: [] for ix in range(self.n_players)} # positions @table of players from self.pls
-        self.psbl_moves =   {ix: [] for ix in range(self.n_players)} # possible moves save
+        #TODO: do we need to init like that ???
+        self.DMR =              {ix: [] for ix in range(self.n_players)} # dict of dicts {'decState': 'move': 'reward':}
+        self.preflop =          {ix: True for ix in range(self.n_players)} # preflop indicator
+        self.hand_pos =         {ix: [] for ix in range(self.n_players)} # positions @table of players from self.pls
+        self.enc_states =       {} # encoded states save
+        self.possible_moves =   {} # possible moves save
         self.hand_ix = 0 # number of hands
 
         self.stats = {} # stats of DMK (for all players)
@@ -113,10 +113,10 @@ class DMK:
                         self.stored_hand = table_state_changes
                         self.store_hand_pix = pIX
 
-                newPos = [0]*len(state[key])
+                new_pos = [0]*len(state[key])
                 for ix in range(len(state[key])):
-                    newPos[state[key][ix][0]] = ix
-                self.plsHpos[pIX] = newPos
+                    new_pos[state[key][ix][0]] = ix
+                self.hand_pos[pIX] = new_pos
                 self.preflop[pIX] = True
 
             # enter postflop
@@ -139,8 +139,13 @@ class DMK:
                     if el['pIX'] == 0: my_reward = el['won']
 
                 # update reward backward
-                for ix in reversed(range(len(self.lDMR[pIX]))):
-                    if self.lDMR[pIX][ix]['reward'] is None: self.lDMR[pIX][ix]['reward'] = my_reward  # update reward
+                n_div = 1
+                for ix in reversed(range(len(self.DMR[pIX]))):
+                    if self.DMR[pIX][ix]['reward'] is None: n_div += 1
+                    else: break
+                scaled_reward = my_reward / n_div
+                for ix in reversed(range(len(self.DMR[pIX]))):
+                    if self.DMR[pIX][ix]['reward'] is None: self.DMR[pIX][ix]['reward'] = scaled_reward
                     else: break
 
                 for ti in [0,1]:
@@ -148,11 +153,11 @@ class DMK:
                     self.stats['$'][ti] += my_reward
 
                     # update self.sts with self.cHSdata
-                    if self.chsd[pIX]['VPIP']:    self.stats['nVPIP'][ti] += 1
-                    if self.chsd[pIX]['PFR']:     self.stats['nPFR'][ti] += 1
-                    if self.chsd[pIX]['HF']:      self.stats['nHF'][ti] += 1
-                    self.stats['nPM'][ti] += self.chsd[pIX]['nPM']
-                    self.stats['nAGG'][ti] += self.chsd[pIX]['nAGG']
+                    if self.chsd[pIX]['VPIP']:  self.stats['nVPIP'][ti] += 1
+                    if self.chsd[pIX]['PFR']:   self.stats['nPFR'][ti] += 1
+                    if self.chsd[pIX]['HF']:    self.stats['nHF'][ti] += 1
+                    self.stats['nPM'][ti] +=    self.chsd[pIX]['nPM']
+                    self.stats['nAGG'][ti] +=   self.chsd[pIX]['nAGG']
                 self._reset_chsd(pIX)
 
                 # stats
@@ -175,9 +180,7 @@ class DMK:
                         self.summ_writer.add_summary(agg, self.stats['nH'][0])
                         self.summ_writer.add_summary(ph, self.stats['nH'][0])
 
-                    # reset interval values
-                    for key in self.stats.keys():
-                        self.stats[key][1] = 0
+                    for key in self.stats.keys(): self.stats[key][1] = 0 # reset interval values
 
                 self.run_update()
 
@@ -186,18 +189,16 @@ class DMK:
         return dec_state
 
     # returns probabilities of for move in form of [(pIX,probs)...] or None
-    def _calc_probs(
-            self,
-            pIX,
-            decState):
+    def _calc_probs(self):
 
         """
         here goes custom implementation with:
          - more than random
          - multi player calculation >> probs will be calculated in batches
         """
-        # equal probs
-        return [(pIX, [1 / self.n_moves] * self.n_moves)]
+        probsL = [(pIX, [1 / self.n_moves] * self.n_moves) for pIX in self.enc_states] # equal probs (base)
+        # self.dec_states and self.possible_moves will be reset while returning decisions (@get_decisions)
+        return probsL if probsL else None
 
     # updates current hand data for stats based on move performing
     def _upd_move_stats(
@@ -207,61 +208,61 @@ class DMK:
 
         if move == 0: self.chsd[pIX]['HF'] = True
         if self.preflop[pIX]:
-            if move == 1 and self.plsHpos[pIX][0] != 1 or move > 1: self.chsd[pIX]['VPIP'] = True
+            if move == 1 and self.hand_pos[pIX][0] != 1 or move > 1: self.chsd[pIX]['VPIP'] = True
             if move > 1: self.chsd[pIX]['PFR'] = True
         else:
             self.chsd[pIX]['nPM'] += 1
             if move > 1: self.chsd[pIX]['nAGG'] += 1
 
-    # makes decisions based on stateChanges - selects move from possibleMoves using calculated probabilities
+    # makes decisions based on state_changes - selects move from possible_moves using calculated probabilities
     # returns decisions in form of [(pIX,move)...] or None
-    # TODO: prep mDec in tournament mode (no sampling from distribution, but max)
-    def _make_dec(
-            self,
-            pIX :int,
-            dec_state,
-            possible_moves :list):
+    def get_decisions(self):
 
-        pProbsL = self._calc_probs(pIX, dec_state)
-        self.psbl_moves[pIX] = possible_moves # save possible moves
+        p_probsL = self._calc_probs()
 
-        # players probabilities list will be returned from time to time, same for decisions
+        # players probabilities list will be returned from time to time (return decisions then)
         decs = None
-        if pProbsL is not None:
+        if p_probsL is not None:
             decs = []
-            for pProbs in pProbsL:
-                pIX, probs = pProbs
+            for p_probs in p_probsL:
+                pIX, probs = p_probs
                 if random.random() < self.rand_move: probs = [1 / self.n_moves] * self.n_moves
 
-                probMask = [int(pM) for pM in self.psbl_moves[pIX]]
-                probs = probs * np.asarray(probMask)
-                if np.sum(probs) > 0: probs = probs / np.sum(probs)
+                if self.possible_moves[pIX]:
+                    prob_mask = [int(pM) for pM in self.possible_moves[pIX]]    # cast bool to int
+                    probs = probs * np.asarray(prob_mask)                       # mask
+                    if np.sum(probs) > 0: probs /= np.sum(probs)                # normalize
                 else: probs = [1 / self.n_moves] * self.n_moves
 
-                move = np.random.choice(np.arange(self.n_moves), p=probs) # sample from probs
+                move = np.random.choice(np.arange(self.n_moves), p=probs) # sample from probs # TODO: for tournament should take max
                 decs.append((pIX, move))
 
                 # save state and move (for updates etc.)
-                self.lDMR[pIX].append({
-                    'decState': dec_state,
+                self.DMR[pIX].append({
+                    'decState': self.enc_states[pIX],
                     'move':     move,
                     'reward':   None})
 
                 self._upd_move_stats(pIX, move)  # stats
 
+        # reset here
+        self.enc_states = {}
+        self.possible_moves = {}
+
         return decs
 
-    # takes player data and wraps stateEncoding+makingDecision
-    def proc_player_data(
+    # returns number of waiting decisions @DMK
+    def get_waiting_num(self): return len(self.enc_states)
+
+    # takes state from player, encodes and saves
+    def take_player_state(
             self,
-            p_addr,
+            pIX,
             state_changes,
             possible_moves):
 
-        dIX, pIX = p_addr
-        decState = self._enc_state(pIX, state_changes)  # encode table state with DMK encoder
-        decs = self._make_dec(pIX, decState, possible_moves) if possible_moves is not None else None
-        return decs
+        self.enc_states[pIX] = self._enc_state(pIX, state_changes)  # save encode table state
+        self.possible_moves[pIX] = possible_moves                   # save possible moves
 
     # runs update of DMK based on saved: dec_states, moves and rewards
     def run_update(self): pass
@@ -292,8 +293,7 @@ class BaNeDMK(DMK):
         zero_state = self.mdl.session.run(self.mdl['single_zero_state'])
         self.last_fwd_state =   {n: zero_state for n in range(self.n_players)} # net state after last fwd
         self.last_upd_state =   {n: zero_state for n in range(self.n_players)} # net state after last update
-        self.my_cards =         {n: None        for n in range(self.n_players)} # player+table cards
-        self.dec_states =       {}
+        self.my_cards =         {n: None       for n in range(self.n_players)} # player+table cards
 
         self.n_mov_upd = n_mov_upd
 
@@ -305,13 +305,13 @@ class BaNeDMK(DMK):
 
         super()._enc_state(pIX, table_state_changes)
 
-        inMT = []  # list of moves (2)
-        inV = []  # list of vectors (2)
+        mt = []  # list of moves (4)
+        mv = []  # list of vectors (4)
         for state in table_state_changes:
             key = list(state.keys())[0]
 
             if key == 'playersPC':
-                myCards = state[key][self.plsHpos[pIX][0]][1]
+                myCards = state[key][self.hand_pos[pIX][0]][1]
                 self.my_cards[pIX] = [PDeck.cti(card) for card in myCards]
 
             if key == 'newTableCards':
@@ -322,12 +322,12 @@ class BaNeDMK(DMK):
                 who = state[key]['pIX'] # who moved
                 if who: # my index is 0, so do not include my moves
 
-                    inMT.append(int(state[key]['plMove'][0]))  # move type
+                    mt.append(int(state[key]['plMove'][0]))  # move type
 
                     vec = np.zeros(shape=self.mdl['mvW'])
 
                     vec[0] = who
-                    vec[1] = self.plsHpos[pIX][who] # what position
+                    vec[1] = self.hand_pos[pIX][who] # what position
 
                     vec[2] = state[key]['tBCash'] / 1500
                     vec[3] = state[key]['pBCash'] / 500
@@ -339,60 +339,53 @@ class BaNeDMK(DMK):
                     vec[9] = state[key]['pACHandCash'] / 500
                     vec[10] = state[key]['pACRiverCash'] / 500
 
-                    inV.append(vec)
+                    mv.append(vec)
 
         inC = [] + self.my_cards[pIX]
         while len(inC) < 7: inC.append(52) # pad cards
-        while len(inMT) < 2*(len(self.plsHpos[pIX])-1): inMT.append(4) # pad moves
-        while len(inV) < 2*(len(self.plsHpos[pIX])-1): inV.append(np.zeros(shape=self.mdl['mvW'])) # pad vectors
+        # TODO: what "the padding" here:
+        while len(mt) < 2*(len(self.hand_pos[pIX])-1): mt.append(4) # pad moves
+        while len(mv) < 2*(len(self.hand_pos[pIX])-1): mv.append(np.zeros(shape=self.mdl['mvW'])) # pad vectors
 
-        nn_input = [inC], [inMT], [inV] # seq of values (seq because of shape)
+        nn_input = [inC], [mt], [mv] # seq of values (seq because of shape)
         return nn_input
 
     # calculates probs with NN for batches
-    def _calc_probs(
-            self,
-            pIX,        # player index
-            dec_state):
+    def _calc_probs(self):
 
-        self.dec_states[pIX] = dec_state
+        probsL = []
+        pIXL = sorted(list(self.enc_states.keys())) # sorted list of pIX that will be processed
+        if pIXL:
 
-        probsL = None
-        if len(self.dec_states) == self.batch_size:
-
-            pIXL = sorted(list(self.dec_states.keys())) # sorted list of pIX that will be processed
-
-            inCbatch = []
-            inMTbatch = []
-            inVbatch = []
-            statesBatch = []
+            c_batch = []
+            mt_batch = []
+            mv_batch = []
+            state_batch = []
             for pIX in pIXL:
-                inCseq, inMTseq, inVseq = self.dec_states[pIX]
-                inCbatch.append(inCseq)
-                inMTbatch.append(inMTseq)
-                inVbatch.append(inVseq)
-                statesBatch.append(self.last_fwd_state[pIX])
+                c_seq, mt_seq, mv_seq = self.enc_states[pIX]
+                print('@@@ mt_seq',mt_seq,len(mv_seq[0]))
+                c_batch.append(c_seq)
+                mt_batch.append(mt_seq)
+                mv_batch.append(mv_seq)
+                state_batch.append(self.last_fwd_state[pIX])
 
             feed = {
-                self.mdl['c_PH']:       inCbatch,
-                self.mdl['mt_PH']:      inMTbatch,
-                self.mdl['mv_PH']:      inVbatch,
-                self.mdl['state_PH']:   statesBatch}
+                self.mdl['c_PH']:       c_batch,
+                self.mdl['mt_PH']:      mt_batch,
+                self.mdl['mv_PH']:      mv_batch,
+                self.mdl['state_PH']:   state_batch}
 
             fetches = [self.mdl['probs'], self.mdl['fin_state']]
             probs, fwd_states = self.mdl.session.run(fetches, feed_dict=feed)
 
             probs = np.reshape(probs, newshape=(probs.shape[0],probs.shape[-1])) # TODO: maybe any smarter way
 
-            probsL = []
             for ix in range(fwd_states.shape[0]):
                 pIX = pIXL[ix]
                 probsL.append((pIX,probs[ix]))
                 self.last_fwd_state[pIX] = fwd_states[ix]
 
-            self.dec_states = {}
-
-        return probsL
+        return probsL if probsL else None
 
     # saves checkpoints
     def save(self): self.mdl.saver.save()
@@ -400,7 +393,7 @@ class BaNeDMK(DMK):
     # runs update of net (only when condition met)
     def run_update(self):
 
-        n_mov = [len(self.lDMR[ix]) for ix in range(self.n_players)] # number of saved moves per player (not all rewarded)
+        n_mov = [len(self.DMR[ix]) for ix in range(self.n_players)] # number of saved moves per player (not all rewarded)
         n_movAV = int(sum(n_mov)/len(n_mov)) # avg
 
         # does update
@@ -409,10 +402,12 @@ class BaNeDMK(DMK):
             #print('min med max nM', min(nM), avgNM, max(nM))
             n_rew = [0]* self.n_players # factual num of rewarded moves
             for pix in range(self.n_players):
-                for mix in reversed(range(len(self.lDMR[pix]))):
-                    if self.lDMR[pix][mix]['reward'] is not None:
+                for mix in reversed(range(len(self.DMR[pix]))):
+                    if self.DMR[pix][mix]['reward'] is not None:
                         n_rew[pix] = mix
                         break
+            print('@@@ n_mov',n_mov)
+            print('@@@ n_rew',n_rew)
             avgn_rew = int(sum(n_rew)/len(n_rew))
             if avgn_rew: # exclude 0 case
                 #print('min med max nR', min(nR), avgNR, max(nR))
@@ -433,7 +428,7 @@ class BaNeDMK(DMK):
                     moveSeq = []
                     rewSeq = []
                     for n_mov in range(avgn_rew):
-                        mDict = self.lDMR[pix][n_mov]
+                        mDict = self.DMR[pix][n_mov]
                         decState = mDict['decState']
                         inCseq += decState[0]
                         inMTseq += decState[1]
@@ -468,7 +463,7 @@ class BaNeDMK(DMK):
                 for ix in range(len(uPIX)):
                     pIX = uPIX[ix]
                     self.last_upd_state[pIX] = upd_states[ix] # save states
-                    self.lDMR[pIX] = self.lDMR[pIX][avgn_rew:] # trim
+                    self.DMR[pIX] = self.DMR[pIX][avgn_rew:] # trim
 
                 #print('%s :%4d: loss %.3f gN %.3f' % (self.name, len(uPIX)*avgNR, loss, gN))
                 if self.summ_writer:

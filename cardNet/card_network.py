@@ -168,7 +168,7 @@ def card_net(
             dtype=          tf.int32,
             shape=          [None, 7])  # [bsz,7cards]
 
-        won_PH = tf.placeholder( # wonPH class (lables of winner 0,1-A,B wins,2-draw)
+        won_PH = tf.placeholder( # wonPH class (labels of winner 0,1-A,B wins,2-draw)
             name=           'won_PH',
             dtype=          tf.int32,
             shape=          [None])  # [bsz]
