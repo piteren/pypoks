@@ -47,7 +47,7 @@ class DMKManager:
             n_players=  self.n_players) for dmk_name in dmk_names}
         self.tables = []
         self.pl_out_que = None  # output que (one for all players, here players put states for DMK)
-        self.pl_in_queD = {}    # input ques (one per player, here  dMK puts addressed decisions for players)
+        self.pl_in_queD = {}    # input ques (one per player, here dmk puts addressed decisions for players)
         self._build_game_env()
 
     # returns list with new names
@@ -56,7 +56,9 @@ class DMKManager:
         self.dmkIX += n
         return dmk_names
 
-    def _init_folders(self, nameL):
+    # inits folders fo first players
+    @staticmethod
+    def _init_folders(nameL):
 
         s_ckpt_FD = '_models/_CKPTs/'
         ckptL = [dI for dI in os.listdir(s_ckpt_FD) if os.path.isdir(os.path.join(s_ckpt_FD,dI))]
@@ -79,11 +81,18 @@ class DMKManager:
             tpl_count=  3): # number of players per table (table size)
 
         # close everything
-        for pa in self.pl_in_queD: self.pl_in_queD[pa].put('game_end')
-        print('old game ended')
-        for table in tqdm(self.tables): table.join()
-        print('tables joined')
-        # TODO: Do queues need to close?
+        if self.tables:
+            for pa in self.pl_in_queD: self.pl_in_queD[pa].put('game_end')
+            print('old game ended')
+
+            n_tended = 0
+            while n_tended < len(self.tables):
+                msg = self.pl_out_que.get()
+                if type(msg) is str and msg[:3] == 'fin':
+                    n_tended += 1
+
+            for table in tqdm(self.tables): table.join()
+            print('tables joined')
 
         # prepare player addresses (tuples)
         pl_addrL = []
@@ -114,37 +123,35 @@ class DMKManager:
     # runs game loop (manages ques in loop)
     def run_games(
             self,
-            n_mprn=     5,      # n minutes to print hand
-            n_mgxc=     21):     # n minutes to apply genetic crossing
+            n_mprn=     2,      # n minutes to print hand
+            n_mgxc=     30):     # n minutes to apply genetic crossing
 
         print('DMKMan running games...')
         gxcIX = 0
 
         while True:
             print(' > starting %d tables (GXC %d)...'%(len(self.tables),gxcIX))
-            for tbl in self.tables: tbl.start() # start table
+            for tbl in tqdm(self.tables): tbl.start() # start table
             print(' >> tables started!')
 
+            self.n_waiting_tbl = 0
             p_time = time.time()
             g_time = p_time
-
-            # one GXC loop
             while True:
                 p_addr, state_changes, possible_moves = self.pl_out_que.get() # wait for player data
-                print('@@@ possible_moves',possible_moves)
                 dk, pIX = p_addr # resolve address
-                self.n_waiting_tbl += 1
-                self.dmks[dk].take_player_state(pIX, state_changes, possible_moves) # TODO: when possible_moves is None ???
+                self.dmks[dk].take_player_state(pIX, state_changes, possible_moves)
+                if possible_moves: self.n_waiting_tbl += 1
 
                 if self.n_waiting_tbl >= len(self.tables)*self.dec_trigger:
                     dmk_updating = sorted(list(self.dmks.values()), key= lambda x: x.get_waiting_num(), reverse=True)[0] # take dmk with the highest number of waiting decisions
                     self.n_waiting_tbl -= dmk_updating.get_waiting_num()
                     dec = dmk_updating.get_decisions()
 
-                    # split dec among ques
+                    # split dec among ques of updating dmk
                     for d in dec:
                         pIX, move = d
-                        self.pl_in_queD[(dk, pIX)].put(move)
+                        self.pl_in_queD[(dmk_updating.name, pIX)].put(move)
 
                 # take random dmk and print one hand
                 if n_mprn and (time.time() - p_time) / 60 > n_mprn:
@@ -152,16 +159,13 @@ class DMKManager:
                     self.dmks[dk].store_next_hand = True
                     p_time = time.time()
 
-                # GXC
-                if n_mgxc and (time.time()-g_time)/60 > n_mgxc: break
+                if n_mgxc and (time.time()-g_time)/60 > n_mgxc: break # GXC loop break
 
             self._gxc()
             gxcIX += 1
 
     # genetic crossing
-    def _gxc(
-            self,
-            xcF=    0.5):
+    def _gxc(self, xcF=0.5):
 
         print('GXC (mixing)...')
 
@@ -170,12 +174,14 @@ class DMKManager:
         for dmk in dmk_xc: print('%10s %d'%(dmk.name,dmk.stats['$'][0]))
         dmk_xc = dmk_xc[:int(len(dmk_xc)*xcF)]
 
+        # save best and close all
         for dmk in dmk_xc:
             dmk.save()
             dmk.stats['$'][0] = 0
+        for k in self.dmks: self.dmks[k].close()
 
         xc_dmk_names = [dmk.name for dmk in dmk_xc]
-
+        print(xc_dmk_names)
         mfd = '_models/'+xc_dmk_names[0]
         ckptL = [dI for dI in os.listdir(mfd) if os.path.isdir(os.path.join(mfd,dI))]
         ckptL.remove('opt_vars')
@@ -185,9 +191,8 @@ class DMKManager:
 
         # merge checkpoints
         mrg_dna = {name: [[dmk.name for dmk in random.sample(dmk_xc,2)],random.random()] for name in new_dmk_names}
-        print(' % mrg_dna:',mrg_dna)
-        for key in sorted(list(mrg_dna.keys())):
-            print('%10s %s'%(key,mrg_dna[key]))
+        print(' % mrg_dna:')
+        for key in sorted(list(mrg_dna.keys())): print('%10s %s'%(key,mrg_dna[key]))
         for name in mrg_dna:
             dmka_name = mrg_dna[name][0][0]
             dmkb_name = mrg_dna[name][0][1]
@@ -203,6 +208,7 @@ class DMKManager:
                     replace_scope=  name,
                     mrgF=           rat)
 
+        # create new dmks
         new_dmks = [BaNeDMK(
             fwd_func=   self.fwd_func,
             mdict=      {'name':dmk_name},
@@ -212,16 +218,15 @@ class DMKManager:
         self._build_game_env()
 
 
-
 if __name__ == "__main__":
 
     nestarter('_log', custom_name='dmk_games')
 
     dmkm = DMKManager(
         fwd_func=   cnnCE_GFN,
-        n_dmk=      5,
-        n_players=  30,
+        n_dmk=      7,
+        n_players=  300,
         verb=       0)
-    dmkm.run_games()
-
-    # cng5/card_enc/TNS/LayerNorm/beta
+    dmkm.run_games(
+        n_mprn=     5,
+        n_mgxc=     60)

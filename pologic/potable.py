@@ -65,7 +65,7 @@ class PTable(Process):
                 o_que :Queue):  # player output que
 
             self.addr = addr
-            self.name = 'p%s_%s' % (addr[0],addr[1])  # player takes name after DMK
+            self.name = 'p_%s_%s' % (addr[0],addr[1])  # player takes name after DMK
             self.i_que = i_que
             self.o_que = o_que
 
@@ -131,11 +131,14 @@ class PTable(Process):
             # below move (decision) is made
             self.o_que.put([self.addr, state_changes, possible_moves]) # put current state
             selected_move = self.i_que.get() # get move from DMK
-            if selected_move == 'game_end': return None # breaks game
+            # game end case
+            if selected_move == 'game_end':
+                self.i_que.put('game_end') # put it back (to take it later from all table players...)
+                return None # breaks game
 
             return selected_move, moves_cash[selected_move]
 
-        # sends DMK table update (without asking for move - possibleMoves==None)
+        # sends DMK table update (without asking for move <- possible_moves is None)
         def upd_state(
                 self,
                 hahi):
@@ -277,10 +280,10 @@ class PTable(Process):
                 player_folded = False
                 player_raised = False
                 pl = h_pls[cm_pIX]
-                if pl.cash: # player has cash (not allined yet)
+                if pl.cash: # player has cash (not all-in-ed yet)
 
                     # before move values
-                    mvD = {
+                    mv_d = {
                         'tState':       self.state,
                         'tBCash':       self.cash,
                         'pName':        pl.name,
@@ -290,42 +293,42 @@ class PTable(Process):
                         'bCashToCall':  self.cash_tc}
 
                     # player makes move
-                    plMV = h_pls[cm_pIX].make_move(
+                    pl_mv = h_pls[cm_pIX].make_move(
                         hahi=           hahi,
                         tbl_cash=       self.cash,
                         tbl_cash_tc=    self.cash_tc)
-                    if plMV is None:
-                        #for pl in self.players:
-                        #    if not pl.i_que.empty():
-                         #       pl.i_que.get_nowait()
-                        return False # breaks hand and game
-                    mvD['plMove'] = plMV
+                    if pl_mv is None:
+                        for pl in self.players:
+                            pl.i_que.get()
+                        self.players[0].o_que.put('finished %s'%self.name)
+                        return False # breaks hand (and game)
+                    mv_d['plMove'] = pl_mv
 
-                    pl.cash -= plMV[1]
-                    pl.ch_cash += plMV[1]
-                    pl.cr_cash += plMV[1]
-                    self.cash += plMV[1]
-                    self.cash_cr += plMV[1]
+                    pl.cash -= pl_mv[1]
+                    pl.ch_cash += pl_mv[1]
+                    pl.cr_cash += pl_mv[1]
+                    self.cash += pl_mv[1]
+                    self.cash_cr += pl_mv[1]
 
                     # cash after move
-                    mvD['tACash'] =        self.cash
-                    mvD['pACash'] =        pl.cash
-                    mvD['pACHandCash'] =   pl.ch_cash
-                    mvD['pACRiverCash'] =  pl.cr_cash
+                    mv_d['tACash'] =        self.cash
+                    mv_d['pACash'] =        pl.cash
+                    mv_d['pACHandCash'] =   pl.ch_cash
+                    mv_d['pACRiverCash'] =  pl.cr_cash
 
-                    if plMV[0] > 1:
+                    if pl_mv[0] > 1:
                         player_raised = True
                         self.cash_tc = h_pls[cm_pIX].cr_cash
                         clc_pIX = cm_pIX - 1 if cm_pIX > 0 else len(h_pls) - 1 # player before in loop
-                    mvD['aCashToCall'] = self.cash_tc
+                    mv_d['aCashToCall'] = self.cash_tc
 
-                    if self.pmsg: print(' ### P(%s) had %4d$, moved %s with %4d$ (pCR:%4d$), now: tableCash %4d$ (tCR:%4d$) toCall %4d$' % (pl.name, mvD['pBCash'], TBL_MOV[plMV[0]], plMV[1], pl.cr_cash, self.cash, self.cash_cr, self.cash_tc))
+                    if self.pmsg: print(' ### P(%s) had %4d$, moved %s with %4d$ (pCR:%4d$), now: tableCash %4d$ (tCR:%4d$) toCall %4d$' % (pl.name, mv_d['pBCash'], TBL_MOV[pl_mv[0]], pl_mv[1], pl.cr_cash, self.cash, self.cash_cr, self.cash_tc))
 
-                    if plMV[0] == 0 and self.cash_tc > pl.cr_cash:
+                    if pl_mv[0] == 0 and self.cash_tc > pl.cr_cash:
                         player_folded = True
                         del(h_pls[cm_pIX])
 
-                    hahi.append({'moveData': mvD})
+                    hahi.append({'moveData': mv_d})
 
                 if clc_pIX == cm_pIX and not player_raised: break # player closing loop made decision (without raise)
 

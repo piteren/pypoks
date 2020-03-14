@@ -346,8 +346,8 @@ def cnnCE_GFN(
         c_embW :int=    24,     # card emb width
         mt_embW :int=   12,     # move type emb width
         mvW :int=       11,     # values vector width, holds player move data(type, pos, cash)
-        n_lay=          6,#24,     # number of CNNR layers
-        width=          128,#512,    # representation width (number of filters)
+        n_lay=          24,     # number of CNNR layers
+        width=          512,    # representation width (number of filters)
         iLR=            1e-5,
         verb=           1,
         **kwargs):
@@ -369,7 +369,7 @@ def cnnCE_GFN(
         cenc_out = card_enc(train_flag= train_PH, c_ids=c_PH, c_embW=c_embW)
         in_cenc =   cenc_out['output']
         enc_vars =  cenc_out['enc_vars']
-        if verb>0: print(' ### num of enc_vars (%d) %s'%(len(enc_vars),short_scin(num_var_floats(enc_vars))))
+        if verb>1: print(' ### num of enc_vars (%d) %s'%(len(enc_vars),short_scin(num_var_floats(enc_vars))))
         if verb>1: print(' > input cards encoded:', in_cenc)
 
         mt_PH = tf.placeholder(  # event type
@@ -474,7 +474,7 @@ def cnnCE_GFN(
 
         cnn_vars = tf.trainable_variables(scope=tf.get_variable_scope().name)
         cnn_vars = [var for var in cnn_vars if var not in enc_vars]
-        if verb>0: print(' ### num of cnn_vars (%d) %s'%(len(cnn_vars),short_scin(num_var_floats(cnn_vars))))
+        if verb>1: print(' ### num of cnn_vars (%d) %s'%(len(cnn_vars),short_scin(num_var_floats(cnn_vars))))
 
         cmv_PH = tf.placeholder(  # "correct" move (label)
             name=           'cmv_PH',

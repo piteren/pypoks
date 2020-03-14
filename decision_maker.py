@@ -261,8 +261,10 @@ class DMK:
             state_changes,
             possible_moves):
 
-        self.enc_states[pIX] = self._enc_state(pIX, state_changes)  # save encode table state
-        self.possible_moves[pIX] = possible_moves                   # save possible moves
+        es = self._enc_state(pIX, state_changes)  # save encode table state
+        if possible_moves:
+            self.enc_states[pIX] = es                   # save encode table state
+            self.possible_moves[pIX] = possible_moves   # save possible moves
 
     # runs update of DMK based on saved: dec_states, moves and rewards
     def run_update(self): pass
@@ -276,7 +278,7 @@ class BaNeDMK(DMK):
             mdict :dict,
             n_players=  100,
             rand_moveF= 0.01,
-            n_mov_upd=  1000):  # number of moves between updates (bakprop)
+            n_mov_upd=  1000):  # number of moves between updates (backprop)
 
         super().__init__(
             name=       mdict['name'],
@@ -363,7 +365,6 @@ class BaNeDMK(DMK):
             state_batch = []
             for pIX in pIXL:
                 c_seq, mt_seq, mv_seq = self.enc_states[pIX]
-                print('@@@ mt_seq',mt_seq,len(mv_seq[0]))
                 c_batch.append(c_seq)
                 mt_batch.append(mt_seq)
                 mv_batch.append(mv_seq)
@@ -406,10 +407,11 @@ class BaNeDMK(DMK):
                     if self.DMR[pix][mix]['reward'] is not None:
                         n_rew[pix] = mix
                         break
-            print('@@@ n_mov',n_mov)
-            print('@@@ n_rew',n_rew)
+            #print('@@@ n_mov',n_mov)
+            #print('@@@ n_rew',n_rew)
             avgn_rew = int(sum(n_rew)/len(n_rew))
             if avgn_rew: # exclude 0 case
+                print('@@@ %s updating'%self.name)
                 #print('min med max nR', min(nR), avgNR, max(nR))
                 uPIX = [ix for ix in range(self.n_players) if n_rew[ix] >= avgn_rew]
                 #print('len(uPIX)', len(uPIX))
@@ -471,3 +473,6 @@ class BaNeDMK(DMK):
                     gn_sum = tf.Summary(value=[tf.Summary.Value(tag='gph/1.gn', simple_value=gn)])
                     self.summ_writer.add_summary(loss_sum, self.stats['nH'][0])
                     self.summ_writer.add_summary(gn_sum, self.stats['nH'][0])
+
+    # closes as much as possible
+    def close(self): self.mdl.session.close()
