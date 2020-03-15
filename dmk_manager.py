@@ -52,7 +52,7 @@ class DMKManager:
 
     # returns list with new names
     def _get_new_names(self, n :int):
-        dmk_names = ['cng%d' % dIX for dIX in range(self.dmkIX, self.dmkIX + n)]
+        dmk_names = ['cni%d' % dIX for dIX in range(self.dmkIX, self.dmkIX + n)]
         self.dmkIX += n
         return dmk_names
 
@@ -220,13 +220,13 @@ class DMKManager:
 
 if __name__ == "__main__":
 
-    nestarter('_log', custom_name='dmk_games')
+    nestarter('_log', custom_name='dmk_games', devices=0)
 
     dmkm = DMKManager(
         fwd_func=   cnnCE_GFN,
-        n_dmk=      7,
-        n_players=  300,
+        n_dmk=      1,
+        n_players=  2100,
         verb=       0)
     dmkm.run_games(
         n_mprn=     5,
-        n_mgxc=     60)
+        n_mgxc=     600)
