@@ -348,8 +348,8 @@ def cnnCE_GFN(
         mvW :int=       11,     # values vector width, holds player move data(type, pos, cash)
         n_lay=          24,     # number of CNNR layers
         width=          512,    # representation width (number of filters)
-        iLR=            1e-4,#1e-5,
-        opt_class=      tf.train.AdagradOptimizer,#tf.train.GradientDescentOptimizer,
+        iLR=            1e-3,#1e-5,
+        opt_class=      tf.train.GradientDescentOptimizer,
         verb=           1,
         **kwargs):
 
