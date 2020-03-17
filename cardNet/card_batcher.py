@@ -68,8 +68,8 @@ def prep2X7Batch(
         got_allC = False    # got all (proper) cards
         while not got_allC:
 
-            cA = deck.get7ofRank(desired_rank) if r_balance else [deck.getCard() for _ in range(7)] # 7 cards for A
-            cB = [deck.getCard() for _ in range(2)] + cA[2:] # 2+5 cards for B
+            cA = deck.get7of_rank(desired_rank) if r_balance else [deck.get_card() for _ in range(7)] # 7 cards for A
+            cB = [deck.get_card() for _ in range(2)] + cA[2:] # 2+5 cards for B
 
             # randomly swap hands of A and B (to avoid win bias)
             if random.random() > 0.5:

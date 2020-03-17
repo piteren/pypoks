@@ -16,7 +16,7 @@ from tqdm import tqdm
 from putils.neuralmess.dev_manager import nestarter
 from putils.neuralmess.base_elements import mrg_ckpts
 
-from pologic.potable import PTable
+from pologic.potable import QuedPTable
 from decision_maker import BaNeDMK
 from neural_graphs import lstm_GFN, cnn_GFN, cnnCE_GFN
 
@@ -112,7 +112,7 @@ class DMKManager:
             for pix in range(tpl_count):
                 pa = pl_addrL[tix*tpl_count+pix]
                 table_in_queD[pa] = self.pl_in_queD[pa]
-            table = PTable(
+            table = QuedPTable(
                 pi_ques=    table_in_queD,
                 po_que=     self.pl_out_que,
                 name=       'tbl%d'%tix,
