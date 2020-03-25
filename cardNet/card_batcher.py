@@ -29,7 +29,7 @@ import random
 from tqdm import tqdm
 
 import putils.lipytools.little_methods as lM
-from pologic.podeck import PDeck, getASC
+from pologic.podeck import PDeck, get_ASC
 
 
 # prepares batch of 2x 7cards with regression, MP ready
@@ -160,7 +160,7 @@ def get_test_batch(
         test_batch = prep2X7Batch(
             bs=         size,
             n_monte=    mcs,
-            asc=        getASC() if with_ASC else None,
+            asc=        get_ASC() if with_ASC else None,
             verb=       1)
         lM.w_pickle(test_batch, fn)
     c_tuples = []

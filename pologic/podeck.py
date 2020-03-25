@@ -213,8 +213,7 @@ class PDeck:
         if type(card) is tuple: return CRD_FIG[card[0]] + CRD_COL[card[1]]
         return card # string case
 
-    # returns rank of 5 from 7 given cards
-    # simple implementation evaluates about:  12,3K*7cards/sec   or  66K*5cards/sec
+    # returns rank of 5 from 7 given cards (evaluates about 68K * 7cards/sec)
     @staticmethod
     def cards_rank(cards: list):
 
@@ -361,104 +360,132 @@ class PDeck:
 
         return top_rank, rank_value, five_cards, string
 
-# returns a dictionary with rank values of every (tuple of sorted ints) 5 cards
-def getASC(useQMP=True):
+# a dictionary with rank values of every (tuple of sorted ints (7 cards))
+class ASC(dict):
 
-    print('\nReading asc dict cache...')
-    pickleDictFN = '_cache/asc.dict'
-    pickle = lM.r_pickle(pickleDictFN)
-    if pickle:
-        asCards = pickle
-        print(' > using cached asc dict')
-    else:
-        print(' > cache not found, building all seven cards rank dict...')
-        asCards = {}
-        combList = list(itertools.combinations([x for x in range(52)], 7))
+    def __init__(
+            self,
+            file_FP :str,
+            use_QMP=    True):
 
-        if useQMP:
-            def iPF(task):
-                tv = []
-                for t in task: tv.append((t,PDeck.cards_rank(t)[1]))
-                return tv
+        super(ASC, self).__init__()
 
-            qmp = QueMultiProcessor( # QMP
-                iProcFunction=  iPF,
-                reloadEvery=    1000,
-                userTasks=      True,
-                verb=        1)
+        print('\nReading ASC dict cache...')
+        as_cards = lM.r_pickle(file_FP)
+        if as_cards: print(' > using cached ASC dict')
+        else:
+            print(' > cache not found, building all seven cards rank dict...')
+            as_cards = {}
+            comb_list = list(itertools.combinations([x for x in range(52)], 7))
 
-            np = 0
-            tcmb = []
-            for cmb in combList:
-                tcmb.append(cmb)
-                if len(tcmb) > 10000:
+            if use_QMP:
+                def iPF(task):
+                    tv = []
+                    for t in task: tv.append((t,PDeck.cards_rank(t)[1]))
+                    return tv
+
+                qmp = QueMultiProcessor( # QMP
+                    iProcFunction=  iPF,
+                    reloadEvery=    1000,
+                    userTasks=      True,
+                    verb=           1)
+
+                np = 0
+                tcmb = []
+                for cmb in comb_list:
+                    tcmb.append(cmb)
+                    if len(tcmb) > 10000:
+                        qmp.putTask(tcmb)
+                        tcmb = []
+                        np += 1
+                if tcmb:
                     qmp.putTask(tcmb)
-                    tcmb = []
                     np += 1
-            if tcmb:
-                qmp.putTask(tcmb)
-                np += 1
-            for _ in tqdm(range(np)):
-                res = qmp.getResult()
-                for r in res:
-                    asCards[r[0]] = r[1]
-            qmp.close()
+                for _ in tqdm(range(np)):
+                    res = qmp.getResult()
+                    for r in res:
+                        as_cards[r[0]] = r[1]
+                qmp.close()
 
-        else: asCards = {cmb: PDeck.cards_rank(cmb)[1] for cmb in tqdm(combList)}
+            else: as_cards = {cmb: PDeck.cards_rank(cmb)[1] for cmb in tqdm(comb_list)}
 
-        lM.w_pickle(asCards, pickleDictFN)
+            lM.w_pickle(as_cards, file_FP)
 
-    return asCards
+        self.update(as_cards)
+
+    # returns rank for 7 cards (sorted!)
+    def cards_rank(self, c :tuple): return self[c]
+
+# tests speed of ranking
+def test_rank_speed(num_ask=123000):
+
+    tdeck = PDeck()
+    scL = []
+    print('\nPreparing cards...')
+    for _ in tqdm(range(num_ask)):
+        scL.append([tdeck.get_card() for _ in range(7)])
+        tdeck.reset_deck()
+
+    x = int(num_ask/2)
+    for c in scL[x:x+10]: print(c)
+
+    s_time = time.time()
+    for sc in scL:
+        #print(' ', end='')
+        #for card in sorted(sc): print(PDeck.cts(card), end=' ')
+        #print()
+
+        cR = PDeck.cards_rank(sc)
+        #if cR[0]==8: print(cR[-1])
+        #print(cR[-1])
+    e_time = time.time()
+
+    print('time taken %.2fsec'%(e_time-s_time))
+    print('speed %d/sec' % (num_ask/(e_time-s_time)))
+
+# some tests on deck
+def test_deck():
+
+    tdeck = PDeck()
+    for ix in range(9):
+        cards = tdeck.get7of_rank(ix)
+        print(ix, cards, PDeck.cards_rank(cards)[-1])
+
+    cards = [(12,0),(0,1),(1,2),(2,0),(3,0),(5,1),(9,2)]
+    print(PDeck.cards_rank(cards)[-1])
+    cards = [(12,0),(0,1),(1,2),(2,0),(3,0),(4,1),(9,2)]
+    print(PDeck.cards_rank(cards)[-1])
+
+    cards = [1,5,8,22,36]
+    print(PDeck.cards_rank(cards)[-1])
+    cards = [0,1,6,3,45]
+    print(PDeck.cards_rank(cards)[-1])
+
+# compares speed of ASC and PDeck
+def compare_ranks(num_ask=1000000):
+
+    print('\nPreparing combinations of 7 from 52...',end='')
+    comb_list = list(itertools.combinations([x for x in range(52)], 7))
+    print(' done!, got %d'%len(comb_list))
+    x = 1235143
+    for c in comb_list[x:x+10]: print(c)
+
+    ask_cards = [comb_list[random.randint(0, len(comb_list))] for _ in range(num_ask)]
+
+    asc = ASC('_cache/asc.dict')
+    s_time = time.time()
+    for c in tqdm(ask_cards): res = asc.cards_rank(c)
+    print('speed %d/sec' % (num_ask / (time.time() - s_time)))
+
+    s_time = time.time()
+    for c in tqdm(ask_cards): res = PDeck.cards_rank(c)
+    print('speed %d/sec' % (num_ask / (time.time() - s_time)))
 
 
 if __name__ == "__main__":
 
-    """
-    testDeck = PDeck()
-    sTime = time.time()
-    for _ in range(123000):
-        sevenCards = [testDeck.getCard() for _ in range(7)]
-        
-        print(' ', end='')
-        for card in sorted(sevenCards):
-            print(PDeck.cts(card), end=' ')
-        print()
-        
-        cR = PDeck.cardsRank(sevenCards)
-        #if cR[0]==8: print(cR[-1])
-        #print(cR[-1])
-        testDeck.resetDeck()
-    print('time taken %.2fsec'%(time.time()-sTime))
-    """
-    """
-    for ix in range(9):
-        cards = testDeck.get7ofRank(ix)
-        print(ix, cards, PDeck.cardsRank(cards)[-1])
-    """
-    """
-    cards = [(12,0),(0,1),(1,2),(2,0),(3,0),(5,1),(9,2)]
-    print(PDeck.cardsRank(cards)[-1])
-    cards = [(12,0),(0,1),(1,2),(2,0),(3,0),(4,1),(9,2)]
-    print(PDeck.cardsRank(cards)[-1])
-    """
-    """
-    cards = [1,5,8,22,36]
-    print(PDeck.cardsRank(cards)[-1])
-    cards = [0,1,6,3,45]
-    print(PDeck.cardsRank(cards)[-1])
-    """
+    #test_rank_speed(1234321)
 
-    num = 10000000
-    combList = list(itertools.combinations([x for x in range(52)], 7))
-    asc = getASC()
-    askCards = [combList[random.randint(0,len(combList))] for _ in range(num)]
-
-    sTime = time.time()
-    for c in tqdm(askCards): res = asc[c]
-    print('speed %d/sec' % (num / (time.time() - sTime)))
-
-    sTime = time.time()
-    for c in tqdm(askCards): res = PDeck.cards_rank(c)
-    print('speed %d/sec' % (num / (time.time() - sTime)))
+    compare_ranks(1000000)
 
 

@@ -514,3 +514,178 @@ def cnnCE_GFN(
         'enc_vars':             enc_vars,
         'cnn_vars':             cnn_vars,
         'train_vars':           train_vars}
+
+# base CNN+RES+CE+move neural graph (nemodel compatible)
+def cnnCEM_GFN(
+        name :str,
+        train_ce :bool= False,  # train cards encoder
+        c_embW :int=    24,     # card emb width
+        n_lay=          24,     # number of CNNR layers
+        width=          None,   # representation width (number of filters), for none uses input width
+        iLR=            1e-5,
+        verb=           1,
+        **kwargs):
+
+    if verb>0: print('\nBuilding %s (CNN+RES+CE+M) graph...'%name)
+
+    with tf.variable_scope(name):
+
+        c_PH = tf.placeholder(  # 7 cards
+            name=   'c_PH',
+            dtype=  tf.int32,
+            shape=  [None, None, 7])  # [bsz,seq,7cards]
+
+        train_PH = tf.placeholder(  # train placeholder
+            name=   'train_PH',
+            dtype=  tf.bool,
+            shape=  [])
+
+        cenc_out =  card_enc(train_flag=train_PH, c_ids=c_PH, c_embW=c_embW)
+        in_cenc =   cenc_out['output']
+        enc_vars =  cenc_out['enc_vars']
+        if verb>1: print(' ### num of enc_vars (%d) %s'%(len(enc_vars),short_scin(num_var_floats(enc_vars))))
+        if verb>1: print(' > cards encoded:', in_cenc)
+
+        switch_PH = tf.placeholder(  # event type
+            name=           'switch_PH',
+            dtype=          tf.int32, # 0 for move, 1 for cards
+            shape=          [None, None])  # [bsz,seq]
+
+        mt_PH = tf.placeholder(  # event type
+            name=           'mt_PH',
+            dtype=          tf.int32,
+            shape=          [None, None])  # [bsz,seq]
+
+        mt_emb = tf.get_variable(  # event type embeddings
+            name=           'mt_emb',
+            shape=          [12, in_cenc.shape[-1]],
+            dtype=          tf.float32,
+            initializer=    my_initializer())
+
+        in_mt = tf.nn.embedding_lookup(params=mt_emb, ids=mt_PH)
+        if verb>1: print(' > in_mt:', in_mt)
+
+        switch = tf.cast(switch_PH, dtype=tf.float32)
+        input = switch*in_cenc + (1-switch)*in_mt
+        if verb>1: print(' > input (merged):', input)
+
+        # projection without activation and bias
+        if width:
+            dense_out = lay_dense(
+                input=          input,
+                units=          width,
+                useBias=        False)
+            input = dense_out['output']
+            if verb>1: print(' > projected input (projected):', input)
+        else: width = in_cenc.shape[-1]
+
+        state_shape = [n_lay, 2, width]
+        state_PH = tf.placeholder(
+            name=           'state_PH',
+            dtype=          tf.float32,
+            shape=          [None] + state_shape) # [bsz,nLay,2,reW]
+
+        single_zero_state = tf.zeros(shape=state_shape) # [nLay,2,reW]
+
+        # unstack layers of state_PH
+        state_lays = tf.unstack(state_PH, axis=-3)
+        if verb>1: print(' > state_lays len %d of:' %len(state_lays), state_lays[0])
+
+        # layer_norm
+        sub_output = tf.contrib.layers.layer_norm(
+            inputs=             input,
+            begin_norm_axis=    -1,
+            begin_params_axis=  -1)
+
+        input_lays = []
+        for depth in range(n_lay):
+
+            input_lays.append(tf.concat([state_lays[depth],sub_output], axis=-2))
+            if verb>1: print(' > lay input of %d lay'%depth, input_lays[-1])
+
+            with tf.variable_scope('cnnREncLay_%d' % depth):
+                cnn_lay = tf.layers.Conv1D(
+                    filters=            width,
+                    kernel_size=        3,
+                    dilation_rate=      1,
+                    activation=         None,
+                    use_bias=           True,
+                    kernel_initializer= my_initializer(),
+                    padding=            'valid',
+                    data_format=        'channels_last')
+
+            cnn_out = cnn_lay(input_lays[-1]) # cnn
+            cnn_out = tf.nn.relu(cnn_out) # activation
+            if verb>1: print(' > cnn_out (%d lay)' % depth, cnn_out)
+            sub_output += cnn_out
+            if verb>1: print(' > sub_output (RES %d lay)' % depth, cnn_out)
+            sub_output = tf.contrib.layers.layer_norm(
+                inputs=             sub_output,
+                begin_norm_axis=    -1,
+                begin_params_axis=  -1)
+
+        out = sub_output
+        if verb>1: print(' > out:', out)
+
+        state = tf.stack(input_lays, axis=-3)
+        if verb>1: print(' > state (stacked):', state)
+        fin_state = tf.split(state, num_or_size_splits=[-1,2], axis=-2)[1]
+        if verb>1: print(' > finState (split):', fin_state)
+
+        # projection to logits
+        dense_out = lay_dense(
+            input=          out,
+            units=          4, #TODO: hardcoded
+            useBias=        False)
+        logits = dense_out['output']
+        if verb>1: print(' > logits:', logits)
+
+        probs = tf.nn.softmax(logits)
+
+        cnn_vars = tf.trainable_variables(scope=tf.get_variable_scope().name)
+        cnn_vars = [var for var in cnn_vars if var not in enc_vars]
+        if verb>1: print(' ### num of cnn_vars (%d) %s'%(len(cnn_vars),short_scin(num_var_floats(cnn_vars))))
+
+        cmv_PH = tf.placeholder(  # "correct" move (label)
+            name=           'cmv_PH',
+            dtype=          tf.int32,
+            shape=          [None, None])  # [bsz,seq]
+
+        rew_PH = tf.placeholder(  # reward for "correct" move
+            name=           'rew_PH',
+            dtype=          tf.float32,
+            shape=          [None, None])  # [bsz,seq]
+
+        rew = rew_PH/500 # lineary scale rewards #TODO: hardcoded
+
+        # this loss is auto averaged with reduction parameter
+        # loss = tf.losses.SparseCategoricalCrossentropy(from_logits=True)
+        # loss = loss(y_true=move, y_pred=logits, sample_weight=rew)
+        loss = tf.losses.sparse_softmax_cross_entropy(
+            labels=     cmv_PH,
+            logits=     logits,
+            weights=    rew)
+
+    train_vars = cnn_vars
+    if train_ce: train_vars += enc_vars
+
+    return{
+        'name':                 name,
+        'c_PH':                 c_PH,
+        'train_PH':             train_PH,
+        'switch_PH':            switch_PH,
+        'mt_PH':                mt_PH,
+        'cmv_PH':               cmv_PH,
+        'rew_PH':               rew_PH,
+        'state_PH':             state_PH,
+        'single_zero_state':    single_zero_state,
+        'probs':                probs,
+        'fin_state':            fin_state,
+        'loss':                 loss,
+        'enc_vars':             enc_vars,
+        'cnn_vars':             cnn_vars,
+        'train_vars':           train_vars}
+
+
+if __name__ == "__main__":
+    n = cnnCEM_GFN('pio',verb=2)

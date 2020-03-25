@@ -1,4 +1,5 @@
+[ ] sin / cos positional encoding
 [ ] does order of PTable.player.pls (that was not fixed) was important
 
-[ ] history in form action-value
-[ ] printable history
+# https://realpython.com/primer-on-python-decorators/
+# https://stackoverflow.com/questions/36901/what-does-double-star-asterisk-and-star-asterisk-do-for-parameters
