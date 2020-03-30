@@ -21,6 +21,8 @@
 import copy
 from multiprocessing import Process, Queue
 import random
+import time
+from typing import List
 
 from pologic.podeck import PDeck
 
@@ -40,7 +42,7 @@ TBL_MOV = {
     1:  'CLL',  # call
     2:  'BR5',  # bet/raise 0.5
     3:  'BR8'}  # bet/raise 0.8
-    # 4:'ALL'   # all-in
+    # 4:'BRA'   # all-in
 
 # position names for table sizes
 POS_NMS = {
@@ -50,7 +52,7 @@ POS_NMS = {
     9:  ['SB','BB','UTG1','UTG2','MP1','MP2','HJ','CT','BTN']}
 
 # poker hand history
-class history:
+class HHistory:
 
     """
         TIN:    table state (table_name:str)
@@ -121,13 +123,13 @@ class PPlayer:
         self.nhs_IX = 0 # next hand_state index to update from (while sending game states)
 
     # makes decision for possible moves (base implementation with random), to be implemented using taken hh
-    def _make_decision(self, possible_moves :list):
-        decision = sorted(list(TBL_MOV.keys()))
-        decision.remove(-1)
-        pm_probs = [0]*len(decision) # possible move probabilities
-        for ix in range(len(possible_moves)):
-            if possible_moves[ix]: pm_probs[ix] = 1
-        return random.choices(decision, weights=pm_probs)[0] # decision returned as int from TBL_MOV
+    def _make_decision(self, possible_moves :List[bool]):
+        #decision = sorted(list(TBL_MOV.keys()))
+        #decision.remove(-1)
+        decision = [0,1,2,3] # hardcoded to speed-up
+        pm_probs = [int(pm) for pm in possible_moves]
+        dec = random.choices(decision, weights=pm_probs)[0] # decision returned as int from TBL_MOV
+        return dec
 
     # returns possible moves and move cash (based on table cash)
     def _pmc(self):
@@ -244,7 +246,7 @@ class PTable:
 
         self.hand_ID += 1
 
-        hh = history()
+        hh = HHistory()
         hh.add('HST', [self.name, self.hand_ID])
 
         self.state = 0
@@ -429,8 +431,8 @@ class PTable:
         for pl in self.players: pl.take_hh(hh) # occasion to take reward
 
         self.players.append(self.players.pop(0)) # rotate table players for next hand
-        #print('\n@@@ hh')
-        #print(hh)
+
+        #print('\n@@@ hh\n%s'%hh)
         return hh
 
     # stop hand initialised by player pl
@@ -441,24 +443,23 @@ class QPTable(PTable, Process):
 
     def __init__(
             self,
-            pi_ques :dict,  # dict of player input ques, their number defines table size (keys - player addresses)
-            po_que :Queue,  # players output que
+            pl_ques :dict,  # dict of player ques, their number defines table size (keys - player addresses)
             **kwargs):
 
+        pl_ids = list(pl_ques.keys())
         PTable.__init__(
             self,
-            pl_ids=     list(pi_ques.keys()),
+            pl_ids=     pl_ids,
             pl_class=   QPPlayer,
             **kwargs)
-        Process.__init__(self,target=self.rh_proc)
+        Process.__init__(self, target=self.__rh_proc)
 
         # add ques for players
         for pl in self.players:
-            pl.i_que = pi_ques[pl.id]
-            pl.o_que = po_que
+            pl.i_que, pl.o_que = pl_ques[pl.id]
 
     # runs hands in loop (for sep. process)
-    def rh_proc(self):
+    def __rh_proc(self):
         while True:
             if not self.run_hand(): break
 
@@ -474,6 +475,11 @@ class QPTable(PTable, Process):
 if __name__ == "__main__":
 
     table = PTable([0,1,2],verb=1)
-    for _ in range(3):
-        print(table.run_hand())
-        print()
+    n_hands = 100000
+    stime = time.time()
+    for _ in range(n_hands):
+        table.run_hand()
+        #hh = table.run_hand()
+        #print('%s\n'%hh)
+    n_sec = time.time()-stime
+    print('time taken: %.1fsec (%d h/s)'%(n_sec, n_hands/n_sec))

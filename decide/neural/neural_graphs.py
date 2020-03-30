@@ -518,11 +518,11 @@ def cnnCE_GFN(
 # base CNN+RES+CE+move neural graph (nemodel compatible)
 def cnnCEM_GFN(
         name :str,
-        train_ce :bool= False,  # train cards encoder
+        train_ce :bool= True,   # train cards encoder
         c_embW :int=    24,     # card emb width
         n_lay=          24,     # number of CNNR layers
         width=          None,   # representation width (number of filters), for none uses input width
-        iLR=            1e-5,
+        iLR=            1e-4,
         verb=           1,
         **kwargs):
 
@@ -530,8 +530,8 @@ def cnnCEM_GFN(
 
     with tf.variable_scope(name):
 
-        c_PH = tf.placeholder(  # 7 cards
-            name=   'c_PH',
+        cards_PH = tf.placeholder(  # 7 cards placeholder
+            name=   'cards_PH',
             dtype=  tf.int32,
             shape=  [None, None, 7])  # [bsz,seq,7cards]
 
@@ -540,33 +540,33 @@ def cnnCEM_GFN(
             dtype=  tf.bool,
             shape=  [])
 
-        cenc_out =  card_enc(train_flag=train_PH, c_ids=c_PH, c_embW=c_embW)
-        in_cenc =   cenc_out['output']
-        enc_vars =  cenc_out['enc_vars']
+        ce_out = card_enc(train_flag=train_PH, c_ids=cards_PH, c_embW=c_embW)
+        cards_encoded = ce_out['output']
+        enc_vars =      ce_out['enc_vars']
         if verb>1: print(' ### num of enc_vars (%d) %s'%(len(enc_vars),short_scin(num_var_floats(enc_vars))))
-        if verb>1: print(' > cards encoded:', in_cenc)
+        if verb>1: print(' > cards encoded:', cards_encoded)
 
-        switch_PH = tf.placeholder(  # event type
+        switch_PH = tf.placeholder( # switch placeholder
             name=           'switch_PH',
             dtype=          tf.int32, # 0 for move, 1 for cards
-            shape=          [None, None])  # [bsz,seq]
+            shape=          [None, None, 1])  # [bsz,seq,val]
 
-        mt_PH = tf.placeholder(  # event type
-            name=           'mt_PH',
+        event_PH = tf.placeholder(  # event id placeholder
+            name=           'event_PH',
             dtype=          tf.int32,
             shape=          [None, None])  # [bsz,seq]
 
-        mt_emb = tf.get_variable(  # event type embeddings
-            name=           'mt_emb',
-            shape=          [12, in_cenc.shape[-1]],
+        event_emb = tf.get_variable(  # event type embeddings
+            name=           'event_emb',
+            shape=          [12, cards_encoded.shape[-1]],
             dtype=          tf.float32,
             initializer=    my_initializer())
 
-        in_mt = tf.nn.embedding_lookup(params=mt_emb, ids=mt_PH)
-        if verb>1: print(' > in_mt:', in_mt)
+        event_in = tf.nn.embedding_lookup(params=event_emb, ids=event_PH)
+        if verb>1: print(' > event_in:', event_in)
 
         switch = tf.cast(switch_PH, dtype=tf.float32)
-        input = switch*in_cenc + (1-switch)*in_mt
+        input = switch*cards_encoded + (1-switch)*event_in
         if verb>1: print(' > input (merged):', input)
 
         # projection without activation and bias
@@ -577,7 +577,7 @@ def cnnCEM_GFN(
                 useBias=        False)
             input = dense_out['output']
             if verb>1: print(' > projected input (projected):', input)
-        else: width = in_cenc.shape[-1]
+        else: width = cards_encoded.shape[-1]
 
         state_shape = [n_lay, 2, width]
         state_PH = tf.placeholder(
@@ -646,8 +646,8 @@ def cnnCEM_GFN(
         cnn_vars = [var for var in cnn_vars if var not in enc_vars]
         if verb>1: print(' ### num of cnn_vars (%d) %s'%(len(cnn_vars),short_scin(num_var_floats(cnn_vars))))
 
-        cmv_PH = tf.placeholder(  # "correct" move (label)
-            name=           'cmv_PH',
+        correct_PH = tf.placeholder(  # "correct" move (label)
+            name=           'correct_PH',
             dtype=          tf.int32,
             shape=          [None, None])  # [bsz,seq]
 
@@ -656,26 +656,24 @@ def cnnCEM_GFN(
             dtype=          tf.float32,
             shape=          [None, None])  # [bsz,seq]
 
-        rew = rew_PH/500 # lineary scale rewards #TODO: hardcoded
-
         # this loss is auto averaged with reduction parameter
         # loss = tf.losses.SparseCategoricalCrossentropy(from_logits=True)
         # loss = loss(y_true=move, y_pred=logits, sample_weight=rew)
         loss = tf.losses.sparse_softmax_cross_entropy(
-            labels=     cmv_PH,
+            labels=     correct_PH,
             logits=     logits,
-            weights=    rew)
+            weights=    rew_PH)
 
     train_vars = cnn_vars
     if train_ce: train_vars += enc_vars
 
     return{
         'name':                 name,
-        'c_PH':                 c_PH,
+        'cards_PH':             cards_PH,
         'train_PH':             train_PH,
         'switch_PH':            switch_PH,
-        'mt_PH':                mt_PH,
-        'cmv_PH':               cmv_PH,
+        'event_PH':             event_PH,
+        'correct_PH':           correct_PH,
         'rew_PH':               rew_PH,
         'state_PH':             state_PH,
         'single_zero_state':    single_zero_state,
