@@ -348,7 +348,7 @@ def cnnCE_GFN(
         mvW :int=       11,     # values vector width, holds player move data(type, pos, cash)
         n_lay=          24,     # number of CNNR layers
         width=          512,    # representation width (number of filters)
-        iLR=            1e-5,
+        iLR=            3e-4,
         verb=           1,
         **kwargs):
 
@@ -519,10 +519,10 @@ def cnnCE_GFN(
 def cnnCEM_GFN(
         name :str,
         train_ce :bool= True,   # train cards encoder
-        c_embW :int=    24,     # card emb width
-        n_lay=          24,     # number of CNNR layers
+        c_embW :int=    12,     # card emb width
+        n_lay=          12,     # number of CNNR layers
         width=          None,   # representation width (number of filters), for none uses input width
-        iLR=            1e-4,
+        iLR=            3e-4,
         verb=           1,
         **kwargs):
 

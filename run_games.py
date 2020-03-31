@@ -10,20 +10,28 @@ from tqdm import tqdm
 
 from putils.neuralmess.dev_manager import nestarter
 
-from decide.dmk_manager import DMKManager
-from decide.decision_maker import PDMK
+from decide.decision_maker import ProDMK, NeurDMK
+from decide.neural.neural_graphs import cnnCEM_GFN
 from pologic.potable import QPTable
+
 
 class GamesManager:
 
     def __init__(
             self,
-            n_dmk=          30,
-            dmk_players=    30):
+            n_dmk=          14,
+            dmk_players=    150):
 
         tpl_count = 3 # hardcoded
         assert (n_dmk * dmk_players) % tpl_count == 0
-        self.dmkL = [PDMK(name='dmk%d' % ix, n_players=dmk_players) for ix in range(n_dmk)]
+        #self.dmkL = [ProDMK(name='dmk%d' % ix, n_players=dmk_players) for ix in range(n_dmk)]
+        self.dmkL = [NeurDMK(
+            fwd_func=       cnnCEM_GFN,
+            #device=         ix%2,
+            device=         None,
+            name=           'dmk%d'%ix,
+            verb=1,
+            n_players=      dmk_players) for ix in range(n_dmk)]
 
         # get all ques into one dict
         ques = {}
@@ -61,12 +69,3 @@ if __name__ == "__main__":
 
     gm = GamesManager()
     gm.run_games()
-
-    """
-    dmkm = DMKManager(
-        n_dmk=      1,
-        n_players=  900,
-        verb=       1)
-    #dmkm.run_games()
-    dmkm.run_loop()
-    """

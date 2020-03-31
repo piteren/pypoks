@@ -16,7 +16,7 @@ from tqdm import tqdm
 #from putils.neuralmess.base_elements import mrg_ckpts
 
 from pologic.potable import QPTable
-from decide.decision_maker import RDMK, NDMK
+from decide.decision_maker import RDMK, NeurDMK
 from decide.neural.neural_graphs import cnnCEM_GFN
 
 class DMKManager:

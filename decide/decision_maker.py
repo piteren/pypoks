@@ -18,6 +18,7 @@
 
 from abc import ABC, abstractmethod
 from multiprocessing import Process, Queue
+from queue import Empty
 import numpy as np
 import random
 import tensorflow as tf
@@ -48,19 +49,22 @@ class StatsMNG:
     def __init__(
             self,
             name :str,
-            pl_IDL :list,       # list of (unique) player ids
-            stats_iv=   1000):
+            pl_addrL :list,       # list of (unique) player ids
+            stats_iv=   1000,
+            verb=       0):
 
+        self.verb = verb
         self.stats_iv = stats_iv
         self.stats =        {} # stats of DMK (for all players)
-        self.chsd =         {pID: None  for pID in pl_IDL} # current hand stats data (per player)
-        self.is_BB =        {pID: False for pID in pl_IDL} # BB position of player at table {pID: True/False}
-        self.is_preflop =   {pID: True  for pID in pl_IDL} # preflop indicator of player at table {pID: True/False}
+        self.chsd =         {pID: None for pID in pl_addrL} # current hand stats data (per player)
+        self.is_BB =        {pID: False for pID in pl_addrL} # BB position of player at table {pID: True/False}
+        self.is_preflop =   {pID: True for pID in pl_addrL} # preflop indicator of player at table {pID: True/False}
 
         self.reset_stats()
         for pID in self.chsd: self.__reset_chsd(pID)
 
         self.summ_writer = tf.summary.FileWriter(logdir='_models/' + name, flush_secs=10)
+        self.stime = time.time()
 
     # resets stats (DMK)
     def reset_stats(self):
@@ -124,7 +128,7 @@ class StatsMNG:
         self.summ_writer.add_summary(ph, self.stats['nH'][0])
 
     # extracts stats from player states
-    def get_states(
+    def take_states(
             self,
             pID,
             states :List[list]):
@@ -151,6 +155,11 @@ class StatsMNG:
 
                 # put stats on TB
                 if self.stats['nH'][1] == self.stats_iv:
+
+                    if self.verb>0:
+                        print('...speed: %d H/s'%(self.stats_iv/(time.time()-self.stime)))
+                        self.stime = time.time()
+
                     self.__push_TB()
                     for key in self.stats.keys(): self.stats[key][1] = 0 # reset interval values
 
@@ -162,7 +171,6 @@ class DMK(ABC):
             name :str,              # name should be unique (@table)
             n_players :int,         # number of managed players
             n_moves :int=   4,      # number of (all) moves supported by DM, has to match table/player
-            stats_iv=       1000,   # collects players/DMK stats, runs TB (for None does not)
             verb=           0):
 
         self.name = name
@@ -173,47 +181,40 @@ class DMK(ABC):
 
         # variables below store moves/decisions data
         self._new_states =      {} # dict of lists of new states {state: }, should not have empty keys (player indexes)
-        self._n_waiting =       0 # number of players (@this DMK) actually waiting for move (cached number)
-        self._done_states =     {ix: [] for ix in range(self.n_players)}  # dict of processed (with decision) states
+        self._done_states =     {pa: [] for pa in self._get_players_addr()}  # dict of processed (with decision) states
+        self._n_done = 0
 
-        # create stats manager
-        self.stats_mng = StatsMNG(
-            name=       self.name,
-            n_players=  self.n_players,
-            stats_iv=   stats_iv) if stats_iv else None
+    # prepares list of player addresses
+    def _get_players_addr(self) -> List[str]:
+        return ['%s_%d'%(self.name,ix) for ix in range(self.n_players)]
 
     # encodes table states into DMK form (appropriate to make decisions), TO BE OVERRIDDEN
     def _enc_states(
             self,
-            pIX: int,
+            p_addr,
             player_stateL: List[list]) -> List[State]:
-        if self.stats_mng: self.stats_mng.get_states(pIX, player_stateL)
         return [State(value) for value in player_stateL]  # wraps into dictL
 
     # takes player states, encodes and saves in self._new_states
     def take_states(
             self,
-            pIX,
+            p_addr,
             player_stateL: List[list]) -> None:
 
-        if pIX not in self._new_states: self._new_states[pIX] = []
-        self._new_states[pIX] += self._enc_states(pIX, player_stateL)
-        if not self._new_states[pIX]: self._new_states.pop(pIX) # case of encoded states actually empty
+        if p_addr not in self._new_states: self._new_states[p_addr] = []
+        self._new_states[p_addr] += self._enc_states(p_addr, player_stateL)
+        if not self._new_states[p_addr]: self._new_states.pop(p_addr) # case of encoded states actually empty
 
     # takes player possible_moves and saves
     def take_possible_moves(
             self,
-            pIX,
+            p_addr,
             possible_moves :List[bool]):
 
-        self._n_waiting += 1
-        assert pIX in self._new_states # TODO: to remove, develop safety check, player should have new states while getting possible moves
-        self._new_states[pIX][-1].possible_moves = possible_moves # add to last new state
+        assert p_addr in self._new_states # TODO: to remove, develop safety check, player should have new states while getting possible moves
+        self._new_states[p_addr][-1].possible_moves = possible_moves # add to last new state
 
-    # returns number of players waiting
-    def num_waiting(self) -> int: return self._n_waiting
-
-    # should return list of decisions in form: [(pIX,move)...], cannot return empty list
+    # should return list of decisions in form: [(p_addr,move)...], cannot return empty list
     # decision should be made based on stored data (...in _new_states)
     @abstractmethod
     def _madec(self) -> List[tuple]: pass
@@ -223,67 +224,50 @@ class DMK(ABC):
 
         decL = self._madec()
         assert decL
+
+        # move states of players with decisions made to self._done_states
         for dec in decL:
-            pIX, move = dec
-            states = self._new_states.pop(pIX)
-            states[-1].move = move
-            self._done_states[pIX] += states # move new into done (where decisions made)
-        self._n_waiting -= len(decL)
+            p_addr, move = dec
+            states = self._new_states.pop(p_addr)
+            states[-1].move = move # write move into state
+            self._done_states[p_addr] += states
+            self._n_done += len(states)
+
         return decL
 
 # process(ed) DMK
-class PDMK(Process):
-
-    def __init__(
-            self,
-            name :str,
-            n_players=  30):
-
-        Process.__init__(self, target=self.__dmk_proc)
-        self.name = name
-        self.n_players = n_players
-        p_addrL = ['%s_%d'%(self.name,ix) for ix in range(self.n_players)] # list of player addresses
-
-        self.pl_out_que = Queue()
-        self.pl_in_queD = {pa: Queue() for pa in p_addrL}
-
-
-    def __dmk_proc(self):
-
-        p_addrL = list(self.pl_in_queD.keys())
-        sm = StatsMNG(name=self.name, pl_IDL=p_addrL)
-
-        decision = [0,1,2,3]  # hardcoded to speed-up
-        while True:
-            player_data = self.pl_out_que.get()
-            p_addr = player_data['id']
-
-            if 'state_changes' in player_data:
-                sm.get_states(p_addr,player_data['state_changes'])
-
-            if 'possible_moves' in player_data:
-                possible_moves = player_data['possible_moves']
-
-                pm_probs = [int(pm) for pm in possible_moves]
-                dec = random.choices(decision, weights=pm_probs)[0]
-
-                self.pl_in_queD[p_addr].put(dec)
-
-# random DMK implementation (first baseline)
 # + introduces move probabilities
-class RDMK(DMK):
+# + random move
+# + stats
+class ProDMK(DMK, Process):
 
     def __init__(
             self,
+            stats_iv=   1000,   # collects players/DMK stats, runs TB (for None does not)
             **kwargs):
 
+        Process.__init__(self, target=self._dmk_proc)
         DMK.__init__(self, **kwargs)
+
+        self.pl_out_que = Queue()
+        self.pl_in_queD = {pa: Queue() for pa in self._get_players_addr()}
+
+        self.sm = None
+        self.stats_iv = stats_iv
+
+    # wraps with stats
+    def _enc_states(
+            self,
+            pID,
+            player_stateL: List[list]) -> List[State]:
+        if self.sm: self.sm.take_states(pID, player_stateL)
+        return DMK._enc_states(self,pID,player_stateL)
 
     # samples single move for given probabilities and possibilities
     def __sample_move(
             self,
             probs :List[float],
-            possible_moves :List[bool]):
+            possible_moves :List[bool]) -> int:
 
         prob_mask = [int(pM) for pM in possible_moves]  # cast bool to int
         prob_mask = np.asarray(prob_mask) # to np
@@ -293,69 +277,114 @@ class RDMK(DMK):
         move = np.random.choice(np.arange(self.n_moves), p=probs)  # sample from probs # TODO: for tournament should take max
         return move
 
-    # returns list of decisions
-    def _madec(self) -> list:
+     # returns list of decisions
+    def _madec(self) -> List[tuple]:
 
         if self.verb>1:
             nd = {}
-            for pIX in self._new_states:
-                l = len(self._new_states[pIX])
+            for p_addr in self._new_states:
+                l = len(self._new_states[p_addr])
                 if l not in nd: nd[l] = 0
                 nd[l] += 1
                 if l > 10:
-                    for s in self._new_states[pIX]: print(s)
+                    for s in self._new_states[p_addr]: print(s)
             print(' >> (@_madec) _new_states histogram:')
             for k in sorted(list(nd.keys())): print(' >> %d:%d'%(k,nd[k]))
 
         decL = []
-        for pIX in self._new_states:
-            if self._new_states[pIX][-1].possible_moves is not None and self._new_states[pIX][-1].probs is not None:
-                possible_moves =    self._new_states[pIX][-1].possible_moves
-                probs =             self._new_states[pIX][-1].probs
+        for p_addr in self._new_states:
+            if self._new_states[p_addr][-1].possible_moves is not None and self._new_states[p_addr][-1].probs is not None:
+                possible_moves =    self._new_states[p_addr][-1].possible_moves
+                probs =             self._new_states[p_addr][-1].probs
                 move =              self.__sample_move(probs, possible_moves)
-                decL.append([pIX, move])
+                decL.append((p_addr, move))
         return decL
 
     # add probabilities for at least some states with possible_moves, baseline sets for all (last states) with possible moves
     # TO BE OVERRIDEN
     def _calc_probs(self) -> None:
         baseline_probs = [1/self.n_moves] * self.n_moves # equal probs
-        for pIX in self._new_states:
-            if self._new_states[pIX][-1].possible_moves:
-                self._new_states[pIX][-1].probs = baseline_probs
+        for p_addr in self._new_states:
+            if self._new_states[p_addr][-1].possible_moves:
+                self._new_states[p_addr][-1].probs = baseline_probs
 
     # returns decisions
-    def make_decisions(self) -> list:
+    def make_decisions(self) -> List[tuple]:
         self._calc_probs()
         return DMK.make_decisions(self)
+
+    # process method (loop)
+    def _dmk_proc(self):
+
+        # TB stats saver (has to be build here, inside process method)
+        self.sm = StatsMNG(
+            name=       self.name,
+            pl_addrL=   self._get_players_addr(),
+            stats_iv=   self.stats_iv,
+            verb=       1) if self.stats_iv else None
+
+        n_waiting = 0 # num players ( ~> tables) waiting for decision
+        while True:
+
+            pdL = [self.pl_out_que.get()] # get first
+            while True:
+                try:            player_data = self.pl_out_que.get_nowait()
+                except Empty:   break
+                if player_data: pdL.append(player_data)
+
+            #print(len(pdL))
+            for player_data in pdL:
+                p_addr = player_data['id']
+
+                if 'state_changes' in player_data:
+                    self.take_states(p_addr, player_data['state_changes'])
+
+                if 'possible_moves' in player_data:
+                    self.take_possible_moves(p_addr, player_data['possible_moves'])
+                    n_waiting += 1
+
+            if n_waiting:
+                decL = self.make_decisions()
+                #print(' %d >> %d'%(n_waiting,len(decL)))
+                n_waiting -= len(decL)
+                for d in decL:
+                    p_addr, move = d
+                    self.pl_in_queD[p_addr].put(move)
 
 # Neural DMK
 # + encodes states
 # + makes decisions with NN
 # + updates NN (learns)
-class NDMK(RDMK):
+class NeurDMK(ProDMK):
 
     def __init__(
             self,
             fwd_func,
+            device=         1,
             rand_moveF=     0.0,    # how often move will be sampled from random
-            n_stat_upd=     50000, # ...for all players
+            upd_BS=         50000,  # estimated target batch size of update
             **kwargs):
 
-        RDMK.__init__( self, **kwargs)
+        ProDMK.__init__( self, **kwargs)
+
+        self.fwd_func = fwd_func
+        self.device = device
+        self.rand_moveF = rand_moveF
+        self.upd_BS = upd_BS
+
+    def __build_neural_stuff(self):
 
         self.mdl = NNModel(
-            fwd_func=   fwd_func,
-            mdict=      {'name':self.name, 'verb':2}, # TODO: by now base concept
-            devices=    1,
+            fwd_func=   self.fwd_func,
+            mdict=      {'name':self.name, 'verb':0}, # TODO: by now base concept
+            devices=    self.device,
             verb=       0)
 
-        self.rand_move = rand_moveF
-        self.n_stat_upd = n_stat_upd
+        p_addrL = self._get_players_addr()
 
         self.zero_state = self.mdl.session.run(self.mdl['single_zero_state'])
-        self.last_fwd_state =   {ix: self.zero_state for ix in range(self.n_players)}  # net state after last fwd
-        self.my_cards =         {ix: []         for ix in range(self.n_players)}  # current cards of player, updated while encoding states
+        self.last_fwd_state =   {pa: self.zero_state    for pa in p_addrL}  # net state after last fwd
+        self.my_cards =         {pa: []                 for pa in p_addrL}  # current cards of player, updated while encoding states
         # I do not need upd_state, since I do a hard-reset of states after each update
         # self.last_upd_state =   {ix: zero_state for ix in range(self.n_players)}  # net state after last upd
 
@@ -371,10 +400,10 @@ class NDMK(RDMK):
     #       4,5,6,7, 8,9,10,11 : moves of two opponents 1,2 * C/F,CLL,BR5,BR8
     def _enc_states(
             self,
-            pIX: int,
+            p_addr,
             player_stateL: list):
 
-        es = RDMK._enc_states(self, pIX, player_stateL)
+        es = ProDMK._enc_states(self, p_addr, player_stateL)
         news = [] # newly encoded states
         for s in es:
             val = s.value
@@ -386,15 +415,15 @@ class NDMK(RDMK):
                     'event':    1 + self.pos_nms_r[val[1][1]]}
 
             if val[0] == 'PLH' and val[1][0] == 0: # my hand
-                self.my_cards[pIX] = [PDeck.cti(c) for c in val[1][1:]]
+                self.my_cards[p_addr] = [PDeck.cti(c) for c in val[1][1:]]
                 nval = {
-                    'cards':    [] + self.my_cards[pIX], # copy cards
+                    'cards':    [] + self.my_cards[p_addr], # copy cards
                     'event':    0}
 
             if val[0] == 'TCD': # my hand update
-                self.my_cards[pIX] += [PDeck.cti(c) for c in val[1]]
+                self.my_cards[p_addr] += [PDeck.cti(c) for c in val[1]]
                 nval = {
-                    'cards':    [] + self.my_cards[pIX], # copy cards
+                    'cards':    [] + self.my_cards[p_addr], # copy cards
                     'event':    0}
 
             if val[0] == 'MOV' and val[1][0] != 0: # moves, all but mine
@@ -403,17 +432,9 @@ class NDMK(RDMK):
                     'event':    4 + self.tbl_mov_r[val[1][1]] + 4*(val[1][0]-1)}  # hardcoded for 2 opponents
 
             if val[0] == 'PRS' and val[1][0] == 0: # my result
-                self.my_cards[pIX] = [] # reset my cards
-
                 reward = val[1][1]
-                # it is a bit tricky but we have to append reward to last state, which we have to find
-                list_to_append = None
-                if news: list_to_append = news
-                else:
-                    if self._new_states[pIX]: list_to_append = self._new_states[pIX]
-                    else:
-                        if self._done_states[pIX]: list_to_append = self._done_states[pIX]
-                if list_to_append: list_to_append[-1].reward = reward # there may be a case, when list_to_append does not exists (after update etc.)
+                if self._done_states[p_addr]: self._done_states[p_addr][-1].reward = reward # we can append reward to last state in _done_states (reward is for moves, moves are only there)
+                self.my_cards[p_addr] = [] # reset my cards
 
             if nval: news.append(State(nval))
 
@@ -438,10 +459,10 @@ class NDMK(RDMK):
         event_batch = []
         switch_batch = []
         state_batch = []
-        pIXL = []
+        p_addrL = []
         for vr in vals_row:
-            pIX, val = vr
-            pIXL.append(pIX) # save list of pIX
+            p_addr, val = vr
+            p_addrL.append(p_addr) # save list of p_addr
             switch = 1
 
             cards = val['cards']
@@ -457,7 +478,7 @@ class NDMK(RDMK):
             event_batch.append([event])
             switch_batch.append([[switch]])
 
-            state_batch.append(self.last_fwd_state[pIX])
+            state_batch.append(self.last_fwd_state[p_addr])
 
         feed = {
             self.mdl['cards_PH']:   cards_batch,
@@ -472,9 +493,9 @@ class NDMK(RDMK):
         probs = np.reshape(probs, newshape=(probs.shape[0], probs.shape[-1]))  # TODO: maybe any smarter way
 
         for ix in range(fwd_states.shape[0]):
-            pIX = pIXL[ix]
-            probs_row.append((pIX, probs[ix]))
-            self.last_fwd_state[pIX] = fwd_states[ix]
+            p_addr = p_addrL[ix]
+            probs_row.append((p_addr, probs[ix]))
+            self.last_fwd_state[p_addr] = fwd_states[ix]
 
         return probs_row
 
@@ -485,184 +506,181 @@ class NDMK(RDMK):
         while not got_probs_for_possible:
 
             vals_row = []
-            for pIX in self._new_states:
-                for s in self._new_states[pIX]:
+            for p_addr in self._new_states:
+                for s in self._new_states[p_addr]:
                     if s.probs is None:
-                        vals_row.append((pIX,s.value))
+                        vals_row.append((p_addr,s.value))
                         break
-            assert vals_row # TODO: I can imagine empty vals_row but with current alg should not appear
             if self.verb>1: print(' > (@_calc_probs) got row of %d'%len(vals_row))
 
-            probs_row = self.__calc_probs_vr(vals_row)
-            for pr in probs_row:
-                pIX, probs = pr
-                for s in self._new_states[pIX]:
-                    if s.probs is None:
-                        s.probs = probs
-                        if s.possible_moves: got_probs_for_possible = True
-                        break
-            if self.verb>0 and not got_probs_for_possible: print(' > (@_calc_probs) another loop...')
+            if not vals_row: break # it is possible, that all probs are done (e.g. possible moves appeared after probs calculated)
+            else:
+                probs_row = self.__calc_probs_vr(vals_row)
+                for pr in probs_row:
+                    p_addr, probs = pr
+                    for s in self._new_states[p_addr]:
+                        if s.probs is None:
+                            s.probs = probs
+                            if s.possible_moves: got_probs_for_possible = True
+                            break
+                if self.verb>1 and not got_probs_for_possible: print(' > (@_calc_probs) another loop...')
+
+    @staticmethod
+    # min avg max >> str (for list of values)
+    def _mam(valL :list) -> str:
+        return '%4d:%4d:%4d'%(min(valL), sum(valL)/len(valL), max(valL))
 
     # runs update of DMK based on saved _done_states
     def _run_update(self):
 
-        n_stat = [len(self._done_states[pIX]) for pIX in self._done_states] # number of saved states per player (not all rewarded)
-        n_statAV = int(sum(n_stat)/len(n_stat)) # avg
-        if n_statAV > self.n_stat_upd/self.n_players:
-            if self.verb>0: print('(@ _run_update) n_stat: min %d max %d avg %d'%(min(n_stat), max(n_stat), n_statAV))
-            # TODO: get here some stats about number of rewards (hands), moves etc...
-            # TODO: get here some time stats
+        p_addrL = sorted(list(self._done_states.keys()))
 
-            ix_rew = {pIX: [] for pIX in self._done_states} # indexes of states, where rewards are
-            for pIX in self._done_states:
-                for ix in range(len(self._done_states[pIX])):
-                    st = self._done_states[pIX][ix]
-                    if st.reward is not None: ix_rew[pIX].append(ix)
+        # move rewards down to moves (and build rewards dict)
+        rewards = {} # {p_addr: [[99,95,92][85,81,77,74]...]} # indexes of moves, first always rewarded
+        for p_addr in p_addrL:
+            rewards[p_addr] = []
+            reward = None
+            passed_first_reward = False # we need to skip last(top) moves that do not have rewards yet
+            mL = [] # list of moveIX
+            for ix in reversed(range(len(self._done_states[p_addr]))):
 
-            n_rew = [len(ix_rew[pIX]) for pIX in self._done_states]
-            if self.verb > 0: print('(@ _run_update) n_rew: min %d max %d avg %d' % (min(n_rew), max(n_rew), sum(n_rew)/len(n_rew)))
+                st = self._done_states[p_addr][ix]
 
-            ix_mov = {pIX: [] for pIX in self._done_states}  # indexes of states, where moves are
-            for pIX in self._done_states:
-                for ix in range(len(self._done_states[pIX])):
-                    st = self._done_states[pIX][ix]
-                    if st.move is not None: ix_mov[pIX].append(ix)
+                if st.reward is not None:
+                    passed_first_reward = True
+                    if reward is not None:  reward += st.reward # caught earlier reward without a move, add it here
+                    else:                   reward = st.reward
+                    st.reward = None
 
-            n_stat = [len(ix_mov[pIX]) for pIX in self._done_states]
-            if self.verb > 0: print('(@ _run_update) n_mov: min %d max %d avg %d' % (min(n_stat), max(n_stat), sum(n_stat) / len(n_stat)))
+                if st.move is not None and passed_first_reward: # got move here and it will share some reward
+                    if reward is not None: # put that reward here
+                        st.reward = reward
+                        reward = None
+                        # got previous list of mL
+                        if mL:
+                            rewards[p_addr].append(mL)
+                            mL = []
+                    mL.append(ix) # always add cause passed first reward
 
-            # ********************** take for update from ix of the lowest last rewarded move
+            if mL: rewards[p_addr].append(mL) # finally add last
 
-            # build rewards dict (for every player, under indexes of rewards: list of indexes of moves)
-            rewD = {} # all players dict
-            for pIX in self._done_states:
-                rewD[pIX] = {} # player dict
-                crewIX = None
-                for ix in reversed(range(len(self._done_states[pIX]))): # go down over _done_states of player
-                    st = self._done_states[pIX][ix]
-                    if st.reward is not None:
-                        crewIX = ix # current reward index
-                        rewD[pIX][crewIX] = [] # current reward list of indexes with moves
-                    if st.move is not None and crewIX is not None: # got move of this reward
-                        rewD[pIX][crewIX].append(ix)
+        # share rewards:
+        for p_addr in p_addrL:
+            for mL in rewards[p_addr]:
+                rIX = mL[0] # index of reward
+                # only when already not shared (...from previous update)
+                if self._done_states[p_addr][rIX].move_rew is None:
+                    sh_rew = self._done_states[p_addr][rIX].reward / len(mL)
+                    for mIX in mL:
+                        self._done_states[p_addr][mIX].move_rew = sh_rew
+                else: break
 
-            """
-                There is a CASE(just in game), when player gets a reward without ANY move:
-                 everyone folds against BB (preflop),
-                 by now we will remove such rewards,
-                 but it is an interesting case: such behaviour(folding) may be caused by my previous moves, so that reward should be moved(back) there.
-                In my implementation there may be some more cases with reward without a move, but we are not interested by now in better implementation.
-                For long states it is not a problem, because after BB player has to make move >> gets reward,
-                 so it is not possible to have a lot of states without ANY rewards
-                
-            """
-            # remove such rewards
-            for pIX in rewD:
-                rIXL = list(rewD[pIX].keys())
-                for rIX in rIXL:
-                    if not rewD[pIX][rIX]:
-                        rewD[pIX].pop(rIX)
-                        self._done_states[pIX][rIX].reward = None
+        lrm = [rewards[p_addr][0][0]                            for p_addr in p_addrL] # last rewarded move
+        lrmT = zip(p_addrL, lrm)
+        lrmT = sorted(lrmT, key=lambda x: x[1], reverse=True)
+        upd_p = lrmT[:len(lrmT) // 2]
+        n_upd = upd_p[-1][1] + 1  # n states to use for update
+        upd_p = [e[0] for e in upd_p]  # list of p_addr to update
 
-            for pIX in rewD: assert rewD[pIX] # safety check, possible only when updating to often (small range of states)
+        if self.verb>0:
+            ns =    [len(self._done_states[p_addr])             for p_addr in p_addrL] # number of saved states
+            nr =    [len(rewards[p_addr])                       for p_addr in p_addrL] # num of rewards
+            nm =    [sum([len(ml) for ml in rewards[p_addr]])   for p_addr in p_addrL] # num of moves
+            nmr = []                                                                   # num of moves per reward
+            for p_addr in rewards:
+                for ml in rewards[p_addr]:
+                    nmr.append(len(ml))
+            print(' UPD states stats %s'%self.name)
+            print('  n_states: %s' % NeurDMK._mam(ns))
+            print('  last rm : %s' % NeurDMK._mam(lrm))
+            print('  n_mov   : %s' % NeurDMK._mam(nm))
+            print('  n_rew   : %s' % NeurDMK._mam(nr))
+            print('  n_mov/R : %s' % NeurDMK._mam(nmr))
+            print(' >>> upd PL x ST: %d x %d (%d)' % (len(upd_p), n_upd, len(upd_p) * n_upd))
+            # TODO: get here also some time stats
 
-            # we do not need code below (we do a hard-reset of states after each update)
-            """
-            # remove already 'done' rewards (during previous update)
-            for pIX in rewD:
-                rIXL = sorted(list(rewD[pIX].keys()))
-                for rIX in rIXL:
-                    mIX = rewD[pIX][rIX][0] # any (0) move from this reward
-                    if self._done_states[pIX][mIX].move_rew is None: break
-                    else: rewD[pIX].pop(rIX)
-            """
+        # TODO: NN here
+        cards_batch = []
+        event_batch = []
+        switch_batch = []
+        state_batch = []
+        correct_batch = []
+        reward_batch = []
+        for p_addr in upd_p:
+            cards_seq = []
+            event_seq = []
+            switch_seq = []
+            correct_seq = []
+            reward_seq = []
+            for state in self._done_states[p_addr][:n_upd]:
+                val = state.value
 
-            # put shared reward to states
-            for pIX in rewD:
-                for rIX in rewD[pIX]:
-                    sh_rew = self._done_states[pIX][rIX].reward / len(rewD[pIX][rIX]) # amount of reward shared among all moves
-                    for mIX in rewD[pIX][rIX]:
-                        self._done_states[pIX][mIX].move_rew = sh_rew
+                switch = 1
 
-            # find ix of last rewarded move
-            last_move_rew = []
-            for pIX in self._done_states:
-                for ix in reversed(range(len(self._done_states[pIX]))):
-                    if self._done_states[pIX][ix].move_rew is not None:
-                        last_move_rew.append(ix)
-                        break
-            if self.verb > 0: print('(@ _run_update) last_move_rew: min %d max %d avg %d' % (min(last_move_rew), max(last_move_rew), sum(last_move_rew)/len(last_move_rew)))
-            last_move_rew = min(last_move_rew)
+                cards = val['cards']
+                if not cards:
+                    cards = []
+                    switch = 0
+                cards += [52]*(7-len(cards))  # pads cards
 
-            # TODO: NN here
-            cards_batch = []
-            event_batch = []
-            switch_batch = []
-            state_batch = []
-            correct_batch = []
-            reward_batch = []
-            for pIX in self._done_states:
-                cards_seq = []
-                event_seq = []
-                switch_seq = []
-                correct_seq = []
-                reward_seq = []
-                for state in self._done_states[pIX][:last_move_rew]:
-                    val = state.value
+                event = val['event']
 
-                    switch = 1
+                correct = state.move if state.move is not None else 0
+                reward = state.move_rew/500 if state.move_rew is not None else 0 #TODO: hardcoded 500
 
-                    cards = val['cards']
-                    if not cards:
-                        cards = []
-                        switch = 0
-                    cards += [52]*(7-len(cards))  # pads cards
+                cards_seq.append(cards)
+                event_seq.append(event)
+                switch_seq.append([switch])
+                correct_seq.append(correct)
+                reward_seq.append(reward)
 
-                    event = val['event']
+            cards_batch.append(cards_seq)
+            event_batch.append(event_seq)
+            switch_batch.append(switch_seq)
+            correct_batch.append(correct_seq)
+            reward_batch.append(reward_seq)
+            state_batch.append(self.zero_state)
 
-                    correct = state.move if state.move is not None else 0
-                    reward = state.move_rew/500 if state.move_rew is not None else 0 #TODO: hardcoded 500
+        feed = {
+            self.mdl['cards_PH']:   cards_batch,
+            self.mdl['train_PH']:   True,
+            self.mdl['event_PH']:   event_batch,
+            self.mdl['switch_PH']:  switch_batch,
+            self.mdl['state_PH']:   state_batch,
+            self.mdl['correct_PH']: correct_batch,
+            self.mdl['rew_PH']:     reward_batch}
 
-                    cards_seq.append(cards)
-                    event_seq.append(event)
-                    switch_seq.append([switch])
-                    correct_seq.append(correct)
-                    reward_seq.append(reward)
+        fetches = [
+            self.mdl['optimizer'],
+            self.mdl['loss'],
+            self.mdl['gg_norm'],
+            self.mdl['avt_gg_norm']]
+        _, loss, gn, agn = self.mdl.session.run(fetches, feed_dict=feed)
 
-                cards_batch.append(cards_seq)
-                event_batch.append(event_seq)
-                switch_batch.append(switch_seq)
-                correct_batch.append(correct_seq)
-                reward_batch.append(reward_seq)
-                state_batch.append(self.zero_state)
+        if self.sm:
+            step = self.sm.stats['nH'][0]
+            loss_summ = tf.Summary(value=[tf.Summary.Value(tag='nn/0.loss', simple_value=loss)])
+            gn_summ = tf.Summary(value=[tf.Summary.Value(tag='nn/1.gn', simple_value=gn)])
+            agn_summ = tf.Summary(value=[tf.Summary.Value(tag='nn/2.agn', simple_value=agn)])
+            self.sm.summ_writer.add_summary(loss_summ, step)
+            self.sm.summ_writer.add_summary(gn_summ, step)
+            self.sm.summ_writer.add_summary(agn_summ, step)
 
-            feed = {
-                self.mdl['cards_PH']:   cards_batch,
-                self.mdl['train_PH']:   True,
-                self.mdl['event_PH']:   event_batch,
-                self.mdl['switch_PH']:  switch_batch,
-                self.mdl['state_PH']:   state_batch,
-                self.mdl['correct_PH']: correct_batch,
-                self.mdl['rew_PH']:     reward_batch}
-
-            fetches = [
-                self.mdl['optimizer'],
-                self.mdl['loss'],
-                self.mdl['gg_norm']]
-            _, loss, gn = self.mdl.session.run(fetches, feed_dict=feed)
-            print(loss,gn)
-
-            for pIX in self._done_states:
-                # leave only from the next to last_move_rew
-                # self._done_states[pIX] = self._done_states[pIX][last_move_rew+1:]
-                self._done_states[pIX] = [] # hard-reset: clear all unused >> keeps the upd alg stable, but wastes some hands
-
+        # leave only not used
+        for p_addr in upd_p:
+            self._done_states[p_addr] = self._done_states[p_addr][n_upd:]
+        self._n_done -= n_upd*len(upd_p)
 
     # overrides with update
     def make_decisions(self) -> List[tuple]:
-        self._run_update()
-        decL = RDMK.make_decisions(self)
+        decL = ProDMK.make_decisions(self)
+        if self._n_done > 2*self.upd_BS: self._run_update() # twice size since updating half_rectangle in trapeze
         return decL
+
+    # process method (loop)
+    def _dmk_proc(self):
+        self.__build_neural_stuff()
+        ProDMK._dmk_proc(self)
 
     # saves checkpoints
     def save(self): self.mdl.saver.save()
