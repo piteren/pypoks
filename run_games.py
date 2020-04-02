@@ -27,11 +27,13 @@ class GamesManager:
         #self.dmkL = [ProDMK(name='dmk%d' % ix, n_players=dmk_players) for ix in range(n_dmk)]
         self.dmkL = [NeurDMK(
             fwd_func=       cnnCEM_GFN,
-            #device=         ix%2,
-            device=         None,
+            device=         None, # CPU
             name=           'dmk%d'%ix,
-            verb=1,
-            n_players=      dmk_players) for ix in range(n_dmk)]
+            n_players=      dmk_players,
+            pmex=           0.2,
+            suex=           0.0,
+            stats_iv=       10000,
+            verb=           1) for ix in range(n_dmk)]
 
         # get all ques into one dict
         ques = {}
@@ -57,9 +59,11 @@ class GamesManager:
                 self.tables.append(table)
                 table_queD = {}
 
-
+    # runs processed games
     def run_games(self):
+        print('Starting DMKs...')
         for dmk in tqdm(self.dmkL): dmk.start()
+        print('Starting tables...')
         for tbl in tqdm(self.tables): tbl.start()
 
 

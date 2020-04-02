@@ -8,7 +8,7 @@ import tensorflow as tf
 
 from putils.lipytools.little_methods import short_scin
 from putils.neuralmess.base_elements import my_initializer, num_var_floats
-from putils.neuralmess.layers import lay_dense
+from putils.neuralmess.layers import lay_dense, zeroes
 from putils.neuralmess.encoders import encDRT
 
 from cardNet.card_network import card_enc
@@ -107,12 +107,11 @@ def lstm_GFN(
         finState = tf.reshape(state, shape=[-1, 2, cellW])
         print(' > finState:', finState)
 
-        denseOut = lay_dense(
+        logits = lay_dense(
             input=      out,
             units=      4,
             #activation= tf.nn.relu,
-            useBias=    False,)
-        logits = denseOut['output']
+            use_bias=    False,)
         print(' > logits:', logits)
 
         probs = tf.nn.softmax(logits)
@@ -232,11 +231,10 @@ def cnn_GFN(
         print(' > input (concatenated):', input)  # width = self.wC*3 + (self.wMT + self.wV)*2
 
         # projection without activation and bias
-        dense_out = lay_dense(
+        input = lay_dense(
             input=          input,
             units=          width,
-            useBias=        False)
-        input = dense_out['output']
+            use_bias=        False)
         print(' > projected input (projected):', input)
 
         state_shape = [n_lay, 2, width]
@@ -293,11 +291,10 @@ def cnn_GFN(
         print(' > finState (split):', fin_state)
 
         # projection to logits
-        dense_out = lay_dense(
+        logits = lay_dense(
             input=          out,
             units=          4, #TODO: hardcoded
-            useBias=        False)
-        logits = dense_out['output']
+            use_bias=        False)
         print(' > logits:', logits)
 
         probs = tf.nn.softmax(logits)
@@ -402,11 +399,10 @@ def cnnCE_GFN(
         if verb>1: print(' > input (concatenated):', input)  # width = self.wC*3 + (self.wMT + self.wV)*2
 
         # projection without activation and bias
-        dense_out = lay_dense(
+        input = lay_dense(
             input=          input,
             units=          width,
-            useBias=        False)
-        input = dense_out['output']
+            use_bias=        False)
         if verb>1: print(' > projected input (projected):', input)
 
         state_shape = [n_lay, 2, width]
@@ -463,11 +459,10 @@ def cnnCE_GFN(
         if verb>1: print(' > finState (split):', fin_state)
 
         # projection to logits
-        dense_out = lay_dense(
+        logits = lay_dense(
             input=          out,
             units=          4, #TODO: hardcoded
-            useBias=        False)
-        logits = dense_out['output']
+            use_bias=        False)
         if verb>1: print(' > logits:', logits)
 
         probs = tf.nn.softmax(logits)
@@ -522,7 +517,11 @@ def cnnCEM_GFN(
         c_embW :int=    12,     # card emb width
         n_lay=          12,     # number of CNNR layers
         width=          None,   # representation width (number of filters), for none uses input width
+        activation=     tf.nn.relu, # TODO: maybe gelu?
         iLR=            3e-4,
+        warm_up=        100,    # since we do updates rarely, num of steps has to be small
+        avt_SVal=       0.04,
+        do_clip=        True,
         verb=           1,
         **kwargs):
 
@@ -543,6 +542,7 @@ def cnnCEM_GFN(
         ce_out = card_enc(train_flag=train_PH, c_ids=cards_PH, c_embW=c_embW)
         cards_encoded = ce_out['output']
         enc_vars =      ce_out['enc_vars']
+        enc_zsL =       ce_out['zeroes']
         if verb>1: print(' ### num of enc_vars (%d) %s'%(len(enc_vars),short_scin(num_var_floats(enc_vars))))
         if verb>1: print(' > cards encoded:', cards_encoded)
 
@@ -571,11 +571,10 @@ def cnnCEM_GFN(
 
         # projection without activation and bias
         if width:
-            dense_out = lay_dense(
+            input = lay_dense(
                 input=          input,
                 units=          width,
-                useBias=        False)
-            input = dense_out['output']
+                use_bias=        False)
             if verb>1: print(' > projected input (projected):', input)
         else: width = cards_encoded.shape[-1]
 
@@ -598,6 +597,7 @@ def cnnCEM_GFN(
             begin_params_axis=  -1)
 
         input_lays = []
+        cnn_zsL = []
         for depth in range(n_lay):
 
             input_lays.append(tf.concat([state_lays[depth],sub_output], axis=-2))
@@ -614,8 +614,9 @@ def cnnCEM_GFN(
                     padding=            'valid',
                     data_format=        'channels_last')
 
-            cnn_out = cnn_lay(input_lays[-1]) # cnn
-            cnn_out = tf.nn.relu(cnn_out) # activation
+            cnn_out = cnn_lay(input_lays[-1])   # cnn
+            cnn_out = activation(cnn_out)       # activation
+            cnn_zsL += zeroes(cnn_out)         # catch zeroes
             if verb>1: print(' > cnn_out (%d lay)' % depth, cnn_out)
             sub_output += cnn_out
             if verb>1: print(' > sub_output (RES %d lay)' % depth, cnn_out)
@@ -633,11 +634,10 @@ def cnnCEM_GFN(
         if verb>1: print(' > finState (split):', fin_state)
 
         # projection to logits
-        dense_out = lay_dense(
+        logits = lay_dense(
             input=          out,
             units=          4, #TODO: hardcoded
-            useBias=        False)
-        logits = dense_out['output']
+            use_bias=        False)
         if verb>1: print(' > logits:', logits)
 
         probs = tf.nn.softmax(logits)
@@ -679,6 +679,8 @@ def cnnCEM_GFN(
         'single_zero_state':    single_zero_state,
         'probs':                probs,
         'fin_state':            fin_state,
+        'enc_zeroes':           tf.concat(enc_zsL, axis=-1),
+        'cnn_zeroes':           tf.concat(cnn_zsL, axis=-1),
         'loss':                 loss,
         'enc_vars':             enc_vars,
         'cnn_vars':             cnn_vars,

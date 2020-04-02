@@ -28,7 +28,8 @@ import time
 from pologic.podeck import PDeck
 from pologic.potable import POS_NMS, TBL_MOV
 
-from putils.neuralmess.nemodel import NNModel
+from putils.neuralmess.nemodel import NEModel
+from putils.neuralmess.base_elements import ZeroesProcessor
 
 class State:
 
@@ -237,13 +238,15 @@ class DMK(ABC):
 
 # process(ed) DMK
 # + introduces move probabilities
-# + random move
+# + random move, forced (random) exploration
 # + stats
 class ProDMK(DMK, Process):
 
     def __init__(
             self,
-            stats_iv=   1000,   # collects players/DMK stats, runs TB (for None does not)
+            pmex: float=    0.0,  # <0;1> possible_moves exploration (probability of random sampling from possible_moves space)
+            suex: float=    0.2,  # <0;1> self uncertainty exploration (probability of sampling from probability (rather than taking max))
+            stats_iv=       1000, # collects players/DMK stats, runs TB (for None does not)
             **kwargs):
 
         Process.__init__(self, target=self._dmk_proc)
@@ -252,8 +255,20 @@ class ProDMK(DMK, Process):
         self.pl_out_que = Queue()
         self.pl_in_queD = {pa: Queue() for pa in self._get_players_addr()}
 
+        self.suex = suex
+        self.pmex = pmex
+
         self.sm = None
         self.stats_iv = stats_iv
+
+    # method to run before process loop
+    def _pre_process(self):
+        # TB stats saver (has to be build here, inside process method)
+        self.sm = StatsMNG(
+            name=       self.name,
+            pl_addrL=   self._get_players_addr(),
+            stats_iv=   self.stats_iv,
+            verb=       1) if self.stats_iv else None
 
     # wraps with stats
     def _enc_states(
@@ -269,12 +284,18 @@ class ProDMK(DMK, Process):
             probs :List[float],
             possible_moves :List[bool]) -> int:
 
-        prob_mask = [int(pM) for pM in possible_moves]  # cast bool to int
-        prob_mask = np.asarray(prob_mask) # to np
+        if self.pmex > 0 and random.random() < self.pmex: probs = np.random.rand(self.n_moves) # forced random probability
+
+        prob_mask = np.asarray(possible_moves).astype(int) # to np
         probs = probs * prob_mask  # mask probs
-        if np.sum(probs) == 0: probs = prob_mask  # take mask if no intersection
-        probs /= np.sum(probs)  # normalize
-        move = np.random.choice(np.arange(self.n_moves), p=probs)  # sample from probs # TODO: for tournament should take max
+        if np.sum(probs)==0: probs = prob_mask  # take mask if no intersection
+
+        moves_arr = np.arange(self.n_moves)
+        if self.suex > 0 and random.random() < self.suex:
+            probs /= np.sum(probs)  # normalize
+            move = np.random.choice(moves_arr, p=probs) # sample from probs
+        else: move = moves_arr[np.argmax(probs)] # take max from probs
+
         return move
 
      # returns list of decisions
@@ -316,12 +337,7 @@ class ProDMK(DMK, Process):
     # process method (loop)
     def _dmk_proc(self):
 
-        # TB stats saver (has to be build here, inside process method)
-        self.sm = StatsMNG(
-            name=       self.name,
-            pl_addrL=   self._get_players_addr(),
-            stats_iv=   self.stats_iv,
-            verb=       1) if self.stats_iv else None
+        self._pre_process()
 
         n_waiting = 0 # num players ( ~> tables) waiting for decision
         while True:
@@ -355,26 +371,31 @@ class ProDMK(DMK, Process):
 # + encodes states
 # + makes decisions with NN
 # + updates NN (learns)
+# + exploration reduction
 class NeurDMK(ProDMK):
 
     def __init__(
             self,
             fwd_func,
             device=         1,
-            rand_moveF=     0.0,    # how often move will be sampled from random
             upd_BS=         50000,  # estimated target batch size of update
+            ex_reduce=      0.95,   # exploration reduction factor (with each update)
             **kwargs):
 
-        ProDMK.__init__( self, **kwargs)
+        ProDMK.__init__( self,**kwargs)
 
         self.fwd_func = fwd_func
         self.device = device
-        self.rand_moveF = rand_moveF
+
         self.upd_BS = upd_BS
+        self.ex_reduce = ex_reduce
 
-    def __build_neural_stuff(self):
+    # run in process target, before the loop
+    def _pre_process(self):
 
-        self.mdl = NNModel(
+        ProDMK._pre_process(self)
+
+        self.mdl = NEModel(
             fwd_func=   self.fwd_func,
             mdict=      {'name':self.name, 'verb':0}, # TODO: by now base concept
             devices=    self.device,
@@ -391,6 +412,15 @@ class NeurDMK(ProDMK):
         # reversed dicts from ptable, helpful while encoding states
         self.pos_nms_r = {k:POS_NMS[3].index(k) for k in POS_NMS[3]}  # hardcoded 3 here
         self.tbl_mov_r = {TBL_MOV[k]: k for k in TBL_MOV}
+
+        self.ze_pro_cnn = ZeroesProcessor(
+            intervals=      (5,20),
+            tag_pfx=        'nane_cnn',
+            summ_writer=    self.sm.summ_writer)
+        self.ze_pro_enc = ZeroesProcessor(
+            intervals=      (5,20),
+            tag_pfx=        'nane_enc',
+            summ_writer=    self.sm.summ_writer)
 
     # prepares state into form of nn input
     #  - encodes only selection of states
@@ -564,6 +594,16 @@ class NeurDMK(ProDMK):
 
             if mL: rewards[p_addr].append(mL) # finally add last
 
+        # remove not rewarded players (rare, but possible)
+        nrp_addrL = []
+        for p_addr in p_addrL:
+            if not rewards[p_addr]:
+                rewards.pop(p_addr)
+                nrp_addrL.append(p_addr)
+        if nrp_addrL:
+            print('@@@ WARNING: got not rewarded players!!!')
+            for p_addr in nrp_addrL: p_addrL.remove(p_addr)
+
         # share rewards:
         for p_addr in p_addrL:
             for mL in rewards[p_addr]:
@@ -578,7 +618,9 @@ class NeurDMK(ProDMK):
         lrm = [rewards[p_addr][0][0]                            for p_addr in p_addrL] # last rewarded move
         lrmT = zip(p_addrL, lrm)
         lrmT = sorted(lrmT, key=lambda x: x[1], reverse=True)
-        upd_p = lrmT[:len(lrmT) // 2]
+        half_players = len(self._done_states) // 2
+        if len(lrmT) < half_players: half_players = len(lrmT)
+        upd_p = lrmT[:half_players]
         n_upd = upd_p[-1][1] + 1  # n states to use for update
         upd_p = [e[0] for e in upd_p]  # list of p_addr to update
 
@@ -587,16 +629,16 @@ class NeurDMK(ProDMK):
             nr =    [len(rewards[p_addr])                       for p_addr in p_addrL] # num of rewards
             nm =    [sum([len(ml) for ml in rewards[p_addr]])   for p_addr in p_addrL] # num of moves
             nmr = []                                                                   # num of moves per reward
-            for p_addr in rewards:
+            for p_addr in p_addrL:
                 for ml in rewards[p_addr]:
                     nmr.append(len(ml))
-            print(' UPD states stats %s'%self.name)
+            print('%s updates'%self.name)
             print('  n_states: %s' % NeurDMK._mam(ns))
             print('  last rm : %s' % NeurDMK._mam(lrm))
             print('  n_mov   : %s' % NeurDMK._mam(nm))
             print('  n_rew   : %s' % NeurDMK._mam(nr))
             print('  n_mov/R : %s' % NeurDMK._mam(nmr))
-            print(' >>> upd PL x ST: %d x %d (%d)' % (len(upd_p), n_upd, len(upd_p) * n_upd))
+            print(' >>> BS   : %d x %d (%d)' % (len(upd_p), n_upd, len(upd_p) * n_upd))
             # TODO: get here also some time stats
 
         # TODO: NN here
@@ -653,18 +695,39 @@ class NeurDMK(ProDMK):
         fetches = [
             self.mdl['optimizer'],
             self.mdl['loss'],
+            self.mdl['scaled_LR'],
+            self.mdl['enc_zeroes'],
+            self.mdl['cnn_zeroes'],
             self.mdl['gg_norm'],
             self.mdl['avt_gg_norm']]
-        _, loss, gn, agn = self.mdl.session.run(fetches, feed_dict=feed)
+        _, loss, sLR, enc_zs, cnn_zs, gn, agn = self.mdl.session.run(fetches, feed_dict=feed)
+
+        dmk_handIX = self.sm.stats['nH'][0] if self.sm else None
+
+        self.ze_pro_enc.process(enc_zs, dmk_handIX)
+        self.ze_pro_cnn.process(cnn_zs, dmk_handIX)
+
+        # reduce after each update
+        if self.suex > 0:
+            self.suex *= self.ex_reduce
+            if self.suex < 0.001: self.suex = 0
+            suex_summ = tf.Summary(value=[tf.Summary.Value(tag='nn/4.suex', simple_value=self.suex)])
+            self.sm.summ_writer.add_summary(suex_summ, dmk_handIX)
+        if self.pmex > 0:
+            self.pmex *= self.ex_reduce
+            if self.pmex < 0.001: self.pmex = 0
+            pmex_summ = tf.Summary(value=[tf.Summary.Value(tag='nn/4.pmex', simple_value=self.pmex)])
+            self.sm.summ_writer.add_summary(pmex_summ, dmk_handIX)
 
         if self.sm:
-            step = self.sm.stats['nH'][0]
             loss_summ = tf.Summary(value=[tf.Summary.Value(tag='nn/0.loss', simple_value=loss)])
-            gn_summ = tf.Summary(value=[tf.Summary.Value(tag='nn/1.gn', simple_value=gn)])
-            agn_summ = tf.Summary(value=[tf.Summary.Value(tag='nn/2.agn', simple_value=agn)])
-            self.sm.summ_writer.add_summary(loss_summ, step)
-            self.sm.summ_writer.add_summary(gn_summ, step)
-            self.sm.summ_writer.add_summary(agn_summ, step)
+            sLR_summ = tf.Summary(value=[tf.Summary.Value(tag='nn/1.sLR', simple_value=sLR)])
+            gn_summ = tf.Summary(value=[tf.Summary.Value(tag='nn/2.gn', simple_value=gn)])
+            agn_summ = tf.Summary(value=[tf.Summary.Value(tag='nn/3.agn', simple_value=agn)])
+            self.sm.summ_writer.add_summary(loss_summ, dmk_handIX)
+            self.sm.summ_writer.add_summary(sLR_summ, dmk_handIX)
+            self.sm.summ_writer.add_summary(gn_summ, dmk_handIX)
+            self.sm.summ_writer.add_summary(agn_summ, dmk_handIX)
 
         # leave only not used
         for p_addr in upd_p:
@@ -676,11 +739,6 @@ class NeurDMK(ProDMK):
         decL = ProDMK.make_decisions(self)
         if self._n_done > 2*self.upd_BS: self._run_update() # twice size since updating half_rectangle in trapeze
         return decL
-
-    # process method (loop)
-    def _dmk_proc(self):
-        self.__build_neural_stuff()
-        ProDMK._dmk_proc(self)
 
     # saves checkpoints
     def save(self): self.mdl.saver.save()
