@@ -2,18 +2,28 @@
 
  2019 (c) piteren
 
- DMK (decision maker) is an object that makes decisions for poker players
+ DMK (decision maker) makes decisions for poker players
+
+    MSOD (many states one decision) concept
+
  DMK assumes that:
     - player sends list of states
-    - from time to time player sends list of possible moves,
-        > it means that move should be chosen by DMK using received states
-        > possible moves are added to the last state of player
-        > no new states will come until move will be made
-        > table with player (that waits for move) is locked (no other player will send anything then...)
+    - from time to time player sends list of possible moves
+        > it means that move should be chosen by DMK using received states (but player/table can wait for a while)
+        > possible moves are added by DMK to the last state of player
+        > no new states from the table (for that player) will come until move will be made
+            > table with player (that waits for move) is locked (no other player will send anything then...)
 
-        > when DMK is asked to make_decisions (moves for playes) it:
-            > has to make at least one move ( >> for at least one player)
-            > states with move are appended to _done_states
+    - DMK makes decisions (moves for players):
+        > makes decisions for some players (do not have for all)
+        > states with move are moved(appended) to _done_states of processed players
+
+ ProDMK is a DMK implemented as a separate process
+    - runs separately receiving and sending data (communicating with table and players) via ques
+
+ NeurDMK is a ProDMK implemented with Neural Network to make decisions
+    - from time to time updates itself(learns NN) using information from _done_states
+
 """
 
 from abc import ABC, abstractmethod
