@@ -1,6 +1,6 @@
 ![](pypoks.png)
 
-###Reinforcement learning of AI(neural network) agent @poker game environment with Tensorflow & Python**  
+###Reinforcement Learning with AI(neural network) agent @poker game environment (Tensorflow & Python)  
 
 ######This project is mainly going to cover the areas of: 
 - making good/optimal decisions (building the strategy) with very limited observation
@@ -10,7 +10,7 @@
 
 There are many similarities to problems like autonomous driving or stock market trading.
 
-######We will implement:
+######Development:
 - neural networks @Tensorflow & GPU
 - data preparation & processing with Python
 - parallel computing with Python Multiprocessing

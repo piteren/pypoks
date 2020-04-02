@@ -1,4 +1,10 @@
+_cache
+_log
+_models
+_models_arch
 _nnSaves
 _nnTB
+flowcharts
 venv*
+posts
 saves
