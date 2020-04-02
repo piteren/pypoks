@@ -34,7 +34,8 @@ import time
 
 from putils.neuralmess.dev_manager import nestarter
 from putils.neuralmess.multi_saver import MultiSaver
-from putils.neuralmess.nemodel import NNModel
+from putils.neuralmess.nemodel import NEModel
+from putils.neuralmess.base_elements import ZeroesProcessor
 from putils.que_MProcessor import QueMultiProcessor
 
 from pologic.podeck import PDeck
@@ -65,18 +66,19 @@ def train_cn(
         rQueTSize=      rQueTSize,
         verb=           verb)
 
-    cnet = NNModel( # model
+    cnet = NEModel( # model
         fwd_func=       card_net,
         mdict=          cn_dict,
         #devices=
         verb=           verb)
 
-    izT = [50,500,5000]
-    indZerosA = [[] for _ in izT]
-    indZerosB = [[] for _ in izT]
+    ze_pro = ZeroesProcessor(
+        intervals=      (50,500,5000),
+        tag_pfx=        '7_nane',
+        summ_writer=    cnet.summ_writer)
 
-    repFreq = 100
-    hisFreq = 500
+    rep_freq = 100
+    his_freq = 500
     nHighAcc = 0
     sTime = time.time()
     for b in range(1, n_batches):
@@ -114,23 +116,19 @@ def train_cn(
             cnet['gg_norm'],
             cnet['avt_gg_norm'],
             cnet['scaled_LR'],
-            cnet['nn_zerosA'],
-            cnet['nn_zerosB']]
+            cnet['zeroes']]
         lenNH = len(fetches)
-        if b % hisFreq == 0: fetches.append(cnet['hist_summ'])
+        if b % his_freq == 0: fetches.append(cnet['hist_summ'])
 
         out = cnet.session.run(fetches, feed_dict=feed)
         if len(out)==lenNH: out.append(None)
-        _, loss, loss_W, loss_R, loss_AWP, acc_W, acc_WC, pred_W, ohnc_W, acc_R, acc_RC, pred_R, ohnc_R, gn, agn, lRs, zerosA, zerosB, hist_summ = out
+        _, loss, loss_W, loss_R, loss_AWP, acc_W, acc_WC, pred_W, ohnc_W, acc_R, acc_RC, pred_R, ohnc_R, gn, agn, lRs, zs, hist_summ = out
 
         if hist_summ: cnet.summ_writer.add_summary(hist_summ, b)
 
-        if not zerosA.size: zerosA = np.asarray([0])
-        for ls in indZerosA: ls.append(zerosA)
-        if not zerosB.size: zerosB = np.asarray([0])
-        for ls in indZerosB: ls.append(zerosB)
+        ze_pro.process(zs,b)
 
-        if b % repFreq == 0:
+        if b % rep_freq == 0:
 
             """ prints stats of rank @batch
             if verbLev > 2:
@@ -154,7 +152,7 @@ def train_cn(
                 print()
             #"""
 
-            print('%6d, loss: %.6f, accW: %.6f, gn: %.6f, (%d/s)' % (b, loss, acc_W, gn, repFreq * tr_SM[0] / (time.time() - sTime)))
+            print('%6d, loss: %.6f, accW: %.6f, gn: %.6f, (%d/s)' % (b, loss, acc_W, gn, rep_freq * tr_SM[0] / (time.time() - sTime)))
             sTime = time.time()
 
             accsum = tf.Summary(value=[tf.Summary.Value(tag='1_crdN/0_iacW', simple_value=1-acc_W)])
@@ -188,29 +186,6 @@ def train_cn(
             c2sum = tf.Summary(value=[tf.Summary.Value(tag='5_Wca/2ca', simple_value=1-accC2)])
             cnet.summ_writer.add_summary(c01sum, b)
             cnet.summ_writer.add_summary(c2sum, b)
-
-            zerosAT0 = np.mean(zerosA)
-            naneT0Summ = tf.Summary(value=[tf.Summary.Value(tag='7_nane/naneAT0', simple_value=zerosAT0)])
-            cnet.summ_writer.add_summary(naneT0Summ, b)
-            for ix in range(len(izT)):
-                cizT = izT[ix]
-                if len(indZerosA[ix]) > cizT - 1:
-                    indZerosA[ix] = indZerosA[ix][-cizT:]
-                    zerosAT = np.mean(np.where(np.mean(np.stack(indZerosA[ix], axis=0), axis=0)==1, 1, 0))
-                    indZerosA[ix] = []
-                    naneTSumm = tf.Summary(value=[tf.Summary.Value(tag='7_nane/naneAT%d' % cizT, simple_value=zerosAT)])
-                    cnet.summ_writer.add_summary(naneTSumm, b)
-            zerosBT0 = np.mean(zerosB)
-            naneT0Summ = tf.Summary(value=[tf.Summary.Value(tag='7_nane/naneBT0', simple_value=zerosBT0)])
-            cnet.summ_writer.add_summary(naneT0Summ, b)
-            for ix in range(len(izT)):
-                cizT = izT[ix]
-                if len(indZerosB[ix]) > cizT - 1:
-                    indZerosB[ix] = indZerosB[ix][-cizT:]
-                    zerosBT = np.mean(np.where(np.mean(np.stack(indZerosB[ix], axis=0), axis=0) == 1, 1, 0))
-                    indZerosB[ix] = []
-                    naneTSumm = tf.Summary(value=[tf.Summary.Value(tag='7_nane/naneBT%d' % cizT, simple_value=zerosBT)])
-                    cnet.summ_writer.add_summary(naneTSumm, b)
 
             #""" reporting of almost correct cases in late training
             if acc_W > 0.99: nHighAcc += 1
@@ -335,7 +310,7 @@ def infer():
 
     verbLev = 1
 
-    cNet = NNModel(  # model
+    cNet = NEModel(  # model
         fwd_func=   card_net,
         mdict=      {'name': 'cNet'},
         verb=       verbLev)

@@ -84,13 +84,12 @@ def card_enc(
 
         # input projection (without activation)
         if in_proj:
-            proj_out = lay_dense(
+            in_cemb = lay_dense(
                 input=          in_cemb,
                 units=          in_proj,
                 name=           'c_proj',
                 reuse=          tf.AUTO_REUSE,
-                useBias=        False)
-            in_cemb = proj_out['output']
+                use_bias=        False)
             if verb > 1: print(' > in_cemb projected:', in_cemb)
         elif verb > 1: print(' > in_cemb:', in_cemb)
 
@@ -121,7 +120,7 @@ def card_enc(
         'output':       output,
         'enc_vars':     enc_vars,
         'hist_summ':    encOUT['hist_summ'] + hist_summ,
-        'nn_zeros':     encOUT['nn_zeros']}
+        'zeroes':       encOUT['zeroes']}
 
 # cards netetwork graph (FWD)
 def card_net(
@@ -207,10 +206,7 @@ def card_net(
         enc_vars = enc_outL[0]['enc_vars'] # encoder variables (with cards embeddings)
 
         # get nn_zeros
-        nn_zerosA = enc_outL[0]['nn_zeros']
-        nn_zerosA = tf.reshape(tf.stack(nn_zerosA), shape=[-1])
-        nn_zerosB = enc_outL[1]['nn_zeros']
-        nn_zerosB = tf.reshape(tf.stack(nn_zerosB), shape=[-1])
+        zsL = enc_outL[0]['zeroes']
         hist_summ = enc_outL[0]['hist_summ'] # get histograms from A
 
         # where all cards of A are known
@@ -223,26 +219,24 @@ def card_net(
         where_all_caF = tf.cast(where_all_ca, dtype=tf.float32) # cast to float
 
         # projection to 9 ranks A
-        dout_RA = lay_dense(
+        logits_RA = lay_dense(
             input=      enc_outL[0]['output'],
             units=      9,
             name=       'dense_RC',
             reuse=      tf.AUTO_REUSE,
-            useBias=    False)
-        logits_RA = dout_RA['output']
+            use_bias=    False)
         loss_RA = tf.nn.sparse_softmax_cross_entropy_with_logits( # loss rank A
             labels=     rnkA_PH,
             logits=     logits_RA)
         loss_RA = tf.reduce_mean(loss_RA * where_all_caF) # lossRA masked (where all cards @A)
 
         # projection to 9 ranks B
-        dout_RB = lay_dense(
+        logits_RB = lay_dense(
             input=      enc_outL[1]['output'],
             units=      9,
             name=       'dense_RC',
             reuse=      tf.AUTO_REUSE,
-            useBias=    False)
-        logits_RB = dout_RB['output']
+            use_bias=    False)
         loss_RB = tf.nn.sparse_softmax_cross_entropy_with_logits( # loss rank B
             labels=     rnkB_PH,
             logits=     logits_RB)
@@ -264,16 +258,16 @@ def card_net(
                 training_flag=  train_PH,
                 nHL=            0,
                 verb=           verb)
-            out_conc = enc_out['output']
+            out_conc =  enc_out['output']
+            zsL +=      enc_out['zeroes']
 
         # projection to 3 winner logits
-        dout_W = lay_dense(
+        logits_W = lay_dense(
             input=          out_conc,
             units=          3,
             name=           'dense_W',
             reuse=          tf.AUTO_REUSE,
-            useBias=        False)
-        logits_W = dout_W['output']
+            use_bias=        False)
         if verb > 1: print(' > logits_W:', logits_W)
         loss_W = tf.nn.sparse_softmax_cross_entropy_with_logits( # loss wonPH
             labels=     won_PH,
@@ -282,14 +276,13 @@ def card_net(
         if verb > 1: print(' > loss_W:', loss_W)
 
         # projection to probability of winning of A cards (regression value)
-        dout_WP = lay_dense(
+        a_WP = lay_dense(
             input=          enc_outL[0]['output'],
             units=          1,
             name=           'dense_WP',
             reuse=          tf.AUTO_REUSE,
             activation=     tf.nn.relu,
-            useBias=        False)
-        a_WP = dout_WP['output']
+            use_bias=        False)
         a_WP = tf.reshape(a_WP, shape=[-1])
         if verb > 1: print(' > player a win probability:', a_WP)
         loss_AWP = tf.losses.mean_squared_error(
@@ -365,7 +358,6 @@ def card_net(
         'predictions_R':        predictions_R,
         'oh_notcorrect_R':      oh_notcorrect_R,
         'hist_summ':            tf.summary.merge(hist_summ),
-        'nn_zerosA':            nn_zerosA,
-        'nn_zerosB':            nn_zerosB,
+        'zeroes':               tf.concat(zsL, axis=-1),
         'enc_vars':             enc_vars,
         'cls_vars':             cls_vars}
