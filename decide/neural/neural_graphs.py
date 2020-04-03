@@ -518,7 +518,8 @@ def cnnCEM_GFN(
         n_lay=          12,     # number of CNNR layers
         width=          None,   # representation width (number of filters), for none uses input width
         activation=     tf.nn.relu, # TODO: maybe gelu?
-        iLR=            3e-4,
+        opt_class=      tf.train.GradientDescentOptimizer,
+        iLR=            1e-3,#3e-4,
         warm_up=        100,    # since we do updates rarely, num of steps has to be small
         avt_SVal=       0.04,
         do_clip=        True,
