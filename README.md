@@ -11,7 +11,7 @@
 There are many similarities to problems like autonomous driving or stock market trading.
 
 ######Development:
-- neural networks @Tensorflow & GPU
+- neural networks @Tensorflow
 - data preparation & processing with Python
 - parallel computing with Python Multiprocessing
 - genetic algorithms
