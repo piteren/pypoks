@@ -400,7 +400,7 @@ class NeurDMK(ProDMK):
         self.upd_BS = upd_BS
         self.ex_reduce = ex_reduce
 
-    # run in process target, before the loop
+    # run in the process_target_method (before the loop)
     def _pre_process(self):
 
         ProDMK._pre_process(self)
@@ -565,13 +565,10 @@ class NeurDMK(ProDMK):
                             break
                 if self.verb>1 and not got_probs_for_possible: print(' > (@_calc_probs) another loop...')
 
-    @staticmethod
-    # min avg max >> str (for list of values)
-    def _mam(valL :list) -> str:
-        return '%4d:%4d:%4d'%(min(valL), sum(valL)/len(valL), max(valL))
-
     # runs update of DMK based on saved _done_states
     def _run_update(self):
+
+        def mam(valL: list) -> str: return '%4d:%4d:%4d' % (min(valL), sum(valL) / len(valL), max(valL))
 
         p_addrL = sorted(list(self._done_states.keys()))
 
@@ -643,11 +640,11 @@ class NeurDMK(ProDMK):
                 for ml in rewards[p_addr]:
                     nmr.append(len(ml))
             print('%s updates'%self.name)
-            print('  n_states: %s' % NeurDMK._mam(ns))
-            print('  last rm : %s' % NeurDMK._mam(lrm))
-            print('  n_mov   : %s' % NeurDMK._mam(nm))
-            print('  n_rew   : %s' % NeurDMK._mam(nr))
-            print('  n_mov/R : %s' % NeurDMK._mam(nmr))
+            print('  n_states: %s' % mam(ns))
+            print('  last rm : %s' % mam(lrm))
+            print('  n_mov   : %s' % mam(nm))
+            print('  n_rew   : %s' % mam(nr))
+            print('  n_mov/R : %s' % mam(nmr))
             print(' >>> BS   : %d x %d (%d)' % (len(upd_p), n_upd, len(upd_p) * n_upd))
             # TODO: get here also some time stats
 
