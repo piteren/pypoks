@@ -11,7 +11,7 @@ from tqdm import tqdm
 from putils.neuralmess.dev_manager import nestarter
 
 from decide.decision_maker import ProDMK, NeurDMK
-from decide.neural.neural_graphs import cnnCEM_GFN
+from decide.neural.neural_graphs import cnnCEM_GFN, cnnCEM_GFNpu
 from pologic.potable import QPTable
 
 
@@ -26,7 +26,7 @@ class GamesManager:
         assert (n_dmk * dmk_players) % tpl_count == 0
         #self.dmkL = [ProDMK(name='dmk%d' % ix, n_players=dmk_players) for ix in range(n_dmk)]
         self.dmkL = [NeurDMK(
-            fwd_func=       cnnCEM_GFN,
+            fwd_func=       cnnCEM_GFNpu,
             device=         None, # CPU
             name=           'dmk%d'%ix,
             n_players=      dmk_players,
@@ -65,6 +65,7 @@ class GamesManager:
         for dmk in tqdm(self.dmkL): dmk.start()
         print('Starting tables...')
         for tbl in tqdm(self.tables): tbl.start()
+
 
 
 if __name__ == "__main__":

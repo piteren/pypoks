@@ -1,0 +1,8 @@
+GPUtil
+nltk
+python-levenshtein
+regex
+rouge
+spacy
+tensorflow-gpu==1.14
+tqdm

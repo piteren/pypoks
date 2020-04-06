@@ -9,7 +9,7 @@ import tensorflow as tf
 
 from putils.neuralmess.base_elements import my_initializer
 from putils.neuralmess.layers import lay_dense
-from putils.neuralmess.encoders import encDRT, encTRNS
+from putils.neuralmess.encoders import enc_DRT, enc_TNS
 
 
 # cards encoder graph (Transformer for 7 cards representations)
@@ -93,7 +93,7 @@ def card_enc(
             if verb > 1: print(' > in_cemb projected:', in_cemb)
         elif verb > 1: print(' > in_cemb:', in_cemb)
 
-        encOUT = encTRNS(
+        enc_out = enc_TNS(
             in_seq=         in_cemb,
             name=           'TAT' if tat_case else 'TNS',
             seq_out=        not tat_case,
@@ -105,9 +105,9 @@ def card_enc(
             dropout=        dropout,
             dropout_att=    0,
             drop_flag=      train_flag,
-            n_histL=        3,
+            n_hist=        3,
             verb=           verb)
-        output = encOUT['output']
+        output = enc_out['output']
         if not tat_case:
             output = tf.unstack(output, axis=-2)
             output = tf.concat(output, axis=-1)
@@ -119,8 +119,8 @@ def card_enc(
     return {
         'output':       output,
         'enc_vars':     enc_vars,
-        'hist_summ':    encOUT['hist_summ'] + hist_summ,
-        'zeroes':       encOUT['zeroes']}
+        'hist_summ':    enc_out['hist_summ'] + hist_summ,
+        'zeroes':       enc_out['zeroes']}
 
 # cards netetwork graph (FWD)
 def card_net(
@@ -249,14 +249,14 @@ def card_net(
         out_conc = tf.concat([enc_outL[0]['output'],enc_outL[1]['output']], axis=-1)
         if verb > 1: print(' > out_conc:', out_conc)
         if dr_layers:
-            enc_out = encDRT(
+            enc_out = enc_DRT(
                 input=          out_conc,
                 name=           'drC',
                 lay_width=      dense_proj,
                 n_layers=       dr_layers,
                 dropout=        dropout_DR,
                 training_flag=  train_PH,
-                nHL=            0,
+                n_hist=            0,
                 verb=           verb)
             out_conc =  enc_out['output']
             zsL +=      enc_out['zeroes']

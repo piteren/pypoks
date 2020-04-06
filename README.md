@@ -17,3 +17,21 @@ There are many similarities to problems like autonomous driving or stock market 
 - genetic algorithms
 
 if you are interested in collaboration please email [me](mailto:tojestprzedmalpa@gmail.com)
+*************
+######SETUP:
+Create virtualenv with python 3.6
+```
+$ virtualenv -p python3.6 venv
+```
+Activate it
+```
+$ source venv/bin/activate
+```
+Install requirements
+```
+$ pip install -r requirements.txt
+```
+Install spacy en model
+```
+$ python -m spacy download en
+```
