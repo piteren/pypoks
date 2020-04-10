@@ -192,6 +192,7 @@ class DMK(ABC):
 
         # variables below store moves/decisions data
         self._new_states =      {} # dict of lists of new states {state: }, should not have empty keys (player indexes)
+        self._n_new = 0
         self._done_states =     {pa: [] for pa in self._get_players_addr()}  # dict of processed (with decision) states
         self._n_done = 0
 
@@ -212,11 +213,13 @@ class DMK(ABC):
             p_addr,
             player_stateL: List[list]) -> None:
 
-        if p_addr not in self._new_states: self._new_states[p_addr] = []
-        self._new_states[p_addr] += self._enc_states(p_addr, player_stateL)
-        if not self._new_states[p_addr]: self._new_states.pop(p_addr) # case of encoded states actually empty
+        encoded_states = self._enc_states(p_addr, player_stateL)
+        if encoded_states:
+            if p_addr not in self._new_states: self._new_states[p_addr] = []
+            self._new_states[p_addr] += encoded_states
+            self._n_new += len(encoded_states)
 
-    # takes player possible_moves and saves
+            # takes player possible_moves and saves
     def take_possible_moves(
             self,
             p_addr,
@@ -242,6 +245,7 @@ class DMK(ABC):
             states = self._new_states.pop(p_addr)
             states[-1].move = move # write move into state
             self._done_states[p_addr] += states
+            self._n_new -= len(states)
             self._n_done += len(states)
 
         return decL
@@ -344,7 +348,7 @@ class ProDMK(DMK, Process):
         self._calc_probs()
         return DMK.make_decisions(self)
 
-    # process method (loop)
+    # process method (loop, target of process)
     def _dmk_proc(self):
 
         self._pre_process()
@@ -352,6 +356,7 @@ class ProDMK(DMK, Process):
         n_waiting = 0 # num players ( ~> tables) waiting for decision
         while True:
 
+            # 'flush' the que of data from players
             pdL = [self.pl_out_que.get()] # get first
             while True:
                 try:            player_data = self.pl_out_que.get_nowait()
@@ -369,6 +374,7 @@ class ProDMK(DMK, Process):
                     self.take_possible_moves(p_addr, player_data['possible_moves'])
                     n_waiting += 1
 
+            # now, if got any waiting >> make decisions
             if n_waiting:
                 decL = self.make_decisions()
                 #print(' %d >> %d'%(n_waiting,len(decL)))
@@ -376,6 +382,8 @@ class ProDMK(DMK, Process):
                 for d in decL:
                     p_addr, move = d
                     self.pl_in_queD[p_addr].put(move)
+
+                #TODO: aggregate stats: pdL size after flush, n_waiting, n_dec
 
 # Neural DMK
 # + encodes states
@@ -520,6 +528,7 @@ class NeurDMK(ProDMK):
 
             state_batch.append(self.last_fwd_state[p_addr])
 
+        # TODO: try np. for speed
         feed = {
             self.mdl['cards_PH']:   cards_batch,
             self.mdl['train_PH']:   False,
@@ -529,8 +538,7 @@ class NeurDMK(ProDMK):
 
         fetches = [self.mdl['probs'], self.mdl['fin_state']]
         probs, fwd_states = self.mdl.session.run(fetches, feed_dict=feed)
-
-        probs = np.reshape(probs, newshape=(probs.shape[0], probs.shape[-1]))  # TODO: maybe any smarter way
+        probs = np.squeeze(probs, axis=1) # remove sequence axis (1)
 
         for ix in range(fwd_states.shape[0]):
             p_addr = p_addrL[ix]
@@ -539,7 +547,7 @@ class NeurDMK(ProDMK):
 
         return probs_row
 
-    # add probabilities for at least some states with possible_moves
+    # add probabilities for at least some states with possible_moves (called with make_decisions)
     def _calc_probs(self) -> None:
 
         got_probs_for_possible = False
@@ -648,7 +656,6 @@ class NeurDMK(ProDMK):
             print(' >>> BS   : %d x %d (%d)' % (len(upd_p), n_upd, len(upd_p) * n_upd))
             # TODO: get here also some time stats
 
-        # TODO: NN here
         cards_batch = []
         event_batch = []
         switch_batch = []
@@ -690,6 +697,7 @@ class NeurDMK(ProDMK):
             reward_batch.append(reward_seq)
             state_batch.append(self.zero_state)
 
+        # TODO: try np. for speed
         feed = {
             self.mdl['cards_PH']:   cards_batch,
             self.mdl['train_PH']:   True,
