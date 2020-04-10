@@ -1,24 +1,24 @@
 ![](pypoks.png)
 
-###Reinforcement Learning with AI(neural network) agent @poker game environment (Tensorflow & Python)  
+###Reinforcement Learning(RL) with neural network(NN) agent @poker game environment with Python & TensorFlow(TF)
 
-######This project is mainly going to cover the areas of: 
-- making good/optimal decisions (building the strategy) with very limited observation
-- learning from noisy input with efficient environment (data) representation 
-- extracting gradients for high poker variance
-- development of network architecture ready for genetic algorithms (Tensorflow implementation)  
+######Machine Learining(ML) areas to cover:
+- RL + NN to make good decisions (building the strategy)
+- limited and noisy input (observation data)
+- efficient environment (data) representation for NN & RL 
+- backpropagation & high poker variance
+- genetic algorithms (GA) implementation  
 
-There are many similarities to problems like autonomous driving or stock market trading.
-
-######Development:
-- neural networks @Tensorflow
-- data preparation & processing with Python
-- parallel computing with Python Multiprocessing
-- genetic algorithms
+######Technology:
+- advanced neural networks architectures @TensorFlow
+- data extraction & processing with Python
+- Python Multiprocessing & TF (many processes, many GPUs and a lot of data for parallel computing)
+- GA with TF
 
 if you are interested in collaboration please email [me](mailto:tojestprzedmalpa@gmail.com)
-*************
-######SETUP:
+
+#
+#####setup:
 Create virtualenv with python 3.6
 ```
 $ virtualenv -p python3.6 venv

@@ -4,13 +4,12 @@
 
 """
 
-from multiprocessing import Queue
 import random
 from tqdm import tqdm
 
 from putils.neuralmess.dev_manager import nestarter
 
-from decide.decision_maker import ProDMK, NeurDMK
+from decide.decision_maker import RProDMK, NeurDMK
 from decide.neural.neural_graphs import cnnCEM_GFN
 from pologic.potable import QPTable
 
@@ -27,7 +26,7 @@ class GamesManager:
         self.tables = [] # list of tables
 
         # create DMKs
-        #self.dmkL = [ProDMK(name='dmk%d' % ix, n_players=dmk_players) for ix in range(n_dmk)]
+        #self.dmkL = [RProDMK(name='dmk%d' % ix, n_players=dmk_players) for ix in range(n_dmk)] # random
         self.dmkL = [NeurDMK(
             fwd_func=       cnnCEM_GFN,
             device=         None, # CPU

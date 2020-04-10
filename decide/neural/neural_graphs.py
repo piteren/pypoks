@@ -110,13 +110,13 @@ def cnnCEM_GFN(
 
         if verb > 1:
             print(' > out:', out)
-            print(' > finState (split):', fin_state)
+            print(' > fintate (split):', fin_state)
 
         # projection to logits
         logits = lay_dense(
             input=          out,
             units=          4, #TODO: hardcoded
-            use_bias=        False)
+            use_bias=       False)
         if verb>1: print(' > logits:', logits)
 
         probs = tf.nn.softmax(logits)
@@ -125,12 +125,12 @@ def cnnCEM_GFN(
         cnn_vars = [var for var in cnn_vars if var not in enc_vars]
         if verb>1: print(' ### num of cnn_vars (%d) %s'%(len(cnn_vars),short_scin(num_var_floats(cnn_vars))))
 
-        correct_PH = tf.placeholder(  # "correct" move (label)
-            name=           'correct_PH',
+        move_PH = tf.placeholder(  # move made (label)
+            name=           'move_PH',
             dtype=          tf.int32,
             shape=          [None, None])  # [bsz,seq]
 
-        rew_PH = tf.placeholder(  # reward for "correct" move
+        rew_PH = tf.placeholder(  # reward for move made
             name=           'rew_PH',
             dtype=          tf.float32,
             shape=          [None, None])  # [bsz,seq]
@@ -139,7 +139,7 @@ def cnnCEM_GFN(
         # loss = tf.losses.SparseCategoricalCrossentropy(from_logits=True)
         # loss = loss(y_true=move, y_pred=logits, sample_weight=rew)
         loss = tf.losses.sparse_softmax_cross_entropy(
-            labels=     correct_PH,
+            labels=     move_PH,
             logits=     logits,
             weights=    rew_PH)
 
@@ -152,7 +152,7 @@ def cnnCEM_GFN(
         'train_PH':             train_PH,
         'switch_PH':            switch_PH,
         'event_PH':             event_PH,
-        'correct_PH':           correct_PH,
+        'move_PH':              move_PH,
         'rew_PH':               rew_PH,
         'state_PH':             state_PH,
         'single_zero_state':    single_zero_state,
@@ -167,4 +167,5 @@ def cnnCEM_GFN(
 
 
 if __name__ == "__main__":
+
     n = cnnCEM_GFN('pio',verb=2)
