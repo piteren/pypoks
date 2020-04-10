@@ -123,7 +123,7 @@ class PPlayer:
         self.nhs_IX = 0 # next hand_state index to update from (while sending game states)
 
     # makes decision for possible moves (base implementation with random), to be implemented using taken hh
-    def _make_decision(self, possible_moves :List[bool]):
+    def _make_decision(self, possible_moves :List[bool]) -> int:
         #decision = sorted(list(TBL_MOV.keys()))
         #decision.remove(-1)
         decision = [0,1,2,3] # hardcoded to speed-up
@@ -132,7 +132,7 @@ class PPlayer:
         return dec
 
     # returns possible moves and move cash (based on table cash)
-    def _pmc(self):
+    def _pmc(self) -> tuple:
 
         # by now simple hardcoded amounts of cash
         move_cash = {
@@ -154,7 +154,7 @@ class PPlayer:
 
         return possible_moves, move_cash
 
-    # prepares list of new & translated events from hh, will be used by send_states
+    # prepares list of new & translated events from table hh
     def _prepare_nt_states(self, hh):
         state_changes = hh.translated(pls=self.pls, fr=self.nhs_IX)
         self.nhs_IX = len(hh.events)  # update index for next
@@ -164,7 +164,7 @@ class PPlayer:
     def take_hh(self, hh): pass
 
     # makes move (based on hand history)
-    def make_move(self):
+    def make_move(self) -> tuple:
         possible_moves, move_cash = self._pmc()
         selected_move = self._make_decision(possible_moves)
         return selected_move, move_cash[selected_move]
@@ -174,7 +174,7 @@ class QPPlayer(PPlayer):
 
     def __init__(self,id,table):
 
-        PPlayer.__init__(self,id,table)
+        super().__init__(id,table)
         self.i_que = None # player input que
         self.o_que = None # player output que
 
@@ -463,6 +463,7 @@ class QPTable(PTable, Process):
         while True:
             if not self.run_hand(): break
 
+    # TODO: table should not manage itself ques... delete later this method
     # stop hand initialised by player pl, sends triggers via ques
     def _stop_hand(self, pl):
         pl.i_que.put('anything') # put back for finishing player

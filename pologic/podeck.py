@@ -368,7 +368,7 @@ class ASC(dict):
             file_FP :str,
             use_QMP=    True):
 
-        super(ASC, self).__init__()
+        super().__init__()
 
         print('\nReading ASC dict cache...')
         as_cards = lM.r_pickle(file_FP)

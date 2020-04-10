@@ -30,14 +30,14 @@ class GamesManager:
         self.dmkL = [NeurDMK(
             fwd_func=       cnnCEM_GFN,
             device=         None, # CPU
-            name=           'dmk%d'%ix,
+            name=           f'dmk{ix}',
             n_players=      dmk_players,
             pmex=           0.2,
             suex=           0.0,
             stats_iv=       10000,
             verb=           1) for ix in range(n_dmk)]
 
-    # creates tables based on ques of DMKs
+    # creates tables using (ques of) DMKs
     def _create_tables(self):
 
         # build dict of ques tuples, for all players: (IN,OUT)
@@ -59,8 +59,7 @@ class GamesManager:
                 table = QPTable(
                     pl_ques=    table_queD,
                     name=       f'tbl{len(tables)}',
-                    # verb=       self.verb,
-                )
+                    verb=       0)
                 tables.append(table)
                 table_queD = {}
         return tables

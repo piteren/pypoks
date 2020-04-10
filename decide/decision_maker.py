@@ -206,6 +206,7 @@ class DMK(ABC):
         self.p_addrL = [f'{self.name}_{ix}' for ix in range(self.n_players)]
         self.n_moves = n_moves
         self.upd_trigger = upd_trigger
+        self.upd_step = 0
         if self.verb>0: print(f'\n *** DMK *** initialized, name {self.name}, players {self.n_players}')
 
         # variables below store moves/decisions data
@@ -275,6 +276,7 @@ class DMK(ABC):
     # runs update of DMK based on saved _done_states
     @abstractmethod
     def _run_update(self) -> None:
+        self.upd_step += 1
         # baseline (no learn): flush all & reset
         self._done_states = {pa: [] for pa in self._done_states}
         self._n_done = 0
@@ -285,7 +287,7 @@ class DMK(ABC):
 #       > calculate move probabilities (_calc_probs)
 #       > sample move using probs (__sample_move)
 # + implements exploration while sampling move
-class ProDMK(DMK, Process, ABC):
+class ProDMK(Process, DMK, ABC):
 
     def __init__(
             self,
@@ -332,6 +334,8 @@ class ProDMK(DMK, Process, ABC):
 
      # returns list of decisions
     def _dec_from_new_states(self) -> List[tuple]:
+
+        super()._dec_from_new_states()
 
         if self.verb>1:
             nd = {}
@@ -402,13 +406,16 @@ class RProDMK(ProDMK):
             stats_iv=       1000, # collects players/DMK stats, runs TB (for None/0 does not)
             **kwargs):
 
-        ProDMK.__init__(self, **kwargs)
+        super().__init__(**kwargs)
 
         self.sm = None
         self.stats_iv = stats_iv
 
     # builds stats_manager before process loop (since summ_writer...)
     def _pre_process(self):
+
+        super()._pre_process()
+
         # TB stats saver (has to be build here, inside process method)
         self.sm = StatsMNG(
             name=       self.name,
@@ -422,7 +429,7 @@ class RProDMK(ProDMK):
             pID,
             player_stateL: List[list]) -> List[State]:
         if self.sm: self.sm.take_states(pID, player_stateL)
-        return DMK._enc_states(self,pID,player_stateL)
+        return super()._enc_states(pID,player_stateL)
 
     # calculates probabilities - baseline: sets equal for all new states of players with possible moves
     def _calc_probs(self) -> None:
@@ -432,7 +439,7 @@ class RProDMK(ProDMK):
                 self._new_states[p_addr][-1].probs = baseline_probs
 
     # nothing new added
-    def _run_update(self) -> None: ProDMK._run_update(self)
+    def _run_update(self) -> None: super()._run_update()
 
 # Neural DMK
 # + encodes states for NN
@@ -450,7 +457,7 @@ class NeurDMK(RProDMK):
             **kwargs):
 
         upd_trigger = 2*upd_BS # twice size since updating half_rectangle in trapeze
-        RProDMK.__init__(self, upd_trigger=upd_trigger, **kwargs)
+        super().__init__(upd_trigger=upd_trigger, **kwargs)
 
         self.fwd_func = fwd_func
         self.device = device
@@ -461,7 +468,7 @@ class NeurDMK(RProDMK):
     # run in the process_target_method (before the loop)
     def _pre_process(self):
 
-        RProDMK._pre_process(self)
+        super()._pre_process()
 
         self.mdl = NEModel(
             fwd_func=   self.fwd_func,
@@ -499,7 +506,7 @@ class NeurDMK(RProDMK):
             p_addr,
             player_stateL: list):
 
-        es = RProDMK._enc_states(self, p_addr, player_stateL)
+        es = super()._enc_states(p_addr, player_stateL)
         news = [] # newly encoded states
         for s in es:
             val = s.value
@@ -625,6 +632,8 @@ class NeurDMK(RProDMK):
     def _run_update(self) ->None:
 
         def mam(valL: list) -> str: return '%4d:%4d:%4d' % (min(valL), sum(valL) / len(valL), max(valL))
+
+        def add_summ(summ :tf.Summary) -> None: self.sm.summ_writer.add_summary(summ, self.upd_step)
 
         p_addrL = sorted(list(self._done_states.keys()))
 
@@ -760,43 +769,39 @@ class NeurDMK(RProDMK):
             self.mdl['avt_gg_norm']]
         _, loss, sLR, enc_zs, cnn_zs, gn, agn = self.mdl.session.run(fetches, feed_dict=feed)
 
-        dmk_handIX = self.sm.stats['nH'][0] if self.sm else None
+        #dmk_handIX = self.sm.stats['nH'][0] if self.sm else None
 
-        self.ze_pro_enc.process(enc_zs, dmk_handIX)
-        self.ze_pro_cnn.process(cnn_zs, dmk_handIX)
+        self.ze_pro_enc.process(enc_zs, self.upd_step)
+        self.ze_pro_cnn.process(cnn_zs, self.upd_step)
+
+        if self.sm:
+            add_summ(tf.Summary(value=[tf.Summary.Value(tag='nn/0.loss',    simple_value=loss)]))
+            add_summ(tf.Summary(value=[tf.Summary.Value(tag='nn/1.sLR',     simple_value=sLR)]))
+            add_summ(tf.Summary(value=[tf.Summary.Value(tag='nn/2.gn',      simple_value=gn)]))
+            add_summ(tf.Summary(value=[tf.Summary.Value(tag='nn/3.agn',     simple_value=agn)]))
 
         # reduce after each update
         if self.suex > 0:
             self.suex *= self.ex_reduce
             if self.suex < 0.001: self.suex = 0
-            suex_summ = tf.Summary(value=[tf.Summary.Value(tag='nn/4.suex', simple_value=self.suex)])
-            self.sm.summ_writer.add_summary(suex_summ, dmk_handIX)
+            add_summ(tf.Summary(value=[tf.Summary.Value(tag='nn/4.suex',    simple_value=self.suex)]))
         if self.pmex > 0:
             self.pmex *= self.ex_reduce
             if self.pmex < 0.001: self.pmex = 0
-            pmex_summ = tf.Summary(value=[tf.Summary.Value(tag='nn/4.pmex', simple_value=self.pmex)])
-            self.sm.summ_writer.add_summary(pmex_summ, dmk_handIX)
-
-        if self.sm:
-            loss_summ = tf.Summary(value=[tf.Summary.Value(tag='nn/0.loss', simple_value=loss)])
-            sLR_summ = tf.Summary(value=[tf.Summary.Value(tag='nn/1.sLR', simple_value=sLR)])
-            gn_summ = tf.Summary(value=[tf.Summary.Value(tag='nn/2.gn', simple_value=gn)])
-            agn_summ = tf.Summary(value=[tf.Summary.Value(tag='nn/3.agn', simple_value=agn)])
-            self.sm.summ_writer.add_summary(loss_summ, dmk_handIX)
-            self.sm.summ_writer.add_summary(sLR_summ, dmk_handIX)
-            self.sm.summ_writer.add_summary(gn_summ, dmk_handIX)
-            self.sm.summ_writer.add_summary(agn_summ, dmk_handIX)
+            add_summ(tf.Summary(value=[tf.Summary.Value(tag='nn/4.pmex',    simple_value=self.pmex)]))
 
         # leave only not used
         for p_addr in upd_p:
             self._done_states[p_addr] = self._done_states[p_addr][n_upd:]
         self._n_done -= n_upd*len(upd_p)
 
+        self.upd_step += 1
+
     # saves checkpoints
-    def save(self): self.mdl.saver.save()
+    def save_model(self): self.mdl.saver.save()
 
     # closes model session
-    def close(self): self.mdl.session.close()
+    def close_model(self): self.mdl.session.close()
 
 
 """    
