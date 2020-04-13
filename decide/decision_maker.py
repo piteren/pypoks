@@ -826,11 +826,11 @@ class NeurDMK(RProDMK):
         if self.suex > 0:
             self.suex *= self.ex_reduce
             if self.suex < 0.001: self.suex = 0
-            add_summ(tf.Summary(value=[tf.Summary.Value(tag='nn/4.suex',    simple_value=self.suex)]))
+            add_summ(tf.Summary(value=[tf.Summary.Value(tag='nn/4.suex', simple_value=self.suex)]))
         if self.pmex > 0:
             self.pmex *= self.ex_reduce
             if self.pmex < 0.001: self.pmex = 0
-            add_summ(tf.Summary(value=[tf.Summary.Value(tag='nn/4.pmex',    simple_value=self.pmex)]))
+            add_summ(tf.Summary(value=[tf.Summary.Value(tag='nn/4.pmex', simple_value=self.pmex)]))
 
         # leave only not used
         for p_addr in upd_p:
@@ -861,9 +861,6 @@ class NeurDMK(RProDMK):
         if gm_data == 'reload_model':
             self._reload_model()
             self.gm_que.put((self.name, 'model_reloaded', None))
-
-    # resets all data to start new game (after GX)
-    def _reset_for_next_game(self): pass #TODO
 
     # saves checkpoints
     def _save_model(self): self.mdl.saver.save()

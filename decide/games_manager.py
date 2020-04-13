@@ -110,7 +110,9 @@ class GamesManager:
         print(' > all DMKs stopped!')
 
     # runs processed games
-    def run_games(self):
+    def run_games(
+            self,
+            gx_limit=   None): # number of GAX to perform
 
         self.tables = self._create_tables()
         self._start_tables()
@@ -132,7 +134,7 @@ class GamesManager:
 
             if self.verb > 0:
                 nh = [r['n_hand'] for r in reports.values()]
-                print(f' GM:{(time.time()-gx_time)/60:4.1f}min, NH(avg): {int(sum(nh)/len(nh))}')
+                print(f' GM:{(time.time()-gx_time)/60:4.1f}min, NH: {min(nh)}-{max(nh)}')
 
             do_gx = True
             for dmk_name in reports:
@@ -145,7 +147,9 @@ class GamesManager:
                 if self.verb > 0: print(f' GM: starting GX ({gx_counter})')
                 # save all
                 for dmk in self.dmkD.values(): dmk.in_que.put('save_model')
-                for _ in self.dmkD: print(self.in_que.get())
+                for _ in self.dmkD:
+                    sr = self.in_que.get()
+                    #print(sr)
 
                 # sort DMKs
                 gx_list = []
@@ -154,6 +158,7 @@ class GamesManager:
                         dmk_name,
                         reports[dmk_name]['acc_won'][self.gx_iv]))
                 gx_list = sorted(gx_list, key= lambda x: x[1], reverse=True)
+                gx_last_list = gx_list # save last list for return
 
                 xres = xross(gx_list, n_par=3, n_mix=1, verb=self.verb+1)
 
@@ -163,7 +168,9 @@ class GamesManager:
                 gx_time = time.time()
                 gx_counter += 1
 
-            #break
+                if gx_limit and gx_counter > gx_limit: break
 
-        #self._stop_tables()
-        #self._stop_dmks()
+        self._stop_tables()
+        self._stop_dmks()
+
+        return gx_last_list

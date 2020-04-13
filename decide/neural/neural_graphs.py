@@ -4,11 +4,12 @@
 
 """
 
+from functools import partial
 import tensorflow as tf
 
 from putils.lipytools.little_methods import short_scin
 from putils.neuralmess.base_elements import my_initializer, num_var_floats
-from putils.neuralmess.layers import lay_dense, zeroes
+from putils.neuralmess.layers import lay_dense
 from putils.neuralmess.encoders import enc_CNN
 
 from cardNet.card_network import card_enc
@@ -22,8 +23,11 @@ def cnnCEM_GFN(
         n_lay=          12,     # number of CNNR layers
         width=          None,   # representation width (number of filters), for none uses input width
         activation=     tf.nn.relu,
-        opt_class=      tf.train.GradientDescentOptimizer,
-        iLR=            1e-2,#3e-4,
+        n_moves=        4,      # number of moves supported by the model
+        # opt_class=      tf.train.GradientDescentOptimizer,
+        # iLR=            1e-2,
+        opt_class=      partial(tf.train.AdamOptimizer, beta1=0.7, beta2=0.7),
+        iLR=            1e-4,#3e-4,
         warm_up=        100,    # since we do updates rarely, num of steps has to be small
         avt_SVal=       0.04,
         do_clip=        True,
@@ -115,7 +119,7 @@ def cnnCEM_GFN(
         # projection to logits
         logits = lay_dense(
             input=          out,
-            units=          4, #TODO: hardcoded
+            units=          n_moves,
             use_bias=       False)
         if verb>1: print(' > logits:', logits)
 
