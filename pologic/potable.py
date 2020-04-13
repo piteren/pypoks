@@ -23,6 +23,7 @@ from multiprocessing import Process, Queue
 import random
 import time
 from typing import List
+from queue import Empty
 
 from pologic.podeck import PDeck
 
@@ -37,7 +38,6 @@ TBL_STT = {
 
 # supported table moves (moves of player supported by table)
 TBL_MOV = {
-   -1:  'END',  # game end
     0:  'C/F',  # check/fold
     1:  'CLL',  # call
     2:  'BR5',  # bet/raise 0.5
@@ -103,99 +103,69 @@ class HHistory:
         for el in self.events: hstr += '%s %s\n'%(el[0],el[1])
         return hstr[:-1]
 
-# PPlayer is an interface of player #table (used by DMK)
-class PPlayer:
-
-    def __init__(
-            self,
-            id,     # player id/address, unique for all tables
-            table): # player table
-
-        self.id = id
-        self.name = 'pl_%s' % str(self.id)
-        self.table = table
-
-        # fields below are managed(updated) by table
-        self.pls = [] # names of all players @table, initialised with table constructor, self name always first
-        self.cash = 0 # player cash
-        self.cash_cr = 0  # current river cash (amount put by player on current river)
-        self.hand = None
-        self.nhs_IX = 0 # next hand_state index to update from (while sending game states)
-
-    # makes decision for possible moves (base implementation with random), to be implemented using taken hh
-    def _make_decision(self, possible_moves :List[bool]) -> int:
-        #decision = sorted(list(TBL_MOV.keys()))
-        #decision.remove(-1)
-        decision = [0,1,2,3] # hardcoded to speed-up
-        pm_probs = [int(pm) for pm in possible_moves]
-        dec = random.choices(decision, weights=pm_probs)[0] # decision returned as int from TBL_MOV
-        return dec
-
-    # returns possible moves and move cash (based on table cash)
-    def _pmc(self) -> tuple:
-
-        # by now simple hardcoded amounts of cash
-        move_cash = {
-           -1:  None,
-            0:  0,
-            1:  self.table.cash_tc - self.cash_cr,
-            2:  int(self.table.cash_tc *1.5) if self.table.cash_tc else int(0.5*self.table.cash),
-            3:  int(self.table.cash_tc *  2) if self.table.cash_tc else int(0.8*self.table.cash)}
-
-        # calculate possible moves and cash based on table state and hand history
-        possible_moves = [True]*4 # by now all
-        if self.table.cash_tc == self.cash_cr: possible_moves[1] = False  # cannot call (already called)
-        if self.cash <= move_cash[2]: possible_moves[3] = False # cannot make higher B/R
-
-        # eventually reduce cash amount for call and smaller bet
-        if self.cash < move_cash[2]: move_cash[2] = self.cash
-        if possible_moves[1] and self.cash < move_cash[1]: move_cash[1] = self.cash
-        if possible_moves[3] and self.cash < move_cash[3]: move_cash[3] = self.cash
-
-        return possible_moves, move_cash
-
-    # prepares list of new & translated events from table hh
-    def _prepare_nt_states(self, hh):
-        state_changes = hh.translated(pls=self.pls, fr=self.nhs_IX)
-        self.nhs_IX = len(hh.events)  # update index for next
-        return state_changes
-
-    # takes actual hh from table, to be implemented how to use that information
-    def take_hh(self, hh): pass
-
-    # makes move (based on hand history)
-    def make_move(self) -> tuple:
-        possible_moves, move_cash = self._pmc()
-        selected_move = self._make_decision(possible_moves)
-        return selected_move, move_cash[selected_move]
-
-# PPlayer with (communication) ques
-class QPPlayer(PPlayer):
-
-    def __init__(self,id,table):
-
-        super().__init__(id,table)
-        self.i_que = None # player input que
-        self.o_que = None # player output que
-
-    # makes decision (communicates with ques)
-    def _make_decision(self, possible_moves :list):
-        qd = {
-            'id':               self.id,
-            'possible_moves':   possible_moves}
-        self.o_que.put(qd)
-        selected_move = self.i_que.get()  # get move from DMK
-        return selected_move
-
-    # takes actual hh from table, sends new & translated states using que
-    def take_hh(self, hh):
-        qd = {
-            'id':               self.id,
-            'state_changes':    self._prepare_nt_states(hh)}
-        self.o_que.put(qd)
-
 # Poker Table is a single poker game environment
 class PTable:
+
+    # PPlayer is an interface of player @table (used deciding object (...DMK))
+    class PPlayer:
+
+        def __init__(self, id): # player id/address, unique for all tables
+
+            self.id = id
+            self.name = 'pl_%s' % str(self.id)
+            self.table = None # to be set by table
+
+            # fields below are managed(updated) by table
+            self.pls = [] # names of all players @table, initialised with table constructor, self name always first
+            self.cash = 0 # player cash
+            self.cash_cr = 0  # current river cash (amount put by player on current river)
+            self.hand = None
+            self.nhs_IX = 0 # next hand_state index to update from (while sending game states)
+
+        # makes decision for possible moves (base implementation with random), to be implemented using taken hh
+        def _make_decision(self, possible_moves :List[bool]) -> int:
+            #decision = sorted(list(TBL_MOV.keys()))
+            decision = [0,1,2,3] # hardcoded to speed-up
+            pm_probs = [int(pm) for pm in possible_moves]
+            dec = random.choices(decision, weights=pm_probs)[0] # decision returned as int from TBL_MOV
+            return dec
+
+        # returns possible moves and move cash (based on table cash)
+        def _pmc(self) -> tuple:
+
+            # by now simple hardcoded amounts of cash
+            move_cash = {
+                0:  0,
+                1:  self.table.cash_tc - self.cash_cr,
+                2:  int(self.table.cash_tc *1.5) if self.table.cash_tc else int(0.5*self.table.cash),
+                3:  int(self.table.cash_tc *  2) if self.table.cash_tc else int(0.8*self.table.cash)}
+
+            # calculate possible moves and cash based on table state and hand history
+            possible_moves = [True]*4 # by now all
+            if self.table.cash_tc == self.cash_cr: possible_moves[1] = False  # cannot call (already called)
+            if self.cash <= move_cash[2]: possible_moves[3] = False # cannot make higher B/R
+
+            # eventually reduce cash amount for call and smaller bet
+            if self.cash < move_cash[2]: move_cash[2] = self.cash
+            if possible_moves[1] and self.cash < move_cash[1]: move_cash[1] = self.cash
+            if possible_moves[3] and self.cash < move_cash[3]: move_cash[3] = self.cash
+
+            return possible_moves, move_cash
+
+        # prepares list of new & translated events from table hh
+        def _prepare_nt_states(self, hh):
+            state_changes = hh.translated(pls=self.pls, fr=self.nhs_IX)
+            self.nhs_IX = len(hh.events)  # update index for next
+            return state_changes
+
+        # takes actual hh from table, to be implemented how to use that information
+        def take_hh(self, hh): pass
+
+        # makes move (based on hand history)
+        def make_move(self) -> tuple:
+            possible_moves, move_cash = self._pmc()
+            selected_move = self._make_decision(possible_moves)
+            return selected_move, move_cash[selected_move]
 
     def __init__(
             self,
@@ -229,7 +199,11 @@ class PTable:
 
     # builds players list
     def _make_players(self, pl_class, pl_ids):
-        players = [pl_class(id,self) for id in pl_ids]
+
+        players = [pl_class(id) for id in pl_ids]
+
+        for pl in players: pl.table = self # update table
+
         # update players names with self on 1st pos, then next to me, then next...
         pls = [pl.name for pl in players] # list of names
         for pl in players:
@@ -338,7 +312,6 @@ class PTable:
                     # player makes move
                     pl.take_hh(hh) # takes actual hh from table
                     mv_id, mv_cash = pl.make_move()  # makes move
-                    if mv_id<0: return self._stop_hand(pl) # game end
                     hh.add('MOV', [pl.name, TBL_MOV[mv_id], mv_cash])
                     # TODO: add to hh other cash info: player, before, after...
 
@@ -435,22 +408,48 @@ class PTable:
         #print('\n@@@ hh\n%s'%hh)
         return hh
 
-    # stop hand initialised by player pl
-    def _stop_hand(self,pl): return False
-
-# Poker Table with (communication) ques, implemented as process
+# Poker Table with (communication) ques, implemented as a process
 class QPTable(PTable, Process):
+
+    # PPlayer with (communication) ques
+    class QPPlayer(PTable.PPlayer):
+
+        def __init__(self,id):
+
+            super().__init__(id)
+            self.i_que = None # player input que
+            self.o_que = None # player output que
+
+        # makes decision (communicates with ques)
+        def _make_decision(self, possible_moves :list):
+            qd = {
+                'id':               self.id,
+                'possible_moves':   possible_moves}
+            self.o_que.put(qd)
+            selected_move = self.i_que.get()  # get move from DMK
+            return selected_move
+
+        # takes actual hh from table, sends new & translated states using que
+        def take_hh(self, hh):
+            qd = {
+                'id':               self.id,
+                'state_changes':    self._prepare_nt_states(hh)}
+            self.o_que.put(qd)
 
     def __init__(
             self,
+            gm_que :Queue,  # GamesManager que, here Table puts data for GM
             pl_ques :dict,  # dict of player ques, their number defines table size (keys - player addresses)
             **kwargs):
+
+        self.gm_que = gm_que
+        self.in_que = Queue() # here Table receives data from GM (...only poison object)
 
         pl_ids = list(pl_ques.keys())
         PTable.__init__(
             self,
             pl_ids=     pl_ids,
-            pl_class=   QPPlayer,
+            pl_class=   QPTable.QPPlayer,
             **kwargs)
         Process.__init__(self, target=self.__rh_proc)
 
@@ -461,16 +460,13 @@ class QPTable(PTable, Process):
     # runs hands in loop (for sep. process)
     def __rh_proc(self):
         while True:
-            if not self.run_hand(): break
+            self.run_hand()
 
-    # TODO: table should not manage itself ques... delete later this method
-    # stop hand initialised by player pl, sends triggers via ques
-    def _stop_hand(self, pl):
-        pl.i_que.put('anything') # put back for finishing player
-        for pl in self.players:
-            pl.i_que.get()
-        self.players[0].o_que.put('finished %s' % self.name)
-        return False
+            try: # eventually stop table process
+                if self.in_que.get_nowait():
+                    self.gm_que.put('table_finished')
+                    break
+            except Empty: pass
 
 
 if __name__ == "__main__":

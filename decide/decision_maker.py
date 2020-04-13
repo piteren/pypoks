@@ -42,12 +42,12 @@
 
 from abc import ABC, abstractmethod
 from multiprocessing import Process, Queue
-from queue import Empty
 import numpy as np
 import random
 import tensorflow as tf
 from typing import List
 import time
+from queue import Empty
 
 from pologic.podeck import PDeck
 from pologic.potable import POS_NMS, TBL_MOV
@@ -69,18 +69,25 @@ class State:
         self.reward :float or None=                 None    # reward (after hand finished)
         self.move_rew :float or None=               None    # move shared reward
 
-# stats manager for DMK (one DMK has N table players), StatsMNG uses n_hands as a counter (number of hands performed by ALL table players of DMK)
+# Stats Manager for DMK (one DMK has N table players)
+# - uses n_hands as a counter (number of hands performed by ALL table players of DMK)
+# - is an essential component of aware DMK / GamesManager since prepares data useful to make higher level decisions
 class StatsMNG:
 
     def __init__(
             self,
             name :str,
-            p_addrL :list,          # list of (unique) player ids, used as keys in dicts
-            stats_iv=   1000,       # interval (n_hands) for putting stats on TB
+            p_addrL :list,              # list of (unique) player ids, used as keys in dicts
+            stats_iv=   1000,           # interval (n_hands) for putting stats on TB
+            acc_won_iv= (30000,100000), # should be multiplication of stats_iv
             verb=       0):
 
         self.verb = verb
         self.stats_iv = stats_iv
+        for v in acc_won_iv: assert v % stats_iv == 0
+        self.speed =        None # speed of running in H/s
+        self.won_save =     {0: 0} # {n_hand: $won} saved while putting to TB (for stats_iv), it will grow but won't be big...
+        self.acc_won =      {k: 0 for k in acc_won_iv} # $won/hand in ranges of acc_won_iv
         self.stats =        {} # stats of DMK (for all players)
         self.chsd =         {pID: None for pID in p_addrL} # current hand stats data (per player)
         self.is_BB =        {pID: False for pID in p_addrL} # BB position of player at table {pID: True/False}
@@ -138,20 +145,30 @@ class StatsMNG:
 
     # puts DMK stats to TB
     def __push_TB(self):
-        won = tf.Summary(value=[tf.Summary.Value(tag='sts/0.$wonT', simple_value=self.stats['$'][0])])
+
+        speed_summ = tf.Summary(value=[tf.Summary.Value(tag=f'reports/speed(H/s)', simple_value=self.speed)])
+        self.summ_writer.add_summary(speed_summ, self.stats['nH'][0])
+
+        for k in self.acc_won:
+            if self.stats['nH'][0] >= k:
+                acw_summ = tf.Summary(value=[tf.Summary.Value(tag=f'sts_acc_won/{k}', simple_value=self.acc_won[k])])
+                self.summ_writer.add_summary(acw_summ, self.stats['nH'][0])
+
+        won_summ = tf.Summary(value=[tf.Summary.Value(tag='sts/0.$wonT', simple_value=self.stats['$'][0])])
         vpip = self.stats['nVPIP'][1] / self.stats['nH'][1] * 100
-        vpip = tf.Summary(value=[tf.Summary.Value(tag='sts/1.VPIP', simple_value=vpip)])
+        vpip_summ = tf.Summary(value=[tf.Summary.Value(tag='sts/1.VPIP', simple_value=vpip)])
         pfr = self.stats['nPFR'][1] / self.stats['nH'][1] * 100
-        pfr = tf.Summary(value=[tf.Summary.Value(tag='sts/2.PFR', simple_value=pfr)])
+        pfr_summ = tf.Summary(value=[tf.Summary.Value(tag='sts/2.PFR', simple_value=pfr)])
         agg = self.stats['nAGG'][1] / self.stats['nPM'][1] * 100 if self.stats['nPM'][1] else 0
-        agg = tf.Summary(value=[tf.Summary.Value(tag='sts/3.AGG', simple_value=agg)])
+        agg_summ = tf.Summary(value=[tf.Summary.Value(tag='sts/3.AGG', simple_value=agg)])
         ph = self.stats['nHF'][1] / self.stats['nH'][1] * 100
-        ph = tf.Summary(value=[tf.Summary.Value(tag='sts/4.HF', simple_value=ph)])
-        self.summ_writer.add_summary(won, self.stats['nH'][0])
-        self.summ_writer.add_summary(vpip, self.stats['nH'][0])
-        self.summ_writer.add_summary(pfr, self.stats['nH'][0])
-        self.summ_writer.add_summary(agg, self.stats['nH'][0])
-        self.summ_writer.add_summary(ph, self.stats['nH'][0])
+        ph_summ = tf.Summary(value=[tf.Summary.Value(tag='sts/4.HF', simple_value=ph)])
+        self.summ_writer.add_summary(won_summ, self.stats['nH'][0])
+        self.summ_writer.add_summary(vpip_summ, self.stats['nH'][0])
+        self.summ_writer.add_summary(pfr_summ, self.stats['nH'][0])
+        self.summ_writer.add_summary(agg_summ, self.stats['nH'][0])
+        self.summ_writer.add_summary(ph_summ, self.stats['nH'][0])
+
 
     # extracts stats from player states
     def take_states(
@@ -182,9 +199,14 @@ class StatsMNG:
                 # put stats on TB
                 if self.stats['nH'][1] == self.stats_iv:
 
-                    if self.verb>0:
-                        print('...speed: %d H/s'%(self.stats_iv/(time.time()-self.stime)))
-                        self.stime = time.time()
+                    self.speed = self.stats_iv/(time.time()-self.stime)
+                    self.stime = time.time()
+
+                    hand_num = self.stats['nH'][0]
+                    self.won_save[hand_num] = self.stats['$'][0]
+                    for k in self.acc_won:
+                        if hand_num-k >= 0:
+                            self.acc_won[k] = (self.won_save[hand_num]-self.won_save[hand_num-k])/k
 
                     self.__push_TB()
                     for key in self.stats.keys(): self.stats[key][1] = 0 # reset interval values
@@ -203,7 +225,7 @@ class DMK(ABC):
         self.name = name
         self.verb = verb
         self.n_players = n_players
-        self.p_addrL = [f'{self.name}_{ix}' for ix in range(self.n_players)]
+        self.p_addrL = [f'{self.name}_{ix}' for ix in range(self.n_players)] # DMK builds addresses for players
         self.n_moves = n_moves
         self.upd_trigger = upd_trigger
         self.upd_step = 0
@@ -282,7 +304,7 @@ class DMK(ABC):
         self._n_done = 0
 
 # process(ed) DMK
-# + communicates with ques
+# + communicates with ques (with players/tables and with GamesManager)
 # + implements _dec_from_new_states as a 2 step process:
 #       > calculate move probabilities (_calc_probs)
 #       > sample move using probs (__sample_move)
@@ -291,8 +313,9 @@ class ProDMK(Process, DMK, ABC):
 
     def __init__(
             self,
-            pmex: float=    0.0, # <0;1> possible_moves exploration (probability of random sampling from possible_moves space)
-            suex: float=    0.2, # <0;1> self uncertainty exploration (probability of sampling from probability (rather than taking max))
+            gm_que :Queue,          # GamesManager que, here DMK puts data only! for GM, data is always put in form of tuple (name, type, data)
+            pmex :float=    0.0,    # <0;1> possible_moves exploration (probability of random sampling from possible_moves space)
+            suex :float=    0.2,    # <0;1> self uncertainty exploration (probability of sampling from probability (rather than taking max))
             **kwargs):
 
         Process.__init__(self, target=self._dmk_proc)
@@ -301,7 +324,11 @@ class ProDMK(Process, DMK, ABC):
         self.suex = suex
         self.pmex = pmex
 
-        self.pl_out_que = Queue()
+        self.gm_que = gm_que
+        self.in_que = Queue() # here DMK receives data only! from GM
+
+        # every ProDMK creates part of ques network
+        self.dmk_in_que = Queue()
         self.pl_in_queD = {pa: Queue() for pa in self.p_addrL}
 
     # method called BEFORE process loop, builds objects that HAVE to be build in process memory scope
@@ -360,6 +387,9 @@ class ProDMK(Process, DMK, ABC):
 
         return decL
 
+    # runs GamesManager decisions
+    def _do_what_gm_says(self, gm_data) -> None: pass
+
     # process method (loop, target of process)
     def _dmk_proc(self):
 
@@ -369,9 +399,9 @@ class ProDMK(Process, DMK, ABC):
         while True:
 
             # 'flush' the que of data from players
-            pdL = [self.pl_out_que.get()] # get first
+            pdL = []
             while True:
-                try:            player_data = self.pl_out_que.get_nowait()
+                try:            player_data = self.dmk_in_que.get_nowait()
                 except Empty:   break
                 if player_data: pdL.append(player_data)
 
@@ -395,7 +425,14 @@ class ProDMK(Process, DMK, ABC):
                     p_addr, move = d
                     self.pl_in_queD[p_addr].put(move)
 
-                #TODO: aggregate stats: pdL size after flush, n_waiting, n_dec
+            try: # eventually get data from GM
+                gm_data = self.in_que.get_nowait()
+                if gm_data:
+                    if gm_data == 'stop':
+                        self.gm_que.put((self.name, 'finished', None))
+                        break
+                    else: self._do_what_gm_says(gm_data)
+            except Empty: pass
 
 # ProDMK with baseline equal probs
 # + implements stats
@@ -404,12 +441,14 @@ class RProDMK(ProDMK):
     def __init__(
             self,
             stats_iv=       1000, # collects players/DMK stats, runs TB (for None/0 does not)
+            acc_won_iv=     (30000,100000),
             **kwargs):
 
         super().__init__(**kwargs)
 
         self.sm = None
         self.stats_iv = stats_iv
+        self.acc_won_iv = acc_won_iv
 
     # builds stats_manager before process loop (since summ_writer...)
     def _pre_process(self):
@@ -421,6 +460,7 @@ class RProDMK(ProDMK):
             name=       self.name,
             p_addrL=    self.p_addrL,
             stats_iv=   self.stats_iv,
+            acc_won_iv= self.acc_won_iv,
             verb=       self.verb) if self.stats_iv else None
 
     # adds stats management
@@ -458,6 +498,7 @@ class NeurDMK(RProDMK):
 
         upd_trigger = 2*upd_BS # twice size since updating half_rectangle in trapeze
         super().__init__(upd_trigger=upd_trigger, **kwargs)
+        assert self.stats_iv > 0 # stats are obligatory for NeurDMK
 
         self.fwd_func = fwd_func
         self.device = device
@@ -631,7 +672,7 @@ class NeurDMK(RProDMK):
     # runs update of DMK based on saved _done_states
     def _run_update(self) ->None:
 
-        def mam(valL: list) -> str: return '%4d:%4d:%4d' % (min(valL), sum(valL) / len(valL), max(valL))
+        def mam(valL: list) -> list: return [min(valL), sum(valL)/len(valL), max(valL)]
 
         def add_summ(summ :tf.Summary) -> None: self.sm.summ_writer.add_summary(summ, self.upd_step)
 
@@ -687,7 +728,8 @@ class NeurDMK(RProDMK):
                         self._done_states[p_addr][mIX].move_rew = sh_rew
                 else: break
 
-        lrm = [rewards[p_addr][0][0]                            for p_addr in p_addrL] # last rewarded move
+        lrm = [rewards[p_addr][0][0] for p_addr in p_addrL] # last rewarded move of player (index of state)
+        # print(f' last rm : {mam(lrm)}')
         lrmT = zip(p_addrL, lrm)
         lrmT = sorted(lrmT, key=lambda x: x[1], reverse=True)
         half_players = len(self._done_states) // 2
@@ -695,23 +737,26 @@ class NeurDMK(RProDMK):
         upd_p = lrmT[:half_players]
         n_upd = upd_p[-1][1] + 1  # n states to use for update
         upd_p = [e[0] for e in upd_p]  # list of p_addr to update
+        # print(f' >>> BS   : {len(upd_p)} x {n_upd} ({len(upd_p)*n_upd})')
 
-        if self.verb>0:
-            ns =    [len(self._done_states[p_addr])             for p_addr in p_addrL] # number of saved states
-            nr =    [len(rewards[p_addr])                       for p_addr in p_addrL] # num of rewards
-            nm =    [sum([len(ml) for ml in rewards[p_addr]])   for p_addr in p_addrL] # num of moves
-            nmr = []                                                                   # num of moves per reward
-            for p_addr in p_addrL:
-                for ml in rewards[p_addr]:
-                    nmr.append(len(ml))
-            print('%s updates'%self.name)
-            print('  n_states: %s' % mam(ns))
-            print('  last rm : %s' % mam(lrm))
-            print('  n_mov   : %s' % mam(nm))
-            print('  n_rew   : %s' % mam(nr))
-            print('  n_mov/R : %s' % mam(nmr))
-            print(' >>> BS   : %d x %d (%d)' % (len(upd_p), n_upd, len(upd_p) * n_upd))
-            # TODO: get here also some time stats
+        # num of states (@_done_states per player)
+        n_sts = mam([len(self._done_states[p_addr]) for p_addr in p_addrL]) #
+        add_summ(tf.Summary(value=[tf.Summary.Value(tag='reports.UPD/0.n_states_min', simple_value=n_sts[0] )]))
+        add_summ(tf.Summary(value=[tf.Summary.Value(tag='reports.UPD/1.n_states_max', simple_value=n_sts[2] )]))
+
+        # num of states with moves
+        n_mov = mam([sum([len(ml) for ml in rewards[p_addr]]) for p_addr in p_addrL])
+        add_summ(tf.Summary(value=[tf.Summary.Value(tag='reports.UPD/2.n_moves_min', simple_value=n_mov[0] )]))
+        add_summ(tf.Summary(value=[tf.Summary.Value(tag='reports.UPD/3.n_moves_max', simple_value=n_mov[2] )]))
+
+        # num of states with rewards
+        n_rew = mam([len(rewards[p_addr]) for p_addr in p_addrL])
+        add_summ(tf.Summary(value=[tf.Summary.Value(tag='reports.UPD/4.n_rewards_min', simple_value=n_rew[0] )]))
+        add_summ(tf.Summary(value=[tf.Summary.Value(tag='reports.UPD/5.n_rewards_max', simple_value=n_rew[2] )]))
+
+        add_summ(tf.Summary(value=[tf.Summary.Value(tag='reports.UPD/6.n_sts/mov', simple_value=n_sts[1]/ n_mov[1] )]))
+        add_summ(tf.Summary(value=[tf.Summary.Value(tag='reports.UPD/7.n_sts/rew', simple_value=n_sts[1]/ n_rew[1] )]))
+        add_summ(tf.Summary(value=[tf.Summary.Value(tag='reports.UPD/8.n_mov/rew', simple_value=n_mov[1] / n_rew[1] )]))
 
         cards_batch = []
         switch_batch = []
@@ -769,16 +814,13 @@ class NeurDMK(RProDMK):
             self.mdl['avt_gg_norm']]
         _, loss, sLR, enc_zs, cnn_zs, gn, agn = self.mdl.session.run(fetches, feed_dict=feed)
 
-        #dmk_handIX = self.sm.stats['nH'][0] if self.sm else None
-
         self.ze_pro_enc.process(enc_zs, self.upd_step)
         self.ze_pro_cnn.process(cnn_zs, self.upd_step)
 
-        if self.sm:
-            add_summ(tf.Summary(value=[tf.Summary.Value(tag='nn/0.loss',    simple_value=loss)]))
-            add_summ(tf.Summary(value=[tf.Summary.Value(tag='nn/1.sLR',     simple_value=sLR)]))
-            add_summ(tf.Summary(value=[tf.Summary.Value(tag='nn/2.gn',      simple_value=gn)]))
-            add_summ(tf.Summary(value=[tf.Summary.Value(tag='nn/3.agn',     simple_value=agn)]))
+        add_summ(tf.Summary(value=[tf.Summary.Value(tag='nn/0.loss',    simple_value=loss)]))
+        add_summ(tf.Summary(value=[tf.Summary.Value(tag='nn/1.sLR',     simple_value=sLR)]))
+        add_summ(tf.Summary(value=[tf.Summary.Value(tag='nn/2.gn',      simple_value=gn)]))
+        add_summ(tf.Summary(value=[tf.Summary.Value(tag='nn/3.agn',     simple_value=agn)]))
 
         # reduce after each update
         if self.suex > 0:
@@ -797,81 +839,34 @@ class NeurDMK(RProDMK):
 
         self.upd_step += 1
 
+    # runs GamesManager decisions
+    def _do_what_gm_says(self, gm_data):
+
+        supported_commands = [
+            'send_report',
+            'save_model',
+            'reload_model']
+        assert gm_data in supported_commands
+
+        if gm_data == 'send_report':
+            report = {
+                'n_hand':   self.sm.stats['nH'][0],
+                'acc_won':  self.sm.acc_won}
+            self.gm_que.put((self.name, 'report', report))
+
+        if gm_data == 'save_model':
+            self._save_model()
+            self.gm_que.put((self.name, 'model_saved', None))
+
+        if gm_data == 'reload_model':
+            self._reload_model()
+            self.gm_que.put((self.name, 'model_reloaded', None))
+
+    # resets all data to start new game (after GX)
+    def _reset_for_next_game(self): pass #TODO
+
     # saves checkpoints
-    def save_model(self): self.mdl.saver.save()
+    def _save_model(self): self.mdl.saver.save()
 
-    # closes model session
-    def close_model(self): self.mdl.session.close()
-
-
-"""    
-def _init_folders(nameL):
-
-    s_ckpt_FD = '_models/_CKPTs/'
-    ckptL = [dI for dI in os.listdir(s_ckpt_FD) if os.path.isdir(os.path.join(s_ckpt_FD,dI))]
-
-    for name in nameL:
-        os.mkdir('_models/' + name)
-        for ckpt in ckptL:
-            mrg_ckpts(
-                ckptA=          ckpt,
-                ckptA_FD=       '_models/_CKPTs/',
-                ckptB=          None,
-                ckptB_FD=       None,
-                ckptM=          ckpt,
-                ckptM_FD=       '_models/%s/'%name,
-                replace_scope=  name)
-            
-# genetic crossing
-def _gxc(self, xcF=0.5):
-
-    print('GXC (mixing)...')
-
-    dmkl = [self.dmks[k] for k in self.dmks]
-    dmk_xc = sorted(dmkl, key= lambda x: x.stats['$'][0], reverse=True)
-    for dmk in dmk_xc: print('%10s %d'%(dmk.name,dmk.stats['$'][0]))
-    dmk_xc = dmk_xc[:int(len(dmk_xc)*xcF)]
-
-    # save best and close all
-    for dmk in dmk_xc:
-        dmk.save()
-        dmk.stats['$'][0] = 0
-    for k in self.dmks: self.dmks[k].close()
-
-    xc_dmk_names = [dmk.name for dmk in dmk_xc]
-    print(xc_dmk_names)
-    mfd = '_models/'+xc_dmk_names[0]
-    ckptL = [dI for dI in os.listdir(mfd) if os.path.isdir(os.path.join(mfd,dI))]
-    ckptL.remove('opt_vars')
-
-    new_dmk_names = self._get_new_names(len(self.dmks)-len(xc_dmk_names))
-    for name in new_dmk_names: os.mkdir('_models/'+name)
-
-    # merge checkpoints
-    mrg_dna = {name: [[dmk.name for dmk in random.sample(dmk_xc,2)],random.random()] for name in new_dmk_names}
-    print(' % mrg_dna:')
-    for key in sorted(list(mrg_dna.keys())): print('%10s %s'%(key,mrg_dna[key]))
-    for name in mrg_dna:
-        dmka_name = mrg_dna[name][0][0]
-        dmkb_name = mrg_dna[name][0][1]
-        rat = mrg_dna[name][1]
-        for ckpt in ckptL:
-            mrg_ckpts(
-                ckptA=          ckpt,
-                ckptA_FD=       '_models/%s/'%dmka_name,
-                ckptB=          ckpt,
-                ckptB_FD=       '_models/%s/'%dmkb_name,
-                ckptM=          ckpt,
-                ckptM_FD=       '_models/%s/'%name,
-                replace_scope=  name,
-                mrgF=           rat)
-
-    # create new dmks
-    new_dmks = [BaNeDMK(
-        fwd_func=   self.fwd_func,
-        mdict=      {'name':dmk_name},
-        n_players=  self.n_players) for dmk_name in xc_dmk_names + new_dmk_names]
-    self.dmks = {dmk.name: dmk for dmk in new_dmks}
-
-    self._build_game_env()
-"""
+    # reloads model checkpoint (after GX)
+    def _reload_model(self): self.mdl.saver.load()

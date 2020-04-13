@@ -21,9 +21,9 @@ def cnnCEM_GFN(
         c_embW :int=    12,     # card emb width
         n_lay=          12,     # number of CNNR layers
         width=          None,   # representation width (number of filters), for none uses input width
-        activation=     tf.nn.relu, # TODO: maybe gelu?
+        activation=     tf.nn.relu,
         opt_class=      tf.train.GradientDescentOptimizer,
-        iLR=            5e-3,#3e-4,
+        iLR=            1e-2,#3e-4,
         warm_up=        100,    # since we do updates rarely, num of steps has to be small
         avt_SVal=       0.04,
         do_clip=        True,
