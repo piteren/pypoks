@@ -515,7 +515,7 @@ class NeurDMK(RProDMK):
             fwd_func=   self.fwd_func,
             mdict=      {'name':self.name, 'verb':0}, # TODO: by now base concept
             devices=    self.device,
-            verb=       0)
+            verb=       1)
 
         self.zero_state = self.mdl.session.run(self.mdl['single_zero_state'])
         self.last_fwd_state =   {pa: self.zero_state    for pa in self.p_addrL}  # net state after last fwd

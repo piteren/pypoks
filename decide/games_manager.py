@@ -112,14 +112,16 @@ class GamesManager:
     # runs processed games
     def run_games(
             self,
-            gx_limit=   None): # number of GAX to perform
+            gx_loop_sh= (3,1),  # shape of GXA while loop
+            gx_exit=    True,   # perform GXA after loop exit
+            gx_limit=   None):  # number of GAX to perform
 
         self.tables = self._create_tables()
         self._start_tables()
         self._start_dmks()
 
         n_sec_iv = 30 # number of seconds between reporting
-        gx_counter = 1
+        gx_counter = 0
         stime = time.time()
         gx_time = stime
         while True:
@@ -134,17 +136,19 @@ class GamesManager:
 
             if self.verb > 0:
                 nh = [r['n_hand'] for r in reports.values()]
-                print(f' GM:{(time.time()-gx_time)/60:4.1f}min, NH: {min(nh)}-{max(nh)}')
+                print(f' GM:{(time.time()-gx_time)/60:4.1f}min, nH: {min(nh)}-{max(nh)}')
 
             do_gx = True
             for dmk_name in reports:
-                if reports[dmk_name]['n_hand'] < self.gx_iv*gx_counter:
+                if reports[dmk_name]['n_hand'] < self.gx_iv*(gx_counter+1):
                     do_gx = False
                     break
 
             if do_gx:
 
+                gx_counter += 1
                 if self.verb > 0: print(f' GM: starting GX ({gx_counter})')
+
                 # save all
                 for dmk in self.dmkD.values(): dmk.in_que.put('save_model')
                 for _ in self.dmkD:
@@ -158,19 +162,23 @@ class GamesManager:
                         dmk_name,
                         reports[dmk_name]['acc_won'][self.gx_iv]))
                 gx_list = sorted(gx_list, key= lambda x: x[1], reverse=True)
-                gx_last_list = gx_list # save last list for return
 
-                xres = xross(gx_list, n_par=3, n_mix=1, verb=self.verb+1)
+                if gx_limit and gx_counter == gx_limit:
+                    gx_last_list = gx_list  # save last list for return
+                    break
+
+                xres = xross(gx_list, n_par=gx_loop_sh[0], n_mix=gx_loop_sh[1], verb=self.verb+1)
 
                 for dmk_name in xres['mixed']: self.dmkD[dmk_name].in_que.put('reload_model')
                 for _ in xres['mixed']: print(self.in_que.get())
 
                 gx_time = time.time()
-                gx_counter += 1
-
-                if gx_limit and gx_counter > gx_limit: break
 
         self._stop_tables()
         self._stop_dmks()
+
+        if gx_exit:
+            size = int(len(gx_last_list)/2)
+            xross(gx_last_list, n_par=size, n_mix=size, verb=2)
 
         return gx_last_list

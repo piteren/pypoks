@@ -18,8 +18,9 @@ if __name__ == "__main__":
     # reload loop
     while True:
         gm = GamesManager(
-            stats_iv=   5000,
-            acc_won_iv= (50000,100000),
+            n_dmk=      4,
+            dmk_players=15,
+            stats_iv=   1000,
+            acc_won_iv= (5000,10000),
             verb=       1)
-        gx_last_list = gm.run_games(gx_limit=20)
-        xres = xross(gx_last_list, n_par=6, n_mix=7, verb=2)
+        gx_last_list = gm.run_games(gx_limit=2)
