@@ -23,6 +23,7 @@ class GamesManager:
 
     def __init__(
             self,
+            gname=          'dmk',
             n_dmk=          14,
             dmk_players=    150,
             stats_iv=       5000,
@@ -42,11 +43,11 @@ class GamesManager:
 
         # create DMK dictionary
         self.dmkD = {
-            f'dmk{ix}': NeurDMK(
+            f'{gname}{ix}': NeurDMK(
                 gm_que=         self.in_que,
                 fwd_func=       cnnCEM_GFN,
                 device=         None, # CPU
-                name=           f'dmk{ix}',
+                name=           f'{gname}{ix}',
                 n_players=      dmk_players,
                 pmex=           0.2,
                 suex=           0.0,

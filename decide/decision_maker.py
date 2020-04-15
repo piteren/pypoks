@@ -624,13 +624,21 @@ class NeurDMK(RProDMK):
 
             state_batch.append(self.last_fwd_state[p_addr])
 
-        # TODO: try np. for speed
         feed = {
             self.mdl['cards_PH']:   cards_batch,
             self.mdl['train_PH']:   False,
             self.mdl['event_PH']:   event_batch,
             self.mdl['switch_PH']:  switch_batch,
             self.mdl['state_PH']:   state_batch}
+        """
+        # TODO: try np. for speed
+        feed = {
+            self.mdl['cards_PH']:   np.asarray(cards_batch),
+            self.mdl['train_PH']:   False,
+            self.mdl['event_PH']:   np.asarray(event_batch),
+            self.mdl['switch_PH']:  np.asarray(switch_batch),
+            self.mdl['state_PH']:   np.asarray(state_batch)}
+        """
 
         fetches = [self.mdl['probs'], self.mdl['fin_state']]
         probs, fwd_states = self.mdl.session.run(fetches, feed_dict=feed)
@@ -794,7 +802,6 @@ class NeurDMK(RProDMK):
             reward_batch.append(reward_seq)
             state_batch.append(self.zero_state)
 
-        # TODO: try np. for speed
         feed = {
             self.mdl['train_PH']:   True,
             self.mdl['cards_PH']:   cards_batch,
@@ -803,6 +810,17 @@ class NeurDMK(RProDMK):
             self.mdl['state_PH']:   state_batch,
             self.mdl['move_PH']:    move_batch,
             self.mdl['rew_PH']:     reward_batch}
+        """
+        # TODO: try np. for speed
+        feed = {
+            self.mdl['train_PH']:   True,
+            self.mdl['cards_PH']:   np.asarray(cards_batch),
+            self.mdl['switch_PH']:  np.asarray(switch_batch),
+            self.mdl['event_PH']:   np.asarray(event_batch),
+            self.mdl['state_PH']:   np.asarray(state_batch),
+            self.mdl['move_PH']:    np.asarray(move_batch),
+            self.mdl['rew_PH']:     np.asarray(reward_batch)}
+        """
 
         fetches = [
             self.mdl['optimizer'],
