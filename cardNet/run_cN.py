@@ -28,7 +28,6 @@
 """
 
 from functools import partial
-import numpy as np
 import tensorflow as tf
 import time
 
@@ -36,7 +35,7 @@ from putils.neuralmess.dev_manager import nestarter
 from putils.neuralmess.multi_saver import MultiSaver
 from putils.neuralmess.nemodel import NEModel
 from putils.neuralmess.base_elements import ZeroesProcessor
-from putils.que_MProcessor import QueMultiProcessor
+from putils.mtasking.qmp import QueMultiProcessor
 
 from pologic.podeck import PDeck
 from cardNet.card_batcher import prep2X7Batch, get_test_batch
@@ -60,10 +59,10 @@ def train_cn(
 
     iPF = partial(prep2X7Batch, bs=tr_SM[0], n_monte=tr_SM[1])
     qmp = QueMultiProcessor( # QMP
-        iProcFunction=  iPF,
+        proc_func=  iPF,
         #taskObject=     c_tuples,
         #nProc=          10,
-        rQueTSize=      rQueTSize,
+        rq_trgsize=      rQueTSize,
         verb=           verb)
 
     cnet = NEModel( # model

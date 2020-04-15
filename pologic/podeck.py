@@ -14,7 +14,7 @@ import time
 from tqdm import tqdm
 
 import putils.lipytools.little_methods as lM
-from putils.que_MProcessor import QueMultiProcessor
+from putils.mtasking.qmp import QueMultiProcessor
 
 # card figures
 CRD_FIG = {
@@ -385,9 +385,9 @@ class ASC(dict):
                     return tv
 
                 qmp = QueMultiProcessor( # QMP
-                    iProcFunction=  iPF,
-                    reloadEvery=    1000,
-                    userTasks=      True,
+                    proc_func=  iPF,
+                    reload=    1000,
+                    user_tasks=      True,
                     verb=           1)
 
                 np = 0

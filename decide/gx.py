@@ -15,7 +15,7 @@ def xross(
         ppl :List[tuple],           # population (ckpt,eval):
         n_par :int,                 # number of parents (from top)
         n_mix :int,                 # number of childs (from bottom)
-        noiseF :float=  0.03,
+        noiseF :float=  0.03, # TODO: check this val
         top_FD=         '_models/',
         verb=           0):
 
@@ -44,7 +44,6 @@ def xross(
         rat =           mrg_dna[name][1]
         if verb > 0: print(f' > merging {dmka_name} + {dmkb_name} >> {name} ({rat:.2f})')
         for ckpt in ckptL:
-            # TODO: add noise to variables
             mrg_ckpts(
                 ckptA =         ckpt,
                 ckptA_FD =      '_models/%s/' % dmka_name,

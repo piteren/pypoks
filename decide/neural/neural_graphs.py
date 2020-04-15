@@ -26,10 +26,11 @@ def cnnCEM_GFN(
         n_moves=        4,      # number of moves supported by the model
         # opt_class=      tf.train.GradientDescentOptimizer,
         # iLR=            1e-2,
-        opt_class=      partial(tf.train.AdamOptimizer, beta1=0.7, beta2=0.7),
+        opt_class=      partial(tf.train.AdamOptimizer, beta1=0.7, beta2=0.7), # TODO: check smaller betas
         iLR=            1e-4,#3e-4,
         warm_up=        100,    # since we do updates rarely, num of steps has to be small
         avt_SVal=       0.04,
+        avt_window=     20, # TODO check this value
         do_clip=        True,
         verb=           1,
         **kwargs):

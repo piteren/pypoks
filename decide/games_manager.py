@@ -30,6 +30,7 @@ class GamesManager:
             verb=           0):
 
         self.verb = verb
+        if self.verb > 0: print('\n *** GamesManager *** starting...')
 
         self.in_que = Queue() # here receives data from DMKs
 
@@ -40,7 +41,6 @@ class GamesManager:
         self.gx_iv = acc_won_iv[-2]
 
         # create DMK dictionary
-        # RProDMK(name='dmk%d' % ix, n_players=dmk_players) for ix in range(n_dmk) # random
         self.dmkD = {
             f'dmk{ix}': NeurDMK(
                 gm_que=         self.in_que,
@@ -52,7 +52,8 @@ class GamesManager:
                 suex=           0.0,
                 stats_iv=       stats_iv,
                 acc_won_iv=     acc_won_iv,
-                verb=           self.verb) for ix in range(n_dmk)}
+                verb=           self.verb-1) for ix in range(n_dmk)}
+        # RProDMK(name='dmk%d' % ix, n_players=dmk_players) for ix in range(n_dmk) # random
 
     # creates tables using (ques of) DMKs
     def _create_tables(self):
@@ -78,36 +79,36 @@ class GamesManager:
                     gm_que=     self.in_que,
                     pl_ques=    table_queD,
                     name=       f'tbl{len(tables)}',
-                    verb=       0)
+                    verb=       self.verb-1)
                 tables.append(table)
                 table_queD = {}
         return tables
 
     # starts tables
     def _start_tables(self):
-        print('Starting tables...')
+        if self.verb > 0: print('Starting tables...')
         for tbl in tqdm(self.tables): tbl.start()
-        print(f' > started {len(self.tables)} tables!')
+        if self.verb > 0: print(f' > started {len(self.tables)} tables!')
 
     # stops tables
     def _stop_tables(self):
-        print('Stopping tables...')
+        if self.verb > 0: print('Stopping tables...')
         for table in self.tables: table.in_que.put('stop')
         for _ in tqdm(self.tables): self.in_que.get()
-        print(' > all tables stopped!')
+        if self.verb > 0: print(' > all tables stopped!')
 
     # starts DMKs
     def _start_dmks(self):
-        print('Starting DMKs...')
+        if self.verb > 0: print('Starting DMKs...')
         for dmk in tqdm(self.dmkD.values()): dmk.start()
-        print(f' > started {len(self.dmkD)} DMKs!')
+        if self.verb > 0: print(f' > started {len(self.dmkD)} DMKs!')
 
     # stops DMKs
     def _stop_dmks(self):
-        print('Stopping DMKs...')
+        if self.verb > 0: print('Stopping DMKs...')
         for dmk in self.dmkD.values(): dmk.in_que.put('stop')
         for _ in tqdm(self.dmkD): self.in_que.get()
-        print(' > all DMKs stopped!')
+        if self.verb > 0: print(' > all DMKs stopped!')
 
     # runs processed games
     def run_games(
@@ -151,9 +152,7 @@ class GamesManager:
 
                 # save all
                 for dmk in self.dmkD.values(): dmk.in_que.put('save_model')
-                for _ in self.dmkD:
-                    sr = self.in_que.get()
-                    #print(sr)
+                for _ in self.dmkD: self.in_que.get()
 
                 # sort DMKs
                 gx_list = []
