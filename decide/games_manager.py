@@ -126,6 +126,7 @@ class GamesManager:
         gx_counter = 0
         stime = time.time()
         gx_time = stime
+        last_nhs = 0
         while True:
             time.sleep(n_sec_iv)
 
@@ -149,7 +150,10 @@ class GamesManager:
             if do_gx:
 
                 gx_counter += 1
-                if self.verb > 0: print(f' GM: starting GX ({gx_counter})')
+                if self.verb > 0:
+                    now_nhs = sum([r['n_hand'] for r in reports.values()])
+                    print(f' GM: speed:{int((now_nhs-last_nhs)/(time.time()-gx_time))}H/s, starting GX-{gx_counter}')
+                    last_nhs = now_nhs
 
                 # save all
                 for dmk in self.dmkD.values(): dmk.in_que.put('save_model')
@@ -170,7 +174,9 @@ class GamesManager:
                 xres = xross(gx_list, n_par=gx_loop_sh[0], n_mix=gx_loop_sh[1], verb=self.verb+1)
 
                 for dmk_name in xres['mixed']: self.dmkD[dmk_name].in_que.put('reload_model')
-                for _ in xres['mixed']: print(self.in_que.get())
+                for _ in xres['mixed']:
+                    rel = self.in_que.get()
+                    print(f'{rel[0]} {rel[1]}')
 
                 gx_time = time.time()
 

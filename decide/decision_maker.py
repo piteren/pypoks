@@ -309,6 +309,7 @@ class DMK(ABC):
 #       > calculate move probabilities (_calc_probs)
 #       > sample move using probs (__sample_move)
 # + implements exploration while sampling move
+# + implements stats
 class ProDMK(Process, DMK, ABC):
 
     def __init__(
@@ -316,6 +317,8 @@ class ProDMK(Process, DMK, ABC):
             gm_que :Queue,          # GamesManager que, here DMK puts data only! for GM, data is always put in form of tuple (name, type, data)
             pmex :float=    0.0,    # <0;1> possible_moves exploration (probability of random sampling from possible_moves space)
             suex :float=    0.2,    # <0;1> self uncertainty exploration (probability of sampling from probability (rather than taking max))
+            stats_iv=       1000,   # collects players/DMK stats, runs TB (for None/0 does not)
+            acc_won_iv=     (30000,100000),
             **kwargs):
 
         Process.__init__(self, target=self._dmk_proc)
@@ -331,9 +334,33 @@ class ProDMK(Process, DMK, ABC):
         self.dmk_in_que = Queue()
         self.pl_in_queD = {pa: Queue() for pa in self.p_addrL}
 
+        self.sm = None
+        self.stats_iv = stats_iv
+        self.acc_won_iv = acc_won_iv
+        self.process_stats = {  # any stats of the process, published & flushed during update
+            'len_pdL':      [], # length of player data list (number of updates from tables)
+            'n_waiting':    [], # number of waiting players while making decisions
+            'n_dec':        [], # number decisions made
+        }
+
     # method called BEFORE process loop, builds objects that HAVE to be build in process memory scope
-    @abstractmethod
-    def _pre_process(self) -> None: pass
+    def _pre_process(self) -> None:
+
+        # TB stats saver (has to be build here, inside process method, since summ_writer...)
+        self.sm = StatsMNG(
+            name=       self.name,
+            p_addrL=    self.p_addrL,
+            stats_iv=   self.stats_iv,
+            acc_won_iv= self.acc_won_iv,
+            verb=       self.verb) if self.stats_iv else None
+
+    # adds stats management
+    def _enc_states(
+            self,
+            pID,
+            player_stateL: List[list]) -> List[State]:
+        if self.sm: self.sm.take_states(pID, player_stateL)
+        return super()._enc_states(pID,player_stateL)
 
     # calculates probabilities for at least some states with possible_moves
     @abstractmethod
@@ -428,48 +455,28 @@ class ProDMK(Process, DMK, ABC):
             try: # eventually get data from GM
                 gm_data = self.in_que.get_nowait()
                 if gm_data:
+                    # stop DMK process
                     if gm_data == 'stop':
                         self.gm_que.put((self.name, 'finished', None))
                         break
                     else: self._do_what_gm_says(gm_data)
             except Empty: pass
 
-# ProDMK with baseline equal probs
-# + implements stats
+    # prepares process stats
+    def _pstats(self):
+        # TODO (with self.upd_step as a clock)
+        for k in self.process_stats: self.process_stats[k] = []
+
+    # nothing new added
+    def _run_update(self) -> None:
+        self._pstats()
+        super()._run_update() # to flush _done_states
+
+# ProDMK with baseline (equal) probs
 class RProDMK(ProDMK):
 
-    def __init__(
-            self,
-            stats_iv=       1000, # collects players/DMK stats, runs TB (for None/0 does not)
-            acc_won_iv=     (30000,100000),
-            **kwargs):
-
+    def __init__(self, **kwargs):
         super().__init__(**kwargs)
-
-        self.sm = None
-        self.stats_iv = stats_iv
-        self.acc_won_iv = acc_won_iv
-
-    # builds stats_manager before process loop (since summ_writer...)
-    def _pre_process(self):
-
-        super()._pre_process()
-
-        # TB stats saver (has to be build here, inside process method)
-        self.sm = StatsMNG(
-            name=       self.name,
-            p_addrL=    self.p_addrL,
-            stats_iv=   self.stats_iv,
-            acc_won_iv= self.acc_won_iv,
-            verb=       self.verb) if self.stats_iv else None
-
-    # adds stats management
-    def _enc_states(
-            self,
-            pID,
-            player_stateL: List[list]) -> List[State]:
-        if self.sm: self.sm.take_states(pID, player_stateL)
-        return super()._enc_states(pID,player_stateL)
 
     # calculates probabilities - baseline: sets equal for all new states of players with possible moves
     def _calc_probs(self) -> None:
@@ -477,9 +484,6 @@ class RProDMK(ProDMK):
         for p_addr in self._new_states:
             if self._new_states[p_addr][-1].possible_moves:
                 self._new_states[p_addr][-1].probs = baseline_probs
-
-    # nothing new added
-    def _run_update(self) -> None: super()._run_update()
 
 # Neural DMK
 # + encodes states for NN
@@ -519,9 +523,8 @@ class NeurDMK(RProDMK):
 
         self.zero_state = self.mdl.session.run(self.mdl['single_zero_state'])
         self.last_fwd_state =   {pa: self.zero_state    for pa in self.p_addrL}  # net state after last fwd
+        self.last_upd_state =   {pa: self.zero_state    for pa in self.p_addrL}  # net state after last upd
         self.my_cards =         {pa: []                 for pa in self.p_addrL}  # current cards of player, updated while encoding states
-        # TODO: do I need upd_state?
-        # self.last_upd_state =   {ix: zero_state for ix in range(self.n_players)}  # net state after last upd
 
         # reversed dicts from ptable, helpful while encoding states
         self.pos_nms_r = {k:POS_NMS[3].index(k) for k in POS_NMS[3]}  # hardcoded 3 here
@@ -625,20 +628,11 @@ class NeurDMK(RProDMK):
             state_batch.append(self.last_fwd_state[p_addr])
 
         feed = {
-            self.mdl['cards_PH']:   cards_batch,
-            self.mdl['train_PH']:   False,
-            self.mdl['event_PH']:   event_batch,
-            self.mdl['switch_PH']:  switch_batch,
-            self.mdl['state_PH']:   state_batch}
-        """
-        # TODO: try np. for speed
-        feed = {
             self.mdl['cards_PH']:   np.asarray(cards_batch),
             self.mdl['train_PH']:   False,
             self.mdl['event_PH']:   np.asarray(event_batch),
             self.mdl['switch_PH']:  np.asarray(switch_batch),
             self.mdl['state_PH']:   np.asarray(state_batch)}
-        """
 
         fetches = [self.mdl['probs'], self.mdl['fin_state']]
         probs, fwd_states = self.mdl.session.run(fetches, feed_dict=feed)
@@ -647,7 +641,7 @@ class NeurDMK(RProDMK):
         for ix in range(fwd_states.shape[0]):
             p_addr = p_addrL[ix]
             probs_row.append((p_addr, probs[ix]))
-            self.last_fwd_state[p_addr] = fwd_states[ix]
+            self.last_fwd_state[p_addr] = fwd_states[ix] # save fwd states
 
         return probs_row
 
@@ -800,18 +794,8 @@ class NeurDMK(RProDMK):
             event_batch.append(event_seq)
             move_batch.append(move_seq)
             reward_batch.append(reward_seq)
-            state_batch.append(self.zero_state)
+            state_batch.append(self.last_upd_state[p_addr])
 
-        feed = {
-            self.mdl['train_PH']:   True,
-            self.mdl['cards_PH']:   cards_batch,
-            self.mdl['switch_PH']:  switch_batch,
-            self.mdl['event_PH']:   event_batch,
-            self.mdl['state_PH']:   state_batch,
-            self.mdl['move_PH']:    move_batch,
-            self.mdl['rew_PH']:     reward_batch}
-        """
-        # TODO: try np. for speed
         feed = {
             self.mdl['train_PH']:   True,
             self.mdl['cards_PH']:   np.asarray(cards_batch),
@@ -820,17 +804,21 @@ class NeurDMK(RProDMK):
             self.mdl['state_PH']:   np.asarray(state_batch),
             self.mdl['move_PH']:    np.asarray(move_batch),
             self.mdl['rew_PH']:     np.asarray(reward_batch)}
-        """
 
         fetches = [
             self.mdl['optimizer'],
+            self.mdl['fin_state'],
             self.mdl['loss'],
             self.mdl['scaled_LR'],
             self.mdl['enc_zeroes'],
             self.mdl['cnn_zeroes'],
             self.mdl['gg_norm'],
             self.mdl['avt_gg_norm']]
-        _, loss, sLR, enc_zs, cnn_zs, gn, agn = self.mdl.session.run(fetches, feed_dict=feed)
+        _, fstat, loss, sLR, enc_zs, cnn_zs, gn, agn = self.mdl.session.run(fetches, feed_dict=feed)
+
+        # save upd states
+        for ix in range(fstat.shape[0]):
+            self.last_upd_state[upd_p[ix]] = fstat[ix]
 
         self.ze_pro_enc.process(enc_zs, self.upd_step)
         self.ze_pro_cnn.process(cnn_zs, self.upd_step)
@@ -855,9 +843,11 @@ class NeurDMK(RProDMK):
             self._done_states[p_addr] = self._done_states[p_addr][n_upd:]
         self._n_done -= n_upd*len(upd_p)
 
+        self._pstats()
+
         self.upd_step += 1
 
-    # runs GamesManager decisions
+    # runs GamesManager decisions (called within _dmk_proc method)
     def _do_what_gm_says(self, gm_data):
 
         supported_commands = [

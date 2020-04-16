@@ -14,7 +14,7 @@ import time
 from tqdm import tqdm
 
 import putils.lipytools.little_methods as lM
-from putils.mtasking.qmp import QueMultiProcessor
+from putils.mpython.qmp import QueMultiProcessor
 
 # card figures
 CRD_FIG = {

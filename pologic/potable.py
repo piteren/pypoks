@@ -159,6 +159,7 @@ class PTable:
             return state_changes
 
         # takes actual hh from table, to be implemented how to use that information
+        # called twice #table loop: before making a move and after hand finished(...last states and rewards)
         def take_hh(self, hh): pass
 
         # makes move (based on hand history)
@@ -408,7 +409,7 @@ class PTable:
         #print('\n@@@ hh\n%s'%hh)
         return hh
 
-# Poker Table with (communication) ques, implemented as a process
+# Poker Table with (communication) ques(in fact managed by QPPlayer), implemented as a process
 class QPTable(PTable, Process):
 
     # PPlayer with (communication) ques

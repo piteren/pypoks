@@ -35,7 +35,7 @@ from putils.neuralmess.dev_manager import nestarter
 from putils.neuralmess.multi_saver import MultiSaver
 from putils.neuralmess.nemodel import NEModel
 from putils.neuralmess.base_elements import ZeroesProcessor
-from putils.mtasking.qmp import QueMultiProcessor
+from putils.mpython.qmp import QueMultiProcessor
 
 from pologic.podeck import PDeck
 from cardNet.card_batcher import prep2X7Batch, get_test_batch
