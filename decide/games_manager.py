@@ -27,7 +27,7 @@ class GamesManager:
             n_players=      150,
             pmex_init=      0.2,
             pmex_trg=       0.02,
-            stats_iv=       5000,
+            stats_iv=       10000,
             acc_won_iv=     (100000,200000),
             verb=           0):
 
