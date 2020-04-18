@@ -23,9 +23,10 @@ class GamesManager:
 
     def __init__(
             self,
-            gname=          'dmk',
-            n_dmk=          14,
-            dmk_players=    150,
+            dmk_names :list,
+            n_players=      150,
+            pmex_init=      0.2,
+            pmex_trg=       0.02,
             stats_iv=       5000,
             acc_won_iv=     (100000,200000),
             verb=           0):
@@ -36,25 +37,24 @@ class GamesManager:
         self.in_que = Queue() # here receives data from DMKs
 
         self.tpl_count = 3 # hardcoded
-        assert (n_dmk * dmk_players) % self.tpl_count == 0
+        assert (len(dmk_names) * n_players) % self.tpl_count == 0
         self.tables = [] # list of tables
 
         self.gx_iv = acc_won_iv[-2]
 
         # create DMK dictionary
         self.dmkD = {
-            f'{gname}{ix}': NeurDMK(
+            name: NeurDMK(
                 gm_que=         self.in_que,
                 fwd_func=       cnnCEM_GFN,
                 device=         None, # CPU
-                name=           f'{gname}{ix}',
-                n_players=      dmk_players,
-                pmex=           0.2,
-                suex=           0.0,
+                name=           name,
+                n_players=      n_players,
+                pmex=           pmex_init,
+                pmex_trg=       pmex_trg,
                 stats_iv=       stats_iv,
                 acc_won_iv=     acc_won_iv,
-                verb=           self.verb-1) for ix in range(n_dmk)}
-        # RProDMK(name='dmk%d' % ix, n_players=dmk_players) for ix in range(n_dmk) # random
+                verb=           self.verb-1) for name in dmk_names}
 
     # creates tables using (ques of) DMKs
     def _create_tables(self):
@@ -152,7 +152,7 @@ class GamesManager:
                 gx_counter += 1
                 if self.verb > 0:
                     now_nhs = sum([r['n_hand'] for r in reports.values()])
-                    print(f' GM: speed:{int((now_nhs-last_nhs)/(time.time()-gx_time))}H/s, starting GX-{gx_counter}')
+                    print(f' GM: {int((now_nhs-last_nhs)/(time.time()-gx_time))}H/s, starting GX:{gx_counter}')
                     last_nhs = now_nhs
 
                 # save all

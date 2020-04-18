@@ -122,7 +122,7 @@ def card_enc(
         'hist_summ':    enc_out['hist_summ'] + hist_summ,
         'zeroes':       enc_out['zeroes']}
 
-# cards netetwork graph (FWD)
+# cards network graph (FWD)
 def card_net(
         tat_case :bool=     False,
         c_embW :int=        24,

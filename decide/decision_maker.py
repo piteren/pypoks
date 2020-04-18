@@ -5,20 +5,23 @@
  DMK (decision maker) makes decisions for poker players based on MSOD (many states one decision) concept
 
      DMK assumes that:
-        - player sends list of states (DMK.take_states)
-        - from time to time player sends list of possible_moves (DMK.take_possible_moves)
+        - player sends list of states (by calling: DMK.take_states), ...does so before a move or after a hand
+        - from time to time player sends list of possible_moves (by calling: DMK.take_possible_moves)
             > possible_moves are added (by DMK) to the last state of player
-            > move should be chosen by DMK regarding received states (saved in _new_states) and possible_moves
                 > player/table can wait for a while
                 > no new states from the table (for that player) will come until move will be made
                 > table with player (that waits for move) is locked (no other player will send anything then...)
+            > move should be selected
+                - using DMK learnable? policy, from possible_moves
+                - regarding received states (saved in _new_states - policy input) and ANY history saved by DMK
 
-        - DMK makes decisions - moves for players (DMK.make_decisions):
+        - DMK makes decisions - moves for players:
+            > DMK decides WHEN to make decisions (DMK.make_decisions):
             > makes decisions for (one-some-all) players with possible_moves @_new_states
             > states with move are moved(appended) to _done_states of processed players
 
-        - DMK runs update to learn to make good decisions
-            > update is based on _done_states (~history)
+        - DMK runs update to learn policy of making decisions
+            > update is based on _done_states (taken moves & received rewards)
 
      DMK leaves for implementation:
         - _enc_states               - states encoding/processing
@@ -28,6 +31,7 @@
  ProDMK is a DMK implemented as a process
     - communicates with table and players with ques
     - introduces move_probabilities (but lefts implementation of calculating them - _calc_probs)
+    - communicates with Stats Manager
 
     ProDMK leaves for implementation:
         - _pre_process              - called before process loop
@@ -63,7 +67,7 @@ class State:
             value):
 
         self.value = value                                  # value of state (any object)
-        self.possible_moves :List[bool] or None=    None    # list of (current) possible moves
+        self.possible_moves :List[bool] or None=    None    # list of player possible moves
         self.probs :List[float] or None=            None    # probabilities of moves
         self.move :int or None=                     None    # move (performed/selected by DMK)
         self.reward :float or None=                 None    # reward (after hand finished)
@@ -108,8 +112,8 @@ class StatsMNG:
           HF    - Hands Folded: %H where player folds
           AGG   - Postflop Aggression Frequency %: (totBet + totRaise) / anyMove *100
         """
-        self.stats = {  # [total,interval]
-            'nH':       [0,0],  # n hands played
+        self.stats = {  # [total, interval]
+            'nH':       [0,0],  # n hands played (clock)
             '$':        [0,0],  # $ won
             'nVPIP':    [0,0],  # n hands VPIP
             'nPFR':     [0,0],  # n hands PFR
@@ -143,7 +147,7 @@ class StatsMNG:
             self.chsd[pID]['nPM'] += 1
             if 'BR' in move: self.chsd[pID]['nAGG'] += 1
 
-    # puts DMK stats to TB
+    # puts prepared stats to TB
     def __push_TB(self):
 
         speed_summ = tf.Summary(value=[tf.Summary.Value(tag=f'reports/speed(H/s)', simple_value=self.speed)])
@@ -169,7 +173,6 @@ class StatsMNG:
         self.summ_writer.add_summary(agg_summ, self.stats['nH'][0])
         self.summ_writer.add_summary(ph_summ, self.stats['nH'][0])
 
-
     # extracts stats from player states
     def take_states(
             self,
@@ -177,11 +180,13 @@ class StatsMNG:
             states :List[list]):
 
         for s in states:
-            if s[0] == 'TST' and s[1] == 'preflop': self.is_preflop[pID] =  True
-            if s[0] == 'TST' and s[1] == 'flop':    self.is_preflop[pID] =  False
-            if s[0] == 'POS' and s[1][0] == 0:      self.is_BB[pID] =       s[1][1]=='BB'
-            if s[0] == 'MOV' and s[1][0] == 0:      self.__upd_chsd(pID, s[1][1])
-            if s[0] == 'PRS' and s[1][0] == 0:
+            if s[0] == 'TST':                                                   # table state changed
+                if s[1] == 'preflop':           self.is_preflop[pID] =  True
+                if s[1] == 'flop':              self.is_preflop[pID] = False
+            if s[0] == 'POS' and s[1][0] == 0:  self.is_BB[pID] = s[1][1]=='BB' # position
+            if s[0] == 'MOV' and s[1][0] == 0:  self.__upd_chsd(pID, s[1][1])   # move received
+            if s[0] == 'PRS' and s[1][0] == 0:                                  # finall hand results
+
                 my_reward = s[1][1]
                 for ti in [0,1]:
                     self.stats['nH'][ti] += 1
@@ -209,6 +214,7 @@ class StatsMNG:
                             self.acc_won[k] = (self.won_save[hand_num]-self.won_save[hand_num-k])/k
 
                     self.__push_TB()
+
                     for key in self.stats.keys(): self.stats[key][1] = 0 # reset interval values
 
 # abstract class of DMK, defines basic interface of DMK to act on PTable with PPlayer
@@ -219,7 +225,7 @@ class DMK(ABC):
             name :str,                  # name should be unique (@table)
             n_players :int,             # number of managed players
             n_moves :int=       4,      # number of (all) moves supported by DM, has to match table/player
-            upd_trigger :int=   1000,   # how much _done_states to accumulate to launch update
+            upd_trigger :int=   1000,   # how much _done_states to accumulate to launch update procedure
             verb=               0):
 
         self.name = name
@@ -227,14 +233,15 @@ class DMK(ABC):
         self.n_players = n_players
         self.p_addrL = [f'{self.name}_{ix}' for ix in range(self.n_players)] # DMK builds addresses for players
         self.n_moves = n_moves
+
         self.upd_trigger = upd_trigger
-        self.upd_step = 0
+        self.upd_step = 0               # updates counter (clock)
+
         if self.verb>0: print(f'\n *** DMK *** initialized, name {self.name}, players {self.n_players}')
 
         # variables below store moves/decisions data
         self._new_states =      {} # dict of lists of new states {state: }, should not have empty keys (player indexes)
         self._n_new = 0         # cache number of states @_new_states
-        self._n_pmoves = 0      # cache number of possible moves @_new_states
         self._done_states =     {pa: [] for pa in self.p_addrL}  # dict of processed (with decision) states
         self._n_done = 0        # cache number of done @_done_states
 
@@ -263,10 +270,8 @@ class DMK(ABC):
             self,
             p_addr,
             possible_moves :List[bool]):
-
         assert p_addr in self._new_states # TODO (dev safety check): player should have new states while getting possible moves
         self._new_states[p_addr][-1].possible_moves = possible_moves # add to last new state
-        self._n_pmoves += 1
 
     # using data from _new_states prepares list of decisions in form: [(p_addr,move)...]
     @abstractmethod
@@ -274,7 +279,6 @@ class DMK(ABC):
 
     # move states (from _new to _done) having list of decisions, updates caches
     def __move_states(self, decL :List[tuple]) -> None:
-        self._n_pmoves -= len(decL)
         for dec in decL:
             p_addr, move = dec
             states = self._new_states.pop(p_addr)
@@ -285,8 +289,6 @@ class DMK(ABC):
 
     # makes decisions (for one-some-all) players with possible moves
     def make_decisions(self) -> List[tuple]:
-
-        assert self._n_pmoves > 0 # TODO (dev safety check): DMK should have possible_moves when asked for decisions
         decL = self._dec_from_new_states()
         assert decL
 
@@ -316,7 +318,8 @@ class ProDMK(Process, DMK, ABC):
             self,
             gm_que :Queue,          # GamesManager que, here DMK puts data only! for GM, data is always put in form of tuple (name, type, data)
             pmex :float=    0.0,    # <0;1> possible_moves exploration (probability of random sampling from possible_moves space)
-            suex :float=    0.2,    # <0;1> self uncertainty exploration (probability of sampling from probability (rather than taking max))
+            pmex_trg=       0.02,   # pmex target value
+            suex :float=    0.0,    # <0;1> self uncertainty exploration (probability of sampling from probability (rather than taking max))
             stats_iv=       1000,   # collects players/DMK stats, runs TB (for None/0 does not)
             acc_won_iv=     (30000,100000),
             **kwargs):
@@ -324,8 +327,9 @@ class ProDMK(Process, DMK, ABC):
         Process.__init__(self, target=self._dmk_proc)
         DMK.__init__(self, **kwargs)
 
-        self.suex = suex
         self.pmex = pmex
+        self.pmex_trg = pmex_trg
+        self.suex = suex
 
         self.gm_que = gm_que
         self.in_que = Queue() # here DMK receives data only! from GM
@@ -338,9 +342,9 @@ class ProDMK(Process, DMK, ABC):
         self.stats_iv = stats_iv
         self.acc_won_iv = acc_won_iv
         self.process_stats = {  # any stats of the process, published & flushed during update
-            'len_pdL':      [], # length of player data list (number of updates from tables)
-            'n_waiting':    [], # number of waiting players while making decisions
-            'n_dec':        [], # number decisions made
+            '1.len_pdL':    [], # length of player data list (number of updates from tables taken in one loop)
+            '2.n_waiting':  [], # number of waiting players while making decisions
+            '3.n_dec':      [], # number decisions made
         }
 
     # method called BEFORE process loop, builds objects that HAVE to be build in process memory scope
@@ -431,8 +435,8 @@ class ProDMK(Process, DMK, ABC):
                 try:            player_data = self.dmk_in_que.get_nowait()
                 except Empty:   break
                 if player_data: pdL.append(player_data)
+            self.process_stats['1.len_pdL'].append(len(pdL))
 
-            #print(len(pdL))
             for player_data in pdL:
                 p_addr = player_data['id']
 
@@ -445,8 +449,9 @@ class ProDMK(Process, DMK, ABC):
 
             # now, if got any waiting >> make decisions
             if n_waiting:
+                self.process_stats['2.n_waiting'].append(n_waiting)
                 decL = self.make_decisions()
-                #print(' %d >> %d'%(n_waiting,len(decL)))
+                self.process_stats['3.n_dec'].append(len(decL))
                 n_waiting -= len(decL)
                 for d in decL:
                     p_addr, move = d
@@ -462,10 +467,14 @@ class ProDMK(Process, DMK, ABC):
                     else: self._do_what_gm_says(gm_data)
             except Empty: pass
 
-    # prepares process stats
+    # prepare process stats, publish and reset
     def _pstats(self):
-        # TODO (with self.upd_step as a clock)
-        for k in self.process_stats: self.process_stats[k] = []
+        if self.sm:
+            for k in self.process_stats:
+                val = sum(self.process_stats[k])/len(self.process_stats[k]) if len(self.process_stats[k]) else 0
+                val_summ = tf.Summary(value=[tf.Summary.Value(tag=f'reports.PCS/{k}', simple_value=val)])
+                self.sm.summ_writer.add_summary(val_summ, self.upd_step)
+        for k in self.process_stats: self.process_stats[k] = [] # reset
 
     # nothing new added
     def _run_update(self) -> None:
@@ -495,14 +504,14 @@ class NeurDMK(RProDMK):
     def __init__(
             self,
             fwd_func,
-            device=         1,
+            device=         None,   # cpu/gpu (check dev_manager @putils)
             upd_BS=         50000,  # estimated target batch size of update
             ex_reduce=      0.95,   # exploration reduction factor (with each update)
             **kwargs):
 
-        upd_trigger = 2*upd_BS # twice size since updating half_rectangle in trapeze
+        upd_trigger = 2*upd_BS # twice size since updating half_rectangle in trapeze (check selection state policy @UPD)
         super().__init__(upd_trigger=upd_trigger, **kwargs)
-        assert self.stats_iv > 0 # stats are obligatory for NeurDMK
+        assert self.stats_iv > 0 # Stats Manager is obligatory for NeurDMK # TODO
 
         self.fwd_func = fwd_func
         self.device = device
@@ -674,9 +683,11 @@ class NeurDMK(RProDMK):
     # runs update of DMK based on saved _done_states
     def _run_update(self) ->None:
 
-        def mam(valL: list) -> list: return [min(valL), sum(valL)/len(valL), max(valL)]
+        def mam(valL: list):
+            return [min(valL), sum(valL)/len(valL), max(valL)]
 
-        def add_summ(summ :tf.Summary) -> None: self.sm.summ_writer.add_summary(summ, self.upd_step)
+        def add_summ(summ :tf.Summary):
+            self.sm.summ_writer.add_summary(summ, self.upd_step)
 
         p_addrL = sorted(list(self._done_states.keys()))
 
@@ -828,15 +839,11 @@ class NeurDMK(RProDMK):
         add_summ(tf.Summary(value=[tf.Summary.Value(tag='nn/2.gn',      simple_value=gn)]))
         add_summ(tf.Summary(value=[tf.Summary.Value(tag='nn/3.agn',     simple_value=agn)]))
 
-        # reduce after each update
-        if self.suex > 0:
-            self.suex *= self.ex_reduce
-            if self.suex < 0.001: self.suex = 0
-            add_summ(tf.Summary(value=[tf.Summary.Value(tag='nn/4.suex', simple_value=self.suex)]))
-        if self.pmex > 0:
+        # reduce pmex/suex after each update
+        if self.pmex > self.pmex_trg:
             self.pmex *= self.ex_reduce
-            if self.pmex < 0.001: self.pmex = 0
-            add_summ(tf.Summary(value=[tf.Summary.Value(tag='nn/4.pmex', simple_value=self.pmex)]))
+            if self.pmex < self.pmex_trg: self.pmex = self.pmex_trg
+        add_summ(tf.Summary(value=[tf.Summary.Value(tag='nn/4.pmex', simple_value=self.pmex)]))
 
         # leave only not used
         for p_addr in upd_p:
