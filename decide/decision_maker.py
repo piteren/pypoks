@@ -316,20 +316,19 @@ class ProDMK(Process, DMK, ABC):
 
     def __init__(
             self,
-            gm_que :Queue,          # GamesManager que, here DMK puts data only! for GM, data is always put in form of tuple (name, type, data)
-            pmex :float=    0.0,    # <0;1> possible_moves exploration (probability of random sampling from possible_moves space)
-            pmex_trg=       0.02,   # pmex target value
-            suex :float=    0.0,    # <0;1> self uncertainty exploration (probability of sampling from probability (rather than taking max))
-            stats_iv=       1000,   # collects players/DMK stats, runs TB (for None/0 does not)
-            acc_won_iv=     (30000,100000),
+            gm_que :Queue,              # GamesManager que, here DMK puts data only! for GM, data is always put in form of tuple (name, type, data)
+            pmex_init :float=   0.2,    # <0;1> possible_moves exploration (probability of random sampling from possible_moves space)
+            pmex_trg=           0.02,   # pmex target value
+            stats_iv=           1000,   # collects players/DMK stats, runs TB (for None/0 does not)
+            acc_won_iv=         (100000,200000),
             **kwargs):
 
         Process.__init__(self, target=self._dmk_proc)
         DMK.__init__(self, **kwargs)
 
-        self.pmex = pmex
+        self.pmex = pmex_init
         self.pmex_trg = pmex_trg
-        self.suex = suex
+        self.suex = 0.0 # by now not used, <0;1> self uncertainty exploration (probability of sampling from probability (rather than taking max))
 
         self.gm_que = gm_que
         self.in_que = Queue() # here DMK receives data only! from GM
@@ -505,6 +504,7 @@ class NeurDMK(RProDMK):
             self,
             fwd_func,
             device=         None,   # cpu/gpu (check dev_manager @putils)
+            trainable=      True,
             upd_BS=         50000,  # estimated target batch size of update
             ex_reduce=      0.95,   # exploration reduction factor (with each update)
             **kwargs):
@@ -516,7 +516,7 @@ class NeurDMK(RProDMK):
         self.fwd_func = fwd_func
         self.device = device
 
-        self.upd_BS = upd_BS
+        self.trainable = trainable
         self.ex_reduce = ex_reduce
 
     # run in the process_target_method (before the loop)
@@ -689,166 +689,174 @@ class NeurDMK(RProDMK):
         def add_summ(summ :tf.Summary):
             self.sm.summ_writer.add_summary(summ, self.upd_step)
 
-        p_addrL = sorted(list(self._done_states.keys()))
+        # learn from _done_states
+        if self.trainable:
 
-        # move rewards down to moves (and build rewards dict)
-        rewards = {} # {p_addr: [[99,95,92][85,81,77,74]...]} # indexes of moves, first always rewarded
-        for p_addr in p_addrL:
-            rewards[p_addr] = []
-            reward = None
-            passed_first_reward = False # we need to skip last(top) moves that do not have rewards yet
-            mL = [] # list of moveIX
-            for ix in reversed(range(len(self._done_states[p_addr]))):
+            p_addrL = sorted(list(self._done_states.keys()))
 
-                st = self._done_states[p_addr][ix]
+            # move rewards down to moves (and build rewards dict)
+            rewards = {} # {p_addr: [[99,95,92][85,81,77,74]...]} # indexes of moves, first always rewarded
+            for p_addr in p_addrL:
+                rewards[p_addr] = []
+                reward = None
+                passed_first_reward = False # we need to skip last(top) moves that do not have rewards yet
+                mL = [] # list of moveIX
+                for ix in reversed(range(len(self._done_states[p_addr]))):
 
-                if st.reward is not None:
-                    passed_first_reward = True
-                    if reward is not None:  reward += st.reward # caught earlier reward without a move, add it here
-                    else:                   reward = st.reward
-                    st.reward = None
+                    st = self._done_states[p_addr][ix]
 
-                if st.move is not None and passed_first_reward: # got move here and it will share some reward
-                    if reward is not None: # put that reward here
-                        st.reward = reward
-                        reward = None
-                        # got previous list of mL
-                        if mL:
-                            rewards[p_addr].append(mL)
-                            mL = []
-                    mL.append(ix) # always add cause passed first reward
+                    if st.reward is not None:
+                        passed_first_reward = True
+                        if reward is not None:  reward += st.reward # caught earlier reward without a move, add it here
+                        else:                   reward = st.reward
+                        st.reward = None
 
-            if mL: rewards[p_addr].append(mL) # finally add last
+                    if st.move is not None and passed_first_reward: # got move here and it will share some reward
+                        if reward is not None: # put that reward here
+                            st.reward = reward
+                            reward = None
+                            # got previous list of mL
+                            if mL:
+                                rewards[p_addr].append(mL)
+                                mL = []
+                        mL.append(ix) # always add cause passed first reward
 
-        # remove not rewarded players (rare, but possible)
-        nrp_addrL = []
-        for p_addr in p_addrL:
-            if not rewards[p_addr]:
-                rewards.pop(p_addr)
-                nrp_addrL.append(p_addr)
-        if nrp_addrL:
-            print('@@@ WARNING: got not rewarded players!!!')
-            for p_addr in nrp_addrL: p_addrL.remove(p_addr)
+                if mL: rewards[p_addr].append(mL) # finally add last
 
-        # share rewards:
-        for p_addr in p_addrL:
-            for mL in rewards[p_addr]:
-                rIX = mL[0] # index of reward
-                # only when already not shared (...from previous update)
-                if self._done_states[p_addr][rIX].move_rew is None:
-                    sh_rew = self._done_states[p_addr][rIX].reward / len(mL)
-                    for mIX in mL:
-                        self._done_states[p_addr][mIX].move_rew = sh_rew
-                else: break
+            # remove not rewarded players (rare, but possible)
+            nrp_addrL = []
+            for p_addr in p_addrL:
+                if not rewards[p_addr]:
+                    rewards.pop(p_addr)
+                    nrp_addrL.append(p_addr)
+            if nrp_addrL:
+                print('@@@ WARNING: got not rewarded players!!!')
+                for p_addr in nrp_addrL: p_addrL.remove(p_addr)
 
-        lrm = [rewards[p_addr][0][0] for p_addr in p_addrL] # last rewarded move of player (index of state)
-        # print(f' last rm : {mam(lrm)}')
-        lrmT = zip(p_addrL, lrm)
-        lrmT = sorted(lrmT, key=lambda x: x[1], reverse=True)
-        half_players = len(self._done_states) // 2
-        if len(lrmT) < half_players: half_players = len(lrmT)
-        upd_p = lrmT[:half_players]
-        n_upd = upd_p[-1][1] + 1  # n states to use for update
-        upd_p = [e[0] for e in upd_p]  # list of p_addr to update
-        # print(f' >>> BS   : {len(upd_p)} x {n_upd} ({len(upd_p)*n_upd})')
+            # share rewards:
+            for p_addr in p_addrL:
+                for mL in rewards[p_addr]:
+                    rIX = mL[0] # index of reward
+                    # only when already not shared (...from previous update)
+                    if self._done_states[p_addr][rIX].move_rew is None:
+                        sh_rew = self._done_states[p_addr][rIX].reward / len(mL)
+                        for mIX in mL:
+                            self._done_states[p_addr][mIX].move_rew = sh_rew
+                    else: break
 
-        # num of states (@_done_states per player)
-        n_sts = mam([len(self._done_states[p_addr]) for p_addr in p_addrL]) #
-        add_summ(tf.Summary(value=[tf.Summary.Value(tag='reports.UPD/0.n_states_min', simple_value=n_sts[0] )]))
-        add_summ(tf.Summary(value=[tf.Summary.Value(tag='reports.UPD/1.n_states_max', simple_value=n_sts[2] )]))
+            lrm = [rewards[p_addr][0][0] for p_addr in p_addrL] # last rewarded move of player (index of state)
+            # print(f' last rm : {mam(lrm)}')
+            lrmT = zip(p_addrL, lrm)
+            lrmT = sorted(lrmT, key=lambda x: x[1], reverse=True)
+            half_players = len(self._done_states) // 2
+            if len(lrmT) < half_players: half_players = len(lrmT)
+            upd_p = lrmT[:half_players]
+            n_upd = upd_p[-1][1] + 1  # n states to use for update
+            upd_p = [e[0] for e in upd_p]  # list of p_addr to update
+            # print(f' >>> BS   : {len(upd_p)} x {n_upd} ({len(upd_p)*n_upd})')
 
-        # num of states with moves
-        n_mov = mam([sum([len(ml) for ml in rewards[p_addr]]) for p_addr in p_addrL])
-        add_summ(tf.Summary(value=[tf.Summary.Value(tag='reports.UPD/2.n_moves_min', simple_value=n_mov[0] )]))
-        add_summ(tf.Summary(value=[tf.Summary.Value(tag='reports.UPD/3.n_moves_max', simple_value=n_mov[2] )]))
+            # num of states (@_done_states per player)
+            n_sts = mam([len(self._done_states[p_addr]) for p_addr in p_addrL]) #
+            add_summ(tf.Summary(value=[tf.Summary.Value(tag='reports.UPD/0.n_states_min', simple_value=n_sts[0] )]))
+            add_summ(tf.Summary(value=[tf.Summary.Value(tag='reports.UPD/1.n_states_max', simple_value=n_sts[2] )]))
 
-        # num of states with rewards
-        n_rew = mam([len(rewards[p_addr]) for p_addr in p_addrL])
-        add_summ(tf.Summary(value=[tf.Summary.Value(tag='reports.UPD/4.n_rewards_min', simple_value=n_rew[0] )]))
-        add_summ(tf.Summary(value=[tf.Summary.Value(tag='reports.UPD/5.n_rewards_max', simple_value=n_rew[2] )]))
+            # num of states with moves
+            n_mov = mam([sum([len(ml) for ml in rewards[p_addr]]) for p_addr in p_addrL])
+            add_summ(tf.Summary(value=[tf.Summary.Value(tag='reports.UPD/2.n_moves_min', simple_value=n_mov[0] )]))
+            add_summ(tf.Summary(value=[tf.Summary.Value(tag='reports.UPD/3.n_moves_max', simple_value=n_mov[2] )]))
 
-        add_summ(tf.Summary(value=[tf.Summary.Value(tag='reports.UPD/6.n_sts/mov', simple_value=n_sts[1]/ n_mov[1] )]))
-        add_summ(tf.Summary(value=[tf.Summary.Value(tag='reports.UPD/7.n_sts/rew', simple_value=n_sts[1]/ n_rew[1] )]))
-        add_summ(tf.Summary(value=[tf.Summary.Value(tag='reports.UPD/8.n_mov/rew', simple_value=n_mov[1] / n_rew[1] )]))
+            # num of states with rewards
+            n_rew = mam([len(rewards[p_addr]) for p_addr in p_addrL])
+            add_summ(tf.Summary(value=[tf.Summary.Value(tag='reports.UPD/4.n_rewards_min', simple_value=n_rew[0] )]))
+            add_summ(tf.Summary(value=[tf.Summary.Value(tag='reports.UPD/5.n_rewards_max', simple_value=n_rew[2] )]))
 
-        cards_batch = []
-        switch_batch = []
-        event_batch = []
-        state_batch = []
-        move_batch = []
-        reward_batch = []
-        for p_addr in upd_p:
-            cards_seq = []
-            switch_seq = []
-            event_seq = []
-            move_seq = []
-            reward_seq = []
-            for state in self._done_states[p_addr][:n_upd]:
+            add_summ(tf.Summary(value=[tf.Summary.Value(tag='reports.UPD/6.n_sts/mov', simple_value=n_sts[1]/ n_mov[1] )]))
+            add_summ(tf.Summary(value=[tf.Summary.Value(tag='reports.UPD/7.n_sts/rew', simple_value=n_sts[1]/ n_rew[1] )]))
+            add_summ(tf.Summary(value=[tf.Summary.Value(tag='reports.UPD/8.n_mov/rew', simple_value=n_mov[1] / n_rew[1] )]))
 
-                val = state.value
+            cards_batch = []
+            switch_batch = []
+            event_batch = []
+            state_batch = []
+            move_batch = []
+            reward_batch = []
+            for p_addr in upd_p:
+                cards_seq = []
+                switch_seq = []
+                event_seq = []
+                move_seq = []
+                reward_seq = []
+                for state in self._done_states[p_addr][:n_upd]:
 
-                switch = 1
-                cards = val['cards']
-                if not cards:
-                    cards = []
-                    switch = 0
-                cards += [52]*(7-len(cards))  # pads cards
+                    val = state.value
 
-                cards_seq.append(cards)
-                switch_seq.append([switch])
-                event_seq.append(val['event'])
-                move_seq.append(state.move if state.move is not None else 0)
-                reward_seq.append(state.move_rew/500 if state.move_rew is not None else 0) #TODO: hardcoded 500
+                    switch = 1
+                    cards = val['cards']
+                    if not cards:
+                        cards = []
+                        switch = 0
+                    cards += [52]*(7-len(cards))  # pads cards
 
-            cards_batch.append(cards_seq)
-            switch_batch.append(switch_seq)
-            event_batch.append(event_seq)
-            move_batch.append(move_seq)
-            reward_batch.append(reward_seq)
-            state_batch.append(self.last_upd_state[p_addr])
+                    cards_seq.append(cards)
+                    switch_seq.append([switch])
+                    event_seq.append(val['event'])
+                    move_seq.append(state.move if state.move is not None else 0)
+                    reward_seq.append(state.move_rew/500 if state.move_rew is not None else 0) #TODO: hardcoded 500
 
-        feed = {
-            self.mdl['train_PH']:   True,
-            self.mdl['cards_PH']:   np.asarray(cards_batch),
-            self.mdl['switch_PH']:  np.asarray(switch_batch),
-            self.mdl['event_PH']:   np.asarray(event_batch),
-            self.mdl['state_PH']:   np.asarray(state_batch),
-            self.mdl['move_PH']:    np.asarray(move_batch),
-            self.mdl['rew_PH']:     np.asarray(reward_batch)}
+                cards_batch.append(cards_seq)
+                switch_batch.append(switch_seq)
+                event_batch.append(event_seq)
+                move_batch.append(move_seq)
+                reward_batch.append(reward_seq)
+                state_batch.append(self.last_upd_state[p_addr])
 
-        fetches = [
-            self.mdl['optimizer'],
-            self.mdl['fin_state'],
-            self.mdl['loss'],
-            self.mdl['scaled_LR'],
-            self.mdl['enc_zeroes'],
-            self.mdl['cnn_zeroes'],
-            self.mdl['gg_norm'],
-            self.mdl['avt_gg_norm']]
-        _, fstat, loss, sLR, enc_zs, cnn_zs, gn, agn = self.mdl.session.run(fetches, feed_dict=feed)
+            feed = {
+                self.mdl['train_PH']:   True,
+                self.mdl['cards_PH']:   np.asarray(cards_batch),
+                self.mdl['switch_PH']:  np.asarray(switch_batch),
+                self.mdl['event_PH']:   np.asarray(event_batch),
+                self.mdl['state_PH']:   np.asarray(state_batch),
+                self.mdl['move_PH']:    np.asarray(move_batch),
+                self.mdl['rew_PH']:     np.asarray(reward_batch)}
 
-        # save upd states
-        for ix in range(fstat.shape[0]):
-            self.last_upd_state[upd_p[ix]] = fstat[ix]
+            fetches = [
+                self.mdl['optimizer'],
+                self.mdl['fin_state'],
+                self.mdl['loss'],
+                self.mdl['scaled_LR'],
+                self.mdl['enc_zeroes'],
+                self.mdl['cnn_zeroes'],
+                self.mdl['gg_norm'],
+                self.mdl['avt_gg_norm']]
+            _, fstat, loss, sLR, enc_zs, cnn_zs, gn, agn = self.mdl.session.run(fetches, feed_dict=feed)
 
-        self.ze_pro_enc.process(enc_zs, self.upd_step)
-        self.ze_pro_cnn.process(cnn_zs, self.upd_step)
+            # save upd states
+            for ix in range(fstat.shape[0]):
+                self.last_upd_state[upd_p[ix]] = fstat[ix]
 
-        add_summ(tf.Summary(value=[tf.Summary.Value(tag='nn/0.loss',    simple_value=loss)]))
-        add_summ(tf.Summary(value=[tf.Summary.Value(tag='nn/1.sLR',     simple_value=sLR)]))
-        add_summ(tf.Summary(value=[tf.Summary.Value(tag='nn/2.gn',      simple_value=gn)]))
-        add_summ(tf.Summary(value=[tf.Summary.Value(tag='nn/3.agn',     simple_value=agn)]))
+            self.ze_pro_enc.process(enc_zs, self.upd_step)
+            self.ze_pro_cnn.process(cnn_zs, self.upd_step)
+
+            add_summ(tf.Summary(value=[tf.Summary.Value(tag='nn/0.loss',    simple_value=loss)]))
+            add_summ(tf.Summary(value=[tf.Summary.Value(tag='nn/1.sLR',     simple_value=sLR)]))
+            add_summ(tf.Summary(value=[tf.Summary.Value(tag='nn/2.gn',      simple_value=gn)]))
+            add_summ(tf.Summary(value=[tf.Summary.Value(tag='nn/3.agn',     simple_value=agn)]))
+
+            # leave only not used
+            for p_addr in upd_p:
+                self._done_states[p_addr] = self._done_states[p_addr][n_upd:]
+            self._n_done -= n_upd * len(upd_p)
+
+        # only flush
+        else:
+            for p_addr in self._done_states: self._done_states[p_addr] = []
+            self._n_done = 0
 
         # reduce pmex/suex after each update
         if self.pmex > self.pmex_trg:
             self.pmex *= self.ex_reduce
             if self.pmex < self.pmex_trg: self.pmex = self.pmex_trg
         add_summ(tf.Summary(value=[tf.Summary.Value(tag='nn/4.pmex', simple_value=self.pmex)]))
-
-        # leave only not used
-        for p_addr in upd_p:
-            self._done_states[p_addr] = self._done_states[p_addr][n_upd:]
-        self._n_done -= n_upd*len(upd_p)
 
         self._pstats()
 

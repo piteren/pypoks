@@ -14,7 +14,6 @@ import time
 from tqdm import tqdm
 
 from decide.decision_maker import RProDMK, NeurDMK
-from decide.neural.neural_graphs import cnnCEM_GFN
 from pologic.potable import QPTable
 from decide.gx import xross
 
@@ -23,12 +22,8 @@ class GamesManager:
 
     def __init__(
             self,
-            dmk_names :list,
-            n_players=      150,
-            pmex_init=      0.2,
-            pmex_trg=       0.02,
-            stats_iv=       10000,
-            acc_won_iv=     (100000,200000),
+            dmk_dna :dict,
+            acc_won_iv,
             verb=           0):
 
         self.verb = verb
@@ -37,36 +32,37 @@ class GamesManager:
         self.in_que = Queue() # here receives data from DMKs
 
         self.tpl_count = 3 # hardcoded
-        assert (len(dmk_names) * n_players) % self.tpl_count == 0
+
+        assert sum([dmk_dna[n]['n_players'] for n in dmk_dna]) % self.tpl_count == 0
         self.tables = [] # list of tables
 
         self.gx_iv = acc_won_iv[-2]
+
+        # save families
+        self.dmk_families = {name: dmk_dna[name]['family'] for name in dmk_dna}
+        for name in dmk_dna: dmk_dna[name].pop('family')
 
         # create DMK dictionary
         self.dmkD = {
             name: NeurDMK(
                 gm_que=         self.in_que,
-                fwd_func=       cnnCEM_GFN,
-                device=         None, # CPU
                 name=           name,
-                n_players=      n_players,
-                pmex=           pmex_init,
-                pmex_trg=       pmex_trg,
-                stats_iv=       stats_iv,
                 acc_won_iv=     acc_won_iv,
-                verb=           self.verb-1) for name in dmk_names}
+                **dmk_dna[name]
+            ) for name in dmk_dna}
 
     # creates tables using (ques of) DMKs
     def _create_tables(self):
+
+        # TODO: create mixed tables (mix families)
 
         # build dict of ques tuples for all players: (IN,OUT)
         # - take them fom DMKs, shuffle and distribute among tables players
         ques = {}
         for dmk in self.dmkD.values():
-            dmk_iq = dmk.dmk_in_que
             pl_iqD = dmk.pl_in_queD
             for k in pl_iqD:
-                ques[k] = (pl_iqD[k],dmk_iq)
+                ques[k] = (pl_iqD[k], dmk.dmk_in_que)
         ques_keys = list(ques.keys())
         random.shuffle(ques_keys)
 
@@ -115,7 +111,7 @@ class GamesManager:
     def run_games(
             self,
             gx_loop_sh= (3,1),  # shape of GXA while loop
-            gx_exit=    True,   # perform GXA after loop exit
+            gx_exit_sh= (3,3),  # shape of GXA after loop exit
             gx_limit=   None):  # number of GAX to perform
 
         self.tables = self._create_tables()
@@ -164,27 +160,28 @@ class GamesManager:
                 for dmk_name in reports:
                     gx_list.append((
                         dmk_name,
-                        reports[dmk_name]['acc_won'][self.gx_iv]))
+                        reports[dmk_name]['acc_won'][self.gx_iv],
+                        self.dmk_families[dmk_name]))
                 gx_list = sorted(gx_list, key= lambda x: x[1], reverse=True)
 
                 if gx_limit and gx_counter == gx_limit:
                     gx_last_list = gx_list  # save last list for return
                     break
 
-                xres = xross(gx_list, n_par=gx_loop_sh[0], n_mix=gx_loop_sh[1], verb=self.verb+1)
+                if gx_loop_sh:
+                    xres = xross(gx_list, shape=gx_loop_sh, verb=self.verb+1)
 
-                for dmk_name in xres['mixed']: self.dmkD[dmk_name].in_que.put('reload_model')
-                for _ in xres['mixed']:
-                    rel = self.in_que.get()
-                    print(f'{rel[0]} {rel[1]}')
+                    for f in xres['mixed']:
+                        for dmk_name in xres['mixed'][f]: self.dmkD[dmk_name].in_que.put('reload_model')
+                        for _ in xres['mixed'][f]:
+                            rel = self.in_que.get()
+                            print(f'{rel[0]} {rel[1]} (family {f})')
 
                 gx_time = time.time()
 
         self._stop_tables()
         self._stop_dmks()
 
-        if gx_exit:
-            size = int(len(gx_last_list)/2)
-            xross(gx_last_list, n_par=size, n_mix=size, verb=2)
+        if gx_exit_sh: xross(gx_last_list, shape=gx_exit_sh, verb=2)
 
         return gx_last_list
