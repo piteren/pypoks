@@ -36,15 +36,15 @@ if __name__ == "__main__":
                 'fwd_func':     cnnCEM_GFN,
                 'mdict':        {'verb':0},
                 'n_players':    150,
-                'pmex_init':    0.2,
-                'pmex_trg':     0.05,
+                'pmex_init':    0.0,#0.2,
+                'pmex_trg':     0.0,#0.05,
                 'stats_iv':     10000,
                 'trainable':    False,
                 'verb':         0,
-            } for ix in range(14)}
+            } for ix in range(7)}
+    #"""
     for k in ['fm0','fm4','fm3','fm6','fm10','fm11','fm9']: dmk_dna.pop(k)
-
-    dmk_dna_B = {
+    dmk_dna.update({
         f'gm{ix}':
             {
                 'family':       'G',
@@ -56,10 +56,8 @@ if __name__ == "__main__":
                 'stats_iv':     10000,
                 'trainable':    True,
                 'verb':         0,
-            } for ix in range(7)}
-
-    dmk_dna.update(dmk_dna_B)
-
+            } for ix in range(7)})
+    #"""
     loopIX = 0
     while True:
         if loopIX:
