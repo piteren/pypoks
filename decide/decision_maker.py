@@ -502,7 +502,9 @@ class NeurDMK(RProDMK):
 
     def __init__(
             self,
-            fwd_func,
+            fwd_func,               # neural graph FWD func
+            mdict :dict,            # model dict
+            family,                 # family (type) saved for GAX purposes etc.
             device=         None,   # cpu/gpu (check dev_manager @putils)
             trainable=      True,
             upd_BS=         50000,  # estimated target batch size of update
@@ -514,6 +516,10 @@ class NeurDMK(RProDMK):
         assert self.stats_iv > 0 # Stats Manager is obligatory for NeurDMK # TODO
 
         self.fwd_func = fwd_func
+        self.mdict = mdict
+        self.mdict['name'] = self.name
+
+        self.family = family
         self.device = device
 
         self.trainable = trainable
@@ -526,7 +532,7 @@ class NeurDMK(RProDMK):
 
         self.mdl = NEModel(
             fwd_func=   self.fwd_func,
-            mdict=      {'name':self.name, 'verb':0}, # TODO: by now base concept
+            mdict=      self.mdict,
             devices=    self.device,
             verb=       self.verb)
 

@@ -38,10 +38,6 @@ class GamesManager:
 
         self.gx_iv = acc_won_iv[-2]
 
-        # save families
-        self.dmk_families = {name: dmk_dna[name]['family'] for name in dmk_dna}
-        for name in dmk_dna: dmk_dna[name].pop('family')
-
         # create DMK dictionary
         self.dmkD = {
             name: NeurDMK(
@@ -161,7 +157,7 @@ class GamesManager:
                     gx_list.append((
                         dmk_name,
                         reports[dmk_name]['acc_won'][self.gx_iv],
-                        self.dmk_families[dmk_name]))
+                        self.dmkD[dmk_name].family))
                 gx_list = sorted(gx_list, key= lambda x: x[1], reverse=True)
 
                 if gx_limit and gx_counter == gx_limit:

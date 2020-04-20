@@ -34,6 +34,7 @@ if __name__ == "__main__":
             {
                 'family':       None,
                 'fwd_func':     cnnCEM_GFN,
+                'mdict':        {'verb':0},
                 'n_players':    150,
                 'pmex_init':    0.2,
                 'pmex_trg':     0.05,
@@ -48,6 +49,7 @@ if __name__ == "__main__":
             {
                 'family':       'G',
                 'fwd_func':     cnnCEM_GFN,
+                'mdict':        {'verb':0},
                 'n_players':    150,
                 'pmex_init':    0.2,
                 'pmex_trg':     0.05,
