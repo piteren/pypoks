@@ -18,9 +18,9 @@ class my_decorator(object):
         self.f(*args)
 
 @my_decorator
-def aFunction(str):
+def a_fun(str):
     print(f"aFunction({str})")
 
 print("Finished decorating aFunction()")
 
-aFunction('piotrek')
+a_fun('piotrek')
