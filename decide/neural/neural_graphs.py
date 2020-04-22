@@ -30,7 +30,7 @@ def cnnCEM_GFN(
         avt_SVal=       0.04,
         avt_window=     20,
         do_clip=        True,
-        verb=           1,
+        verb=           0,
         **kwargs):
 
     if verb>0: print('\nBuilding %s (CNN+RES+CE+M) graph...'%name)

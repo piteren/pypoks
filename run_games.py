@@ -3,6 +3,8 @@
  2020 (c) piteren
 
 """
+from functools import partial
+import tensorflow as tf
 
 from putils.neuralmess.dev_manager import nestarter
 from putils.mpython.mpdecor import proc_wait
@@ -30,32 +32,28 @@ if __name__ == "__main__":
     nestarter('_log', custom_name='dmk_games')
 
     dmk_dna = {
-        f'fm{ix}':
-            {
-                'family':       None,
+        f'am{ix}': {
+                'family':       'A',
                 'fwd_func':     cnnCEM_GFN,
-                'mdict':        {'verb':0},
-                'n_players':    150,
-                'pmex_init':    0.0,#0.2,
-                'pmex_trg':     0.0,#0.05,
-                'stats_iv':     10000,
-                'trainable':    False,
-                'verb':         0,
-            } for ix in range(7)}
-    #"""
-    for k in ['fm0','fm4','fm3','fm6','fm10','fm11','fm9']: dmk_dna.pop(k)
-    dmk_dna.update({
-        f'gm{ix}':
-            {
-                'family':       'G',
-                'fwd_func':     cnnCEM_GFN,
-                'mdict':        {'verb':0},
+                'mdict':        {'iLR':3e-5},
                 'n_players':    150,
                 'pmex_init':    0.2,
                 'pmex_trg':     0.05,
                 'stats_iv':     10000,
-                'trainable':    True,
-                'verb':         0,
+                #'trainable':    False,
+            } for ix in range(7)}
+    #"""
+    #for k in ['fm0','fm4','fm3','fm6','fm10','fm11','fm9']: dmk_dna.pop(k)
+    dmk_dna.update({
+        f'bm{ix}': {
+                'family':       'B',
+                'fwd_func':     cnnCEM_GFN,
+                'mdict':        {'iLR':3e-5, 'opt_class':partial(tf.train.AdamOptimizer, beta1=0.7, beta2=0.7)},
+                'n_players':    150,
+                'pmex_init':    0.2,
+                'pmex_trg':     0.05,
+                'stats_iv':     10000,
+                #'trainable':    False,
             } for ix in range(7)})
     #"""
     loopIX = 0
