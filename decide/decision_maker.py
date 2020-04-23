@@ -110,9 +110,9 @@ class StatsMNG:
     def reset_stats(self, start_hand=None):
         """
         by now implemented stats:
-          VPIP  - Voluntarily Put $ In Pot %H: how many hands (%) player put money in pot (SB and BB do not count)
-          PFR   - Preflop Raise: how many hands (%) player raised preflop
-          HF    - Hands Folded: %H where player folds
+          VPIP  - Voluntarily Put $ In Pot %H: %H player puts money in pot (SB and BB do not count)
+          PFR   - Preflop Raise: %H player raises preflop
+          HF    - Hands Folded: %H player folds
           AGG   - Postflop Aggression Frequency %: (totBet + totRaise) / anyMove *100
         """
         if not start_hand: start_hand = 0
