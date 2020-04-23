@@ -27,6 +27,9 @@ from queue import Empty
 
 from pologic.podeck import PDeck
 
+from pologic.poenvy import N_TABLE_PLAYERS, \
+    TABLE_CASH_START, TABLE_SB, TABLE_BB
+
 # table states
 TBL_STT = {
     0:  'idle',
@@ -170,12 +173,12 @@ class PTable:
 
     def __init__(
             self,
-            pl_ids :list,
+            pl_ids :list,                           # len(pl_ids) == num players @table
             pl_class :type(PPlayer)=    PPlayer,
             name=                       'potable',
-            SB=                         2,
-            BB=                         5,
-            start_cash=                 500,
+            SB=                         TABLE_SB,
+            BB=                         TABLE_BB,
+            start_cash=                 TABLE_CASH_START,
             verb=                       0):
 
         self.verb = verb

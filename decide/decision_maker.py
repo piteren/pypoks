@@ -53,11 +53,13 @@ from typing import List
 import time
 from queue import Empty
 
+from putils.neuralmess.nemodel import NEModel
+from putils.neuralmess.base_elements import ZeroesProcessor
+
+from pologic.poenvy import N_TABLE_PLAYERS
 from pologic.podeck import PDeck
 from pologic.potable import POS_NMS, TBL_MOV
 
-from putils.neuralmess.nemodel import NEModel
-from putils.neuralmess.base_elements import ZeroesProcessor
 
 # state type, here DMK saves table events
 class State:
@@ -82,6 +84,7 @@ class StatsMNG:
             self,
             name :str,
             p_addrL :list,              # list of (unique) player ids, used as keys in dicts
+            start_hand= 0,              # number of hand to start with
             stats_iv=   1000,           # interval (n_hands) for putting stats on TB
             acc_won_iv= (30000,100000), # should be multiplication of stats_iv
             verb=       0):
@@ -97,29 +100,30 @@ class StatsMNG:
         self.is_BB =        {pID: False for pID in p_addrL} # BB position of player at table {pID: True/False}
         self.is_preflop =   {pID: True for pID in p_addrL} # preflop indicator of player at table {pID: True/False}
 
-        self.reset_stats()
+        self.reset_stats(start_hand)
         for pID in self.chsd: self.__reset_chsd(pID)
 
         self.summ_writer = tf.summary.FileWriter(logdir='_models/' + name, flush_secs=10)
         self.stime = time.time()
 
     # resets stats (DMK)
-    def reset_stats(self):
+    def reset_stats(self, start_hand=None):
         """
         by now implemented stats:
-          VPIP  - Voluntarily Put $ in Pot %H: how many hands (%) player put money in pot (SB and BB do not count)
+          VPIP  - Voluntarily Put $ In Pot %H: how many hands (%) player put money in pot (SB and BB do not count)
           PFR   - Preflop Raise: how many hands (%) player raised preflop
           HF    - Hands Folded: %H where player folds
           AGG   - Postflop Aggression Frequency %: (totBet + totRaise) / anyMove *100
         """
+        if not start_hand: start_hand = 0
         self.stats = {  # [total, interval]
-            'nH':       [0,0],  # n hands played (clock)
-            '$':        [0,0],  # $ won
-            'nVPIP':    [0,0],  # n hands VPIP
-            'nPFR':     [0,0],  # n hands PFR
-            'nHF':      [0,0],  # n hands folded
-            'nPM':      [0,0],  # n moves postflop
-            'nAGG':     [0,0]}  # n aggressive moves postflop
+            'nH':       [start_hand,0],     # n hands played (clock)
+            '$':        [0,0],              # $ won
+            'nVPIP':    [0,0],              # n hands VPIP
+            'nPFR':     [0,0],              # n hands PFR
+            'nHF':      [0,0],              # n hands folded
+            'nPM':      [0,0],              # n moves postflop
+            'nAGG':     [0,0]}              # n aggressive moves postflop
 
     # resets self.chsd for player (per player stats)
     def __reset_chsd(
@@ -185,7 +189,7 @@ class StatsMNG:
                 if s[1] == 'flop':              self.is_preflop[pID] = False
             if s[0] == 'POS' and s[1][0] == 0:  self.is_BB[pID] = s[1][1]=='BB' # position
             if s[0] == 'MOV' and s[1][0] == 0:  self.__upd_chsd(pID, s[1][1])   # move received
-            if s[0] == 'PRS' and s[1][0] == 0:                                  # finall hand results
+            if s[0] == 'PRS' and s[1][0] == 0:                                  # final hand results
 
                 my_reward = s[1][1]
                 for ti in [0,1]:
@@ -210,7 +214,7 @@ class StatsMNG:
                     hand_num = self.stats['nH'][0]
                     self.won_save[hand_num] = self.stats['$'][0]
                     for k in self.acc_won:
-                        if hand_num-k >= 0:
+                        if hand_num-k in self.won_save:
                             self.acc_won[k] = (self.won_save[hand_num]-self.won_save[hand_num-k])/k
 
                     self.__push_TB()
@@ -222,10 +226,10 @@ class DMK(ABC):
 
     def __init__(
             self,
-            name :str,                  # name should be unique (@table)
-            n_players :int,             # number of managed players
-            n_moves :int=       4,      # number of (all) moves supported by DM, has to match table/player
-            upd_trigger :int=   1000,   # how much _done_states to accumulate to launch update procedure
+            name :str,                          # name should be unique (@table)
+            n_players :int,                     # number of managed players
+            n_moves :int=       len(TBL_MOV),   # number of (all) moves supported by DM, has to match table
+            upd_trigger :int=   1000,           # how much _done_states to accumulate to launch update procedure
             verb=               0):
 
         self.name = name
@@ -319,7 +323,7 @@ class ProDMK(Process, DMK, ABC):
             gm_que :Queue,              # GamesManager que, here DMK puts data only! for GM, data is always put in form of tuple (name, type, data)
             pmex_init :float=   0.2,    # <0;1> possible_moves exploration (probability of random sampling from possible_moves space)
             pmex_trg=           0.02,   # pmex target value
-            stats_iv=           1000,   # collects players/DMK stats, runs TB (for None/0 does not)
+            stats_iv=           1000,
             acc_won_iv=         (100000,200000),
             **kwargs):
 
@@ -338,6 +342,7 @@ class ProDMK(Process, DMK, ABC):
         self.pl_in_queD = {pa: Queue() for pa in self.p_addrL}
 
         self.sm = None
+        self.start_hand = 0 # ProDMK has no possibility to set other than 0 (since no save), but neural will have...
         self.stats_iv = stats_iv
         self.acc_won_iv = acc_won_iv
         self.process_stats = {  # any stats of the process, published & flushed during update
@@ -353,6 +358,7 @@ class ProDMK(Process, DMK, ABC):
         self.sm = StatsMNG(
             name=       self.name,
             p_addrL=    self.p_addrL,
+            start_hand= self.start_hand,
             stats_iv=   self.stats_iv,
             acc_won_iv= self.acc_won_iv,
             verb=       self.verb) if self.stats_iv else None
@@ -528,13 +534,14 @@ class NeurDMK(RProDMK):
     # run in the process_target_method (before the loop)
     def _pre_process(self):
 
-        super()._pre_process()
-
         self.mdl = NEModel(
             fwd_func=   self.fwd_func,
             mdict=      self.mdict,
             devices=    self.device,
             verb=       self.verb)
+
+        self.start_hand, self.upd_step = self.mdl.session.run(self.mdl['counter_vars']) # get two values from NN save
+        super()._pre_process() # activates SM
 
         self.zero_state = self.mdl.session.run(self.mdl['single_zero_state'])
         self.last_fwd_state =   {pa: self.zero_state    for pa in self.p_addrL}  # net state after last fwd
@@ -557,7 +564,7 @@ class NeurDMK(RProDMK):
     # prepares state into form of nn input
     #  - encodes only selection of states
     #   event has values (ids):
-    #       0 : pad
+    #       0 : pad (cards)
     #       1,2,3 : my positions SB,BB,BTN
     #       4,5,6,7, 8,9,10,11 : moves of two opponents 1,2 * C/F,CLL,BR5,BR8
     def _enc_states(
@@ -892,7 +899,11 @@ class NeurDMK(RProDMK):
             self.gm_que.put((self.name, 'model_reloaded', None))
 
     # saves checkpoints
-    def _save_model(self): self.mdl.saver.save()
+    def _save_model(self):
+        self.mdl.session.run(self.mdl['counter_vars'][0].assign(self.sm.stats['nH'][0]))
+        self.mdl.session.run(self.mdl['counter_vars'][1].assign(self.upd_step))
+        # or: self.mdl['n_UPD'].load(self.upd_step, self.mdl.session)
+        self.mdl.saver.save()
 
     # reloads model checkpoint (after GX)
     def _reload_model(self): self.mdl.saver.load()

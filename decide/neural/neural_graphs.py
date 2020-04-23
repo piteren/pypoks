@@ -25,7 +25,7 @@ def cnnCEM_GFN(
         activation=     tf.nn.relu,
         n_moves=        4,      # number of moves supported by the model
         opt_class=      partial(tf.train.AdamOptimizer, beta1=0.2, beta2=0.2),
-        iLR=            1e-4,#3e-5,
+        iLR=            3e-5,
         warm_up=        100,    # num of steps has to be small (since we do rare updates)
         avt_SVal=       0.04,
         avt_window=     20,
@@ -36,6 +36,20 @@ def cnnCEM_GFN(
     if verb>0: print('\nBuilding %s (CNN+RES+CE+M) graph...'%name)
 
     with tf.variable_scope(name):
+
+        n_hands = tf.get_variable( # number of hands while learning
+            name=           'n_hands',
+            shape=          [],
+            trainable=      False,
+            initializer=    tf.constant_initializer(0),
+            dtype=          tf.int32)
+
+        n_UPD = tf.get_variable( # number of UPD
+            name=           'n_UPD',
+            shape=          [],
+            trainable=      False,
+            initializer=    tf.constant_initializer(0),
+            dtype=          tf.int32)
 
         cards_PH = tf.placeholder(  # 7 cards placeholder
             name=   'cards_PH',
@@ -164,6 +178,7 @@ def cnnCEM_GFN(
         'enc_zeroes':           tf.concat(enc_zsL, axis=-1),
         'cnn_zeroes':           tf.concat(cnn_zsL, axis=-1),
         'loss':                 loss,
+        'counter_vars':         [n_hands, n_UPD],
         'enc_vars':             enc_vars,
         'cnn_vars':             cnn_vars,
         'train_vars':           train_vars}

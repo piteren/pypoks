@@ -1,0 +1,11 @@
+"""
+
+ 2020 (c) piteren
+
+"""
+
+N_TABLE_PLAYERS = 3
+
+TABLE_CASH_START = 500
+TABLE_SB = 2
+TABLE_BB = 5

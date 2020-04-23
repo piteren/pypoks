@@ -61,5 +61,5 @@ if __name__ == "__main__":
         if loopIX:
             #break  # to break after first loop
             for dn in dmk_dna: dmk_dna[dn]['pmex_init'] = dmk_dna[dn]['pmex_trg']
-        run(dmk_dna)
+        run(dmk_dna, 3)
         loopIX += 1
