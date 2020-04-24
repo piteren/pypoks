@@ -3,8 +3,6 @@
  2020 (c) piteren
 
 """
-from functools import partial
-import tensorflow as tf
 
 from ptools.neuralmess.dev_manager import nestarter
 from ptools.mpython.mpdecor import proc_wait

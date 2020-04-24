@@ -15,7 +15,7 @@ from tqdm import tqdm
 
 import ptools.lipytools.little_methods as lM
 
-from putils.mpython.qmp import QueMultiProcessor
+from ptools.mpython.qmp import QueMultiProcessor
 
 # card figures
 CRD_FIG = {
