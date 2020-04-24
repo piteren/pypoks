@@ -53,8 +53,8 @@ from typing import List
 import time
 from queue import Empty
 
-from putils.neuralmess.nemodel import NEModel
-from putils.neuralmess.base_elements import ZeroesProcessor
+from ptools.neuralmess.nemodel import NEModel
+from ptools.neuralmess.base_elements import ZeroesProcessor
 
 from pologic.poenvy import N_TABLE_PLAYERS
 from pologic.podeck import PDeck
@@ -513,7 +513,7 @@ class NeurDMK(RProDMK):
             fwd_func,               # neural graph FWD func
             mdict :dict=    None,   # model dict
             family=         'A',    # family (type) saved for GAX purposes etc.
-            device=         None,   # cpu/gpu (check dev_manager @putils)
+            device=         None,   # cpu/gpu (check dev_manager @ptools)
             trainable=      True,
             upd_BS=         50000,  # estimated target batch size of update
             ex_reduce=      0.95,   # exploration reduction factor (with each update)

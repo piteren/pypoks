@@ -13,7 +13,8 @@ import random
 import time
 from tqdm import tqdm
 
-import putils.lipytools.little_methods as lM
+import ptools.lipytools.little_methods as lM
+
 from putils.mpython.qmp import QueMultiProcessor
 
 # card figures

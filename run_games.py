@@ -6,9 +6,9 @@
 from functools import partial
 import tensorflow as tf
 
-from putils.neuralmess.dev_manager import nestarter
-from putils.mpython.mpdecor import proc_wait
-from putils.lipytools.decorators import timing
+from ptools.neuralmess.dev_manager import nestarter
+from ptools.mpython.mpdecor import proc_wait
+from ptools.lipytools.decorators import timing
 
 from decide.games_manager import GamesManager
 from decide.neural.neural_graphs import cnnCEM_GFN

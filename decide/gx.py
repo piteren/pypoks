@@ -8,7 +8,7 @@ import os
 import random
 from typing import List
 
-from putils.neuralmess.base_elements import mrg_ckpts
+from ptools.neuralmess.base_elements import mrg_ckpts
 
 # genetic crossing for TF based checkpoints
 def xross(

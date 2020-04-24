@@ -7,10 +7,10 @@
 from functools import partial
 import tensorflow as tf
 
-from putils.lipytools.little_methods import short_scin
-from putils.neuralmess.base_elements import my_initializer, num_var_floats
-from putils.neuralmess.layers import lay_dense
-from putils.neuralmess.encoders import enc_CNN
+from ptools.lipytools.little_methods import short_scin
+from ptools.neuralmess.base_elements import my_initializer, num_var_floats
+from ptools.neuralmess.layers import lay_dense
+from ptools.neuralmess.encoders import enc_CNN
 
 from cardNet.card_network import card_enc
 

@@ -7,9 +7,9 @@
 from functools import partial
 import tensorflow as tf
 
-from putils.neuralmess.base_elements import my_initializer
-from putils.neuralmess.layers import lay_dense
-from putils.neuralmess.encoders import enc_DRT, enc_TNS
+from ptools.neuralmess.base_elements import my_initializer
+from ptools.neuralmess.layers import lay_dense
+from ptools.neuralmess.encoders import enc_DRT, enc_TNS
 
 
 # cards encoder graph (Transformer for 7 cards representations)
