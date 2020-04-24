@@ -35,7 +35,7 @@ if __name__ == "__main__":
         f'am{ix}': {
                 'family':       'A',
                 'fwd_func':     cnnCEM_GFN,
-                'mdict':        {'iLR':3e-5},
+                #'mdict':        {},
                 'n_players':    150,
                 'pmex_init':    0.2,
                 'pmex_trg':     0.05,
@@ -48,7 +48,7 @@ if __name__ == "__main__":
         f'bm{ix}': {
                 'family':       'B',
                 'fwd_func':     cnnCEM_GFN,
-                'mdict':        {'iLR':3e-5, 'opt_class':partial(tf.train.AdamOptimizer, beta1=0.7, beta2=0.7)},
+                'mdict':        {'c_embW':18, 'n_lay':18},
                 'n_players':    150,
                 'pmex_init':    0.2,
                 'pmex_trg':     0.05,

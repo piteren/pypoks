@@ -173,16 +173,16 @@ class PTable:
 
     def __init__(
             self,
+            name,
             pl_ids :list,                           # len(pl_ids) == num players @table
             pl_class :type(PPlayer)=    PPlayer,
-            name=                       'potable',
             SB=                         TABLE_SB,
             BB=                         TABLE_BB,
             start_cash=                 TABLE_CASH_START,
             verb=                       0):
 
-        self.verb = verb
         self.name = name
+        self.verb = verb
 
         self.SB = SB
         self.BB = BB
@@ -446,16 +446,19 @@ class QPTable(PTable, Process):
             pl_ques :dict,  # dict of player ques, their number defines table size (keys - player addresses)
             **kwargs):
 
-        self.gm_que = gm_que
-        self.in_que = Queue() # here Table receives data from GM (...only poison object)
+        Process.__init__(self, target=self.__rh_proc)
 
         pl_ids = list(pl_ques.keys())
+        random.shuffle(pl_ids)
         PTable.__init__(
             self,
             pl_ids=     pl_ids,
             pl_class=   QPTable.QPPlayer,
             **kwargs)
-        Process.__init__(self, target=self.__rh_proc)
+
+
+        self.gm_que = gm_que
+        self.in_que = Queue()  # here Table receives data from GM (...only poison object)
 
         # add ques for players
         for pl in self.players:
@@ -463,6 +466,7 @@ class QPTable(PTable, Process):
 
     # runs hands in loop (for sep. process)
     def __rh_proc(self):
+        self.gm_que.put(f'{self.name} (table process) started')
         while True:
             self.run_hand()
 

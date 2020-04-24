@@ -430,6 +430,8 @@ class ProDMK(Process, DMK, ABC):
     def _dmk_proc(self):
 
         self._pre_process()
+        self.gm_que.put(f'{self.name} (DMK process) started')
+        self.in_que.get() # waits for GO!
 
         n_waiting = 0 # num players ( ~> tables) waiting for decision
         while True:
@@ -509,8 +511,8 @@ class NeurDMK(RProDMK):
     def __init__(
             self,
             fwd_func,               # neural graph FWD func
-            mdict :dict,            # model dict
-            family,                 # family (type) saved for GAX purposes etc.
+            mdict :dict=    None,   # model dict
+            family=         'A',    # family (type) saved for GAX purposes etc.
             device=         None,   # cpu/gpu (check dev_manager @putils)
             trainable=      True,
             upd_BS=         50000,  # estimated target batch size of update
@@ -523,6 +525,7 @@ class NeurDMK(RProDMK):
 
         self.fwd_func = fwd_func
         self.mdict = mdict
+        if self.mdict is None: self.mdict = {}
         self.mdict['name'] = self.name
 
         self.family = family
@@ -540,7 +543,9 @@ class NeurDMK(RProDMK):
             devices=    self.device,
             verb=       self.verb)
 
-        self.start_hand, self.upd_step = self.mdl.session.run(self.mdl['counter_vars']) # get two values from NN save
+        # get counters
+        self.start_hand = self.mdl.session.run(self.mdl['n_hands'])
+        self.upd_step = self.mdl.session.run(self.mdl['g_step'])
         super()._pre_process() # activates SM
 
         self.zero_state = self.mdl.session.run(self.mdl['single_zero_state'])
@@ -886,7 +891,7 @@ class NeurDMK(RProDMK):
 
         if gm_data == 'send_report':
             report = {
-                'n_hand':   self.sm.stats['nH'][0],
+                'n_hands':  self.sm.stats['nH'][0],
                 'acc_won':  self.sm.acc_won}
             self.gm_que.put((self.name, 'report', report))
 
@@ -900,9 +905,7 @@ class NeurDMK(RProDMK):
 
     # saves checkpoints
     def _save_model(self):
-        self.mdl.session.run(self.mdl['counter_vars'][0].assign(self.sm.stats['nH'][0]))
-        self.mdl.session.run(self.mdl['counter_vars'][1].assign(self.upd_step))
-        # or: self.mdl['n_UPD'].load(self.upd_step, self.mdl.session)
+        self.mdl.session.run(self.mdl['n_hands'].assign(self.sm.stats['nH'][0]))
         self.mdl.saver.save()
 
     # reloads model checkpoint (after GX)

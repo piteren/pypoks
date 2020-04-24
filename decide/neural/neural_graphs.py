@@ -24,7 +24,7 @@ def cnnCEM_GFN(
         width=          None,   # representation width (number of filters), for None uses input width
         activation=     tf.nn.relu,
         n_moves=        4,      # number of moves supported by the model
-        opt_class=      partial(tf.train.AdamOptimizer, beta1=0.2, beta2=0.2),
+        opt_class=      partial(tf.train.AdamOptimizer, beta1=0.7, beta2=0.7),
         iLR=            3e-5,
         warm_up=        100,    # num of steps has to be small (since we do rare updates)
         avt_SVal=       0.04,
@@ -39,13 +39,6 @@ def cnnCEM_GFN(
 
         n_hands = tf.get_variable( # number of hands while learning
             name=           'n_hands',
-            shape=          [],
-            trainable=      False,
-            initializer=    tf.constant_initializer(0),
-            dtype=          tf.int32)
-
-        n_UPD = tf.get_variable( # number of UPD
-            name=           'n_UPD',
             shape=          [],
             trainable=      False,
             initializer=    tf.constant_initializer(0),
@@ -138,7 +131,7 @@ def cnnCEM_GFN(
 
         probs = tf.nn.softmax(logits)
 
-        cnn_vars = tf.trainable_variables(scope=tf.get_variable_scope().name)
+        cnn_vars = tf.trainable_variables(scope=tf.get_variable_scope().name) + [n_hands]
         cnn_vars = [var for var in cnn_vars if var not in enc_vars]
         if verb>1: print(' ### num of cnn_vars (%d) %s'%(len(cnn_vars),short_scin(num_var_floats(cnn_vars))))
 
@@ -178,7 +171,7 @@ def cnnCEM_GFN(
         'enc_zeroes':           tf.concat(enc_zsL, axis=-1),
         'cnn_zeroes':           tf.concat(cnn_zsL, axis=-1),
         'loss':                 loss,
-        'counter_vars':         [n_hands, n_UPD],
+        'n_hands':              n_hands,
         'enc_vars':             enc_vars,
         'cnn_vars':             cnn_vars,
         'train_vars':           train_vars}

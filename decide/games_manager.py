@@ -13,9 +13,11 @@ import random
 import time
 from tqdm import tqdm
 
-from decide.decision_maker import RProDMK, NeurDMK
+from pologic.poenvy import N_TABLE_PLAYERS
 from pologic.potable import QPTable
+from decide.decision_maker import NeurDMK
 from decide.gx import xross
+
 
 # manages DMKs, tables, games
 class GamesManager:
@@ -29,11 +31,9 @@ class GamesManager:
         self.verb = verb
         if self.verb > 0: print('\n *** GamesManager *** starting...')
 
-        self.in_que = Queue() # here receives data from DMKs
+        self.in_que = Queue() # here receives data from DMKs and tables
 
-        self.tpl_count = 3 # hardcoded
-
-        assert sum([dmk_dna[n]['n_players'] for n in dmk_dna]) % self.tpl_count == 0
+        assert sum([dmk_dna[n]['n_players'] for n in dmk_dna]) % N_TABLE_PLAYERS == 0
         self.tables = [] # list of tables
 
         self.gx_iv = acc_won_iv[-2]
@@ -47,40 +47,51 @@ class GamesManager:
                 **dmk_dna[name]
             ) for name in dmk_dna}
 
+        self.families = set([self.dmkD[name].family for name in self.dmkD])
+
     # creates tables using (ques of) DMKs
     def _create_tables(self):
 
-        # TODO: create mixed tables (mix families)
-
-        # build dict of ques tuples for all players: (IN,OUT)
-        # - take them fom DMKs, shuffle and distribute among tables players
-        ques = {}
+        # build dict of lists of player ques tuples: {family: [(p_addr,in,out)]}
+        fam_ques = {fam: [] for fam in self.families}
         for dmk in self.dmkD.values():
             pl_iqD = dmk.pl_in_queD
             for k in pl_iqD:
-                ques[k] = (pl_iqD[k], dmk.dmk_in_que)
-        ques_keys = list(ques.keys())
-        random.shuffle(ques_keys)
+                fam_ques[dmk.family].append((k, pl_iqD[k], dmk.dmk_in_que))
+
+        for fam in fam_ques: random.shuffle(fam_ques[fam])
+
+        # base alg to put all ques into one list (...for mixed tables)
+        quesLL = [fam_ques[fam] for fam in fam_ques]    # list of lists
+        quesL = []                                      # target flat list
+        qLIX = 0
+        while quesLL:
+            quesL.append(quesLL[qLIX].pop())
+            if not quesLL[qLIX]: quesLL.pop(qLIX)       # remove empty list
+            qLIX += 1                                   # increase
+            if qLIX >= len(quesLL): qLIX = 0            # reset
 
         # create tables
         tables = []
-        table_queD = {}
-        for k in ques_keys:
-            table_queD[k] = ques[k]
-            if len(table_queD) == self.tpl_count:
+        table_ques = []
+        while quesL:
+            table_ques.append(quesL.pop())
+            if len(table_ques) == N_TABLE_PLAYERS:
                 table = QPTable(
-                    gm_que=     self.in_que,
-                    pl_ques=    table_queD,
                     name=       f'tbl{len(tables)}',
+                    gm_que=     self.in_que,
+                    pl_ques=    {t[0]: (t[1],t[2]) for t in table_ques},
                     verb=       self.verb-1)
                 tables.append(table)
-                table_queD = {}
+                table_ques = []
         return tables
 
     # starts tables
     def _start_tables(self):
         if self.verb > 0: print('Starting tables...')
         for tbl in tqdm(self.tables): tbl.start()
+        if self.verb > 0: print(' > tables init...')
+        for _ in self.tables: self.in_que.get()
         if self.verb > 0: print(f' > started {len(self.tables)} tables!')
 
     # stops tables
@@ -94,6 +105,9 @@ class GamesManager:
     def _start_dmks(self):
         if self.verb > 0: print('Starting DMKs...')
         for dmk in tqdm(self.dmkD.values()): dmk.start()
+        if self.verb > 0: print(' > DMKs init...')
+        for _ in self.dmkD: self.in_que.get()
+        for dmk in self.dmkD.values(): dmk.in_que.put('GO!') # to synchronize DMKs a bit...
         if self.verb > 0: print(f' > started {len(self.dmkD)} DMKs!')
 
     # stops DMKs
@@ -114,38 +128,44 @@ class GamesManager:
         self._start_tables()
         self._start_dmks()
 
-        n_sec_iv = 30 # number of seconds between reporting
-        gx_counter = 0
         stime = time.time()
         gx_time = stime
-        last_nhs = 0
-        while True:
-            time.sleep(n_sec_iv)
 
-            # get reports
+        last_gx_hand = {}
+        gx_counter = 0
+        n_sec_iv = 30  # number of seconds between reporting
+        while True:
+
+            # first get reports
             reports = {}
             for dmk in self.dmkD.values(): dmk.in_que.put('send_report')
             for _ in self.dmkD:
                 report = self.in_que.get()
                 reports[report[0]] = report[2]
+            # then build last_gx_hand (at first loop)
+            if not last_gx_hand:
+                last_gx_hand = {dmk_name: reports[dmk_name]['n_hands'] for dmk_name in reports}
 
             if self.verb > 0:
-                nh = [r['n_hand'] for r in reports.values()]
+                nh = [r['n_hands'] for r in reports.values()]
                 print(f' GM:{(time.time()-gx_time)/60:4.1f}min, nH: {min(nh)}-{max(nh)}')
 
             do_gx = True
             for dmk_name in reports:
-                if reports[dmk_name]['n_hand'] < self.gx_iv*(gx_counter+1):
+                if reports[dmk_name]['n_hands'] < last_gx_hand[dmk_name] + self.gx_iv:
                     do_gx = False
                     break
 
             if do_gx:
 
                 gx_counter += 1
+
                 if self.verb > 0:
-                    now_nhs = sum([r['n_hand'] for r in reports.values()])
+                    last_nhs = sum(last_gx_hand.values())
+                    now_nhs = sum([r['n_hands'] for r in reports.values()])
                     print(f' GM: {int((now_nhs-last_nhs)/(time.time()-gx_time))}H/s, starting GX:{gx_counter}')
-                    last_nhs = now_nhs
+
+                for dmk_name in reports: last_gx_hand[dmk_name] = reports[dmk_name]['n_hands']
 
                 # save all
                 for dmk in self.dmkD.values(): dmk.in_que.put('save_model')
@@ -174,6 +194,8 @@ class GamesManager:
                             print(f'{rel[0]} {rel[1]} (family {f})')
 
                 gx_time = time.time()
+
+            time.sleep(n_sec_iv)
 
         self._stop_tables()
         self._stop_dmks()
