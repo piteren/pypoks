@@ -707,7 +707,7 @@ class NeurDMK(RProDMK):
         def add_summ(summ :tf.Summary):
             self.sm.summ_writer.add_summary(summ, self.upd_step)
 
-        # learn from _done_states
+        # learn/update from _done_states
         if self.trainable:
 
             p_addrL = sorted(list(self._done_states.keys()))
@@ -762,16 +762,14 @@ class NeurDMK(RProDMK):
                             self._done_states[p_addr][mIX].move_rew = sh_rew
                     else: break
 
-            lrm = [rewards[p_addr][0][0] for p_addr in p_addrL] # last rewarded move of player (index of state)
-            # print(f' last rm : {mam(lrm)}')
+            lrm = [rewards[p_addr][0][0] for p_addr in p_addrL]     # last rewarded move of player (index of state)
             lrmT = zip(p_addrL, lrm)
-            lrmT = sorted(lrmT, key=lambda x: x[1], reverse=True)
+            lrmT = sorted(lrmT, key=lambda x: x[1], reverse=True)   # sort decreasing
             half_players = len(self._done_states) // 2
             if len(lrmT) < half_players: half_players = len(lrmT)
-            upd_p = lrmT[:half_players]
-            n_upd = upd_p[-1][1] + 1  # n states to use for update
-            upd_p = [e[0] for e in upd_p]  # list of p_addr to update
-            # print(f' >>> BS   : {len(upd_p)} x {n_upd} ({len(upd_p)*n_upd})')
+            upd_p = lrmT[:half_players]                             # longer half
+            n_upd = upd_p[-1][1] + 1                                # n states to use for update
+            upd_p = [e[0] for e in upd_p]                           # list of p_addr to update
 
             # num of states (@_done_states per player)
             n_sts = mam([len(self._done_states[p_addr]) for p_addr in p_addrL]) #
