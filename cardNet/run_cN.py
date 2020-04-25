@@ -31,11 +31,11 @@ from functools import partial
 import tensorflow as tf
 import time
 
-from putils.neuralmess.dev_manager import nestarter
-from putils.neuralmess.multi_saver import MultiSaver
-from putils.neuralmess.nemodel import NEModel
-from putils.neuralmess.base_elements import ZeroesProcessor
-from putils.mpython.qmp import QueMultiProcessor
+from ptools.neuralmess.dev_manager import nestarter
+from ptools.neuralmess.multi_saver import MultiSaver
+from ptools.neuralmess.nemodel import NEModel
+from ptools.neuralmess.base_elements import ZeroesProcessor
+from ptools.mpython.qmp import QueMultiProcessor
 
 from pologic.podeck import PDeck
 from cardNet.card_batcher import prep2X7Batch, get_test_batch
