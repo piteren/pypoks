@@ -9,6 +9,7 @@ from ptools.mpython.mpdecor import proc_wait
 from ptools.lipytools.decorators import timing
 
 from decide.games_manager import GamesManager
+from decide.decision_maker import NeurDMK, HDMK
 from decide.neural.neural_graphs import cnnCEM_GFN
 
 
@@ -25,12 +26,9 @@ def run(ddna, gx_limit=10):
         gx_limit=       gx_limit)
 
 
-if __name__ == "__main__":
-
-    nestarter('_log', custom_name='dmk_games')
-
+def start_big_games():
     dmk_dna = {
-        f'am{ix}': {
+        f'am{ix}': (NeurDMK, {
                 'family':       'A',
                 'fwd_func':     cnnCEM_GFN,
                 #'mdict':        {},
@@ -39,11 +37,11 @@ if __name__ == "__main__":
                 'pmex_trg':     0.05,
                 'stats_iv':     10000,
                 #'trainable':    False,
-            } for ix in range(7)}
+            }) for ix in range(7)}
     #"""
     #for k in ['fm0','fm4','fm3','fm6','fm10','fm11','fm9']: dmk_dna.pop(k)
     dmk_dna.update({
-        f'bm{ix}': {
+        f'bm{ix}': (NeurDMK, {
                 'family':       'B',
                 'fwd_func':     cnnCEM_GFN,
                 'mdict':        {'c_embW':18, 'n_lay':18},
@@ -52,12 +50,37 @@ if __name__ == "__main__":
                 'pmex_trg':     0.05,
                 'stats_iv':     10000,
                 #'trainable':    False,
-            } for ix in range(7)})
+            }) for ix in range(7)})
     #"""
     loopIX = 0
     while True:
         if loopIX:
             #break  # to break after first loop
-            for dn in dmk_dna: dmk_dna[dn]['pmex_init'] = dmk_dna[dn]['pmex_trg']
-        run(dmk_dna)
+            for dn in dmk_dna: dmk_dna[dn][1]['pmex_init'] = dmk_dna[dn][1]['pmex_trg']
+        run(dmk_dna, 3)
         loopIX += 1
+
+
+def start_human_game():
+    dmk_dna = {
+    'am0': (NeurDMK, {
+            'family':       'A',
+            'fwd_func':     cnnCEM_GFN,
+            #'mdict':        {},
+            'n_players':    2,
+            'pmex_init':    0,
+            'pmex_trg':     0,
+            'stats_iv':     10,
+            'trainable':    False}),
+    'hm0': (HDMK, {
+            'n_players':    1,
+            'stats_iv':     10})}
+    run(dmk_dna, 1)
+
+
+if __name__ == "__main__":
+
+    nestarter('_log', custom_name='dmk_games')
+
+    #start_big_games()
+    start_human_game()

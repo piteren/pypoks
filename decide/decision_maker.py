@@ -2,45 +2,61 @@
 
  2019 (c) piteren
 
- DMK (decision maker) makes decisions for poker players based on MSOD (many states one decision) concept
+ DMK (decision maker) makes decisions for poker players
+    uses MSOD (many states one decision) concept
 
      DMK assumes that:
-        - player sends list of states (by calling: DMK.take_states), ...does so before a move or after a hand
-        - from time to time player sends list of possible_moves (by calling: DMK.take_possible_moves)
-            > possible_moves are added (by DMK) to the last state of player
-                > player/table can wait for a while
-                > no new states from the table (for that player) will come until move will be made
-                > table with player (that waits for move) is locked (no other player will send anything then...)
-            > move should be selected
-                - using DMK learnable? policy, from possible_moves
-                - regarding received states (saved in _new_states - policy input) and ANY history saved by DMK
+        - DMK receives data from table/player
+            - player sends list of states (by calling: DMK.take_states, ...does so before a move or after a hand)
+            - from time to time player sends list of possible_moves (by calling: DMK.take_possible_moves)
+                > possible_moves are added (by DMK) to the last state of player
+                    > now player/table has to wait for a while (for its decision)
+                    > no new states from the table (for that player) will come until decision will be made
+                    > table with player (that waits for decision) is locked (no other player will send anything then...)
 
         - DMK makes decisions - moves for players:
-            > DMK decides WHEN to make decisions (DMK.make_decisions):
+            > move should be selected:
+                    - regarding received states (saved in _new_states - policy input) and ANY history saved by DMK
+                    - using DMK learnable? policy
+                    - from possible_moves
+            > DMK decides WHEN to make decisions (DMK.make_decisions, but DMK does not define when to do it...)
             > makes decisions for (one-some-all) players with possible_moves @_new_states
-            > states with move are moved(appended) to _done_states of processed players
+            > states used to make decisions are moved(appended) to _done_states
 
         - DMK runs update to learn policy of making decisions
             > update is based on _done_states (taken moves & received rewards)
 
      DMK leaves for implementation:
-        - _enc_states               - states encoding/processing
-        - _dec_from_new_states      - how to use _new_states to make decisions
-        - _run_update               - how to learn using _done_states
+        _enc_states                         - states encoding/processing
+        _decisions_from_new_states_subtask  - how to use _new_states to make decisions
+        _update_subtask                     - how to learn using _done_states
+        _flush_done_states                  - which states remove from _done_states after update
 
- ProDMK is a DMK implemented as a process
-    - communicates with table and players with ques
-    - introduces move_probabilities (but lefts implementation of calculating them - _calc_probs)
-    - communicates with Stats Manager
+ QDMK is a DMK implemented as a process with ques
+    - communicates with table and players using ques
+    - assumes that (DMK) decisions are made by probabilistic model (soft probabilities of decisions)
+        + implements _dec_from_new_states as a 2 step process:
+            > calculate move probabilities (_calc_probs) - assumes that decisions will be made by probabilistic model
+            > selects move (argmax) using probs (__sample_move)
+    - optionally communicates with StatsManager(SM) (SM is not obligatory for QDMK)
 
-    ProDMK leaves for implementation:
-        - _pre_process              - called before process loop
-        - _enc_states               - states encoding/processing
-        - _calc_probs               - how to calculate probabilities for states
-        - _run_update               - how to learn using _done_states
+    QDMK leaves for implementation:
+        _enc_states
+        _calc_probs                         - how to calculate probabilities for states
+        _do_what_gm_says                    - how to run GM commands
+        _update_subtask
+        _flush_done_states
+
+
+
+ ExDMK implements exploration while sampling move (forces random model instead of probabilistic one)
+    + implements basic exploration reduction (policy)
 
  NeurDMK is a ProDMK implemented with Neural Network to make decisions
-    - from time to time updates itself(learns NN) using information from _done_states
+     + encodes states for NN
+     + makes decisions with NN
+     + updates NN (learns)
+        - from time to time updates itself(learns NN) using information from _done_states
 
 """
 
@@ -48,20 +64,24 @@ from abc import ABC, abstractmethod
 from multiprocessing import Process, Queue
 import numpy as np
 import random
+import sys
 import tensorflow as tf
 from typing import List
-import time
 from queue import Empty
 
 from ptools.neuralmess.nemodel import NEModel
 from ptools.neuralmess.base_elements import ZeroesProcessor
 
+from decide.stats_manager import StatsMNG
 from pologic.poenvy import N_TABLE_PLAYERS
 from pologic.podeck import PDeck
 from pologic.potable import POS_NMS, TBL_MOV
 
+from gui.gui_test import MyFirstGUI
+from tkinter import Tk
 
-# state type, here DMK saves table events
+
+# State type, here DMK saves table events
 class State:
 
     def __init__(
@@ -75,153 +95,7 @@ class State:
         self.reward :float or None=                 None    # reward (after hand finished)
         self.move_rew :float or None=               None    # move shared reward
 
-# Stats Manager for DMK (one DMK has N table players)
-# - uses n_hands as a counter (number of hands performed by ALL table players of DMK)
-# - is an essential component of aware DMK / GamesManager since prepares data useful to make higher level decisions
-class StatsMNG:
-
-    def __init__(
-            self,
-            name :str,
-            p_addrL :list,              # list of (unique) player ids, used as keys in dicts
-            start_hand= 0,              # number of hand to start with
-            stats_iv=   1000,           # interval (n_hands) for putting stats on TB
-            acc_won_iv= (30000,100000), # should be multiplication of stats_iv
-            verb=       0):
-
-        self.verb = verb
-        self.stats_iv = stats_iv
-        for v in acc_won_iv: assert v % stats_iv == 0
-        self.speed =        None # speed of running in H/s
-        self.won_save =     {0: 0} # {n_hand: $won} saved while putting to TB (for stats_iv), it will grow but won't be big...
-        self.acc_won =      {k: 0 for k in acc_won_iv} # $won/hand in ranges of acc_won_iv
-        self.stats =        {} # stats of DMK (for all players)
-        self.chsd =         {pID: None for pID in p_addrL} # current hand stats data (per player)
-        self.is_BB =        {pID: False for pID in p_addrL} # BB position of player at table {pID: True/False}
-        self.is_preflop =   {pID: True for pID in p_addrL} # preflop indicator of player at table {pID: True/False}
-
-        self.reset_stats(start_hand)
-        for pID in self.chsd: self.__reset_chsd(pID)
-
-        self.summ_writer = tf.summary.FileWriter(logdir='_models/' + name, flush_secs=10)
-        self.stime = time.time()
-
-    # resets stats (DMK)
-    def reset_stats(self, start_hand=None):
-        """
-        by now implemented stats:
-          VPIP  - Voluntarily Put $ In Pot %H: %H player puts money in pot (SB and BB do not count)
-          PFR   - Preflop Raise: %H player raises preflop
-          HF    - Hands Folded: %H player folds
-          AGG   - Postflop Aggression Frequency %: (totBet + totRaise) / anyMove *100
-        """
-        if not start_hand: start_hand = 0
-        self.stats = {  # [total, interval]
-            'nH':       [start_hand,0],     # n hands played (clock)
-            '$':        [0,0],              # $ won
-            'nVPIP':    [0,0],              # n hands VPIP
-            'nPFR':     [0,0],              # n hands PFR
-            'nHF':      [0,0],              # n hands folded
-            'nPM':      [0,0],              # n moves postflop
-            'nAGG':     [0,0]}              # n aggressive moves postflop
-
-    # resets self.chsd for player (per player stats)
-    def __reset_chsd(
-            self,
-            pID):
-
-        self.chsd[pID] = {
-            'VPIP':     False,
-            'PFR':      False,
-            'HF':       False,
-            'nPM':      0,      # num of postflop moves
-            'nAGG':     0}
-
-    # updates self.chsd with given player move
-    def __upd_chsd(
-            self,
-            pID,
-            move :str):
-
-        if move == 'C/F': self.chsd[pID]['HF'] = True
-        if self.is_preflop[pID]:
-            if move == 'CLL' and not self.is_BB[pID] or 'BR' in move: self.chsd[pID]['VPIP'] = True
-            if 'BR' in move: self.chsd[pID]['PFR'] = True
-        else:
-            self.chsd[pID]['nPM'] += 1
-            if 'BR' in move: self.chsd[pID]['nAGG'] += 1
-
-    # puts prepared stats to TB
-    def __push_TB(self):
-
-        speed_summ = tf.Summary(value=[tf.Summary.Value(tag=f'reports/speed(H/s)', simple_value=self.speed)])
-        self.summ_writer.add_summary(speed_summ, self.stats['nH'][0])
-
-        for k in self.acc_won:
-            if self.stats['nH'][0] >= k:
-                acw_summ = tf.Summary(value=[tf.Summary.Value(tag=f'sts_acc_won/{k}', simple_value=self.acc_won[k])])
-                self.summ_writer.add_summary(acw_summ, self.stats['nH'][0])
-
-        won_summ = tf.Summary(value=[tf.Summary.Value(tag='sts/0.$wonT', simple_value=self.stats['$'][0])])
-        vpip = self.stats['nVPIP'][1] / self.stats['nH'][1] * 100
-        vpip_summ = tf.Summary(value=[tf.Summary.Value(tag='sts/1.VPIP', simple_value=vpip)])
-        pfr = self.stats['nPFR'][1] / self.stats['nH'][1] * 100
-        pfr_summ = tf.Summary(value=[tf.Summary.Value(tag='sts/2.PFR', simple_value=pfr)])
-        agg = self.stats['nAGG'][1] / self.stats['nPM'][1] * 100 if self.stats['nPM'][1] else 0
-        agg_summ = tf.Summary(value=[tf.Summary.Value(tag='sts/3.AGG', simple_value=agg)])
-        ph = self.stats['nHF'][1] / self.stats['nH'][1] * 100
-        ph_summ = tf.Summary(value=[tf.Summary.Value(tag='sts/4.HF', simple_value=ph)])
-        self.summ_writer.add_summary(won_summ, self.stats['nH'][0])
-        self.summ_writer.add_summary(vpip_summ, self.stats['nH'][0])
-        self.summ_writer.add_summary(pfr_summ, self.stats['nH'][0])
-        self.summ_writer.add_summary(agg_summ, self.stats['nH'][0])
-        self.summ_writer.add_summary(ph_summ, self.stats['nH'][0])
-
-    # extracts stats from player states
-    def take_states(
-            self,
-            pID,
-            states :List[list]):
-
-        for s in states:
-            if s[0] == 'TST':                                                   # table state changed
-                if s[1] == 'preflop':           self.is_preflop[pID] =  True
-                if s[1] == 'flop':              self.is_preflop[pID] = False
-            if s[0] == 'POS' and s[1][0] == 0:  self.is_BB[pID] = s[1][1]=='BB' # position
-            if s[0] == 'MOV' and s[1][0] == 0:  self.__upd_chsd(pID, s[1][1])   # move received
-            if s[0] == 'PRS' and s[1][0] == 0:                                  # final hand results
-
-                my_reward = s[1][1]
-                for ti in [0,1]:
-                    self.stats['nH'][ti] += 1
-                    self.stats['$'][ti] += my_reward
-
-                    # update self.stats with self.chsd
-                    if self.chsd[pID]['VPIP']:  self.stats['nVPIP'][ti] += 1
-                    if self.chsd[pID]['PFR']:   self.stats['nPFR'][ti] += 1
-                    if self.chsd[pID]['HF']:    self.stats['nHF'][ti] += 1
-                    self.stats['nPM'][ti] +=    self.chsd[pID]['nPM']
-                    self.stats['nAGG'][ti] +=   self.chsd[pID]['nAGG']
-
-                self.__reset_chsd(pID)
-
-                # put stats on TB
-                if self.stats['nH'][1] == self.stats_iv:
-
-                    self.speed = self.stats_iv/(time.time()-self.stime)
-                    self.stime = time.time()
-
-                    hand_num = self.stats['nH'][0]
-                    self.won_save[hand_num] = self.stats['$'][0]
-                    for k in self.acc_won:
-                        if hand_num-k in self.won_save:
-                            self.acc_won[k] = (self.won_save[hand_num]-self.won_save[hand_num-k])/k
-
-                    self.__push_TB()
-
-                    for key in self.stats.keys(): self.stats[key][1] = 0 # reset interval values
-
-# abstract class of DMK, defines basic interface of DMK to act on PTable with PPlayer
+# (abstract) DMK defines basic interface of DMK to act on PTable with PPlayer (DMK is called by table/player)
 class DMK(ABC):
 
     def __init__(
@@ -255,14 +129,13 @@ class DMK(ABC):
             self,
             p_addr,
             player_stateL: List[list]) -> List[State]:
-        return [State(value) for value in player_stateL]  # wraps into dictL
+        return [State(value) for value in player_stateL]  # wraps into list of States
 
     # takes player states, encodes and saves in self._new_states, updates cache
     def take_states(
             self,
             p_addr,
             player_stateL: List[list]) -> None:
-
         encoded_states = self._enc_states(p_addr, player_stateL)
         if encoded_states:
             if p_addr not in self._new_states: self._new_states[p_addr] = []
@@ -279,7 +152,7 @@ class DMK(ABC):
 
     # using data from _new_states prepares list of decisions in form: [(p_addr,move)...]
     @abstractmethod
-    def _dec_from_new_states(self) -> List[tuple]: pass
+    def _decisions_from_new_states_subtask(self) -> List[tuple]: pass
 
     # move states (from _new to _done) having list of decisions, updates caches
     def __move_states(self, decL :List[tuple]) -> None:
@@ -292,37 +165,39 @@ class DMK(ABC):
             self._n_done += len(states)
 
     # makes decisions (for one-some-all) players with possible moves
-    def make_decisions(self) -> List[tuple]:
-        decL = self._dec_from_new_states()
+    def make_decisions_task(self) -> List[tuple]:
+        decL = self._decisions_from_new_states_subtask()
         assert decL
 
-        self.__move_states(decL)                                # move states
-        if self._n_done > self.upd_trigger: self._run_update()  # self update (learn)
+        self.__move_states(decL) # move states
+
+        if self._n_done > self.upd_trigger:
+            self._run_update_task() # self update (learn)
 
         return decL
 
-    # runs update of DMK based on saved _done_states
+    # learn policy from _done_states (core of update task)
     @abstractmethod
-    def _run_update(self) -> None:
-        self.upd_step += 1
-        # baseline (no learn): flush all & reset
+    def _learning_subtask(self): return 'no_update_done'
+
+    # flush (all) & reset,
+    @abstractmethod
+    def _update_done_states(self, ust_details) -> None:
         self._done_states = {pa: [] for pa in self._done_states}
         self._n_done = 0
 
-# process(ed) DMK
-# + communicates with ques (with players/tables and with GamesManager)
-# + implements _dec_from_new_states as a 2 step process:
-#       > calculate move probabilities (_calc_probs)
-#       > sample move using probs (__sample_move)
-# + implements exploration while sampling move
-# + implements stats
-class ProDMK(Process, DMK, ABC):
+    # runs update of DMK based on saved _done_states, called in make_decisions (when trigger fires)
+    def _run_update_task(self) -> None:
+        ust_details = self._learning_subtask()
+        self._update_done_states(ust_details)
+        self.upd_step += 1
+
+# (abstract) Qued DMK defines basic interface to act on QPTable with QPPlayer (QDMK is called by qued table/player)
+class QDMK(Process, DMK, ABC):
 
     def __init__(
             self,
-            gm_que :Queue,              # GamesManager que, here DMK puts data only! for GM, data is always put in form of tuple (name, type, data)
-            pmex_init :float=   0.2,    # <0;1> possible_moves exploration (probability of random sampling from possible_moves space)
-            pmex_trg=           0.02,   # pmex target value
+            gm_que :Queue,              # GamesManager que, here DMK puts data for GM, data is always put in form of tuple (name, type, data) # TODO: implement tuple everywhere...
             stats_iv=           1000,
             acc_won_iv=         (100000,200000),
             **kwargs):
@@ -330,14 +205,10 @@ class ProDMK(Process, DMK, ABC):
         Process.__init__(self, target=self._dmk_proc)
         DMK.__init__(self, **kwargs)
 
-        self.pmex = pmex_init
-        self.pmex_trg = pmex_trg
-        self.suex = 0.0 # by now not used, <0;1> self uncertainty exploration (probability of sampling from probability (rather than taking max))
-
         self.gm_que = gm_que
         self.in_que = Queue() # here DMK receives data only! from GM
 
-        # every ProDMK creates part of ques network
+        # every QDMK creates part of ques network
         self.dmk_in_que = Queue()
         self.pl_in_queD = {pa: Queue() for pa in self.p_addrL}
 
@@ -348,22 +219,10 @@ class ProDMK(Process, DMK, ABC):
         self.process_stats = {  # any stats of the process, published & flushed during update
             '1.len_pdL':    [], # length of player data list (number of updates from tables taken in one loop)
             '2.n_waiting':  [], # number of waiting players while making decisions
-            '3.n_dec':      [], # number decisions made
-        }
+            '3.n_dec':      []} # number decisions made
 
-    # method called BEFORE process loop, builds objects that HAVE to be build in process memory scope
-    def _pre_process(self) -> None:
-
-        # TB stats saver (has to be build here, inside process method, since summ_writer...)
-        self.sm = StatsMNG(
-            name=       self.name,
-            p_addrL=    self.p_addrL,
-            start_hand= self.start_hand,
-            stats_iv=   self.stats_iv,
-            acc_won_iv= self.acc_won_iv,
-            verb=       self.verb) if self.stats_iv else None
-
-    # adds stats management
+    # adds stats management with SM while encoding taken states
+    @abstractmethod
     def _enc_states(
             self,
             pID,
@@ -371,34 +230,23 @@ class ProDMK(Process, DMK, ABC):
         if self.sm: self.sm.take_states(pID, player_stateL)
         return super()._enc_states(pID,player_stateL)
 
-    # calculates probabilities for at least some states with possible_moves
+    # calculates probabilities for at least some _new_states with possible_moves (to be done with probabilistic model...)
     @abstractmethod
     def _calc_probs(self) -> None: pass
 
-    # using pmex and suex samples single move for given probabilities and possibilities
-    def __sample_move(
+    # selects single move form possible_moves using given probabilities (probs argmax)
+    def _sample_move(
             self,
             probs :List[float],
             possible_moves :List[bool]) -> int:
+        prob_mask = np.asarray(possible_moves).astype(int)  # cast bool to int
+        probs = probs * prob_mask                           # mask probs
+        if np.sum(probs) == 0: probs = prob_mask            # take mask if no intersection
+        moves_arr = np.arange(self.n_moves)                 # array with moves indexes
+        return moves_arr[np.argmax(probs)]                  # take max from probs
 
-        if self.pmex > 0 and random.random() < self.pmex: probs = np.random.rand(self.n_moves) # forced random probability
-
-        prob_mask = np.asarray(possible_moves).astype(int) # to np
-        probs = probs * prob_mask  # mask probs
-        if np.sum(probs)==0: probs = prob_mask  # take mask if no intersection
-
-        moves_arr = np.arange(self.n_moves)
-        if self.suex > 0 and random.random() < self.suex:
-            probs /= np.sum(probs)  # normalize
-            move = np.random.choice(moves_arr, p=probs) # sample from probs
-        else: move = moves_arr[np.argmax(probs)] # take max from probs
-
-        return move
-
-     # returns list of decisions
-    def _dec_from_new_states(self) -> List[tuple]:
-
-        super()._dec_from_new_states()
+    # returns list of decisions
+    def _decisions_from_new_states_subtask(self) -> List[tuple]:
 
         if self.verb>1:
             nd = {}
@@ -413,18 +261,46 @@ class ProDMK(Process, DMK, ABC):
 
         self._calc_probs()
 
+        # make decisions for playes with ready data (possible_moves and probs)
         decL = []
         for p_addr in self._new_states:
             if self._new_states[p_addr][-1].possible_moves is not None and self._new_states[p_addr][-1].probs is not None:
-                move = self.__sample_move(
+                move = self._sample_move(
                     probs=          self._new_states[p_addr][-1].probs,
                     possible_moves =self._new_states[p_addr][-1].possible_moves)
                 decL.append((p_addr, move))
 
         return decL
 
-    # runs GamesManager decisions
-    def _do_what_gm_says(self, gm_data) -> None: pass
+    # prepare process stats, publish and reset
+    def __publish_proces_stats(self):
+        if self.sm:
+            for k in self.process_stats:
+                val = sum(self.process_stats[k])/len(self.process_stats[k]) if len(self.process_stats[k]) else 0
+                val_summ = tf.Summary(value=[tf.Summary.Value(tag=f'reports.PCS/{k}', simple_value=val)])
+                self.sm.summ_writer.add_summary(val_summ, self.upd_step)
+        for k in self.process_stats: self.process_stats[k] = [] # reset
+
+    # update with process stats
+    def _run_update_task(self) -> None:
+        self.__publish_proces_stats()
+        super()._run_update_task() # to flush _done_states and increase upd_step
+
+    # method called BEFORE process loop, builds objects that HAVE to be build in process memory scope
+    def _pre_process(self) -> None:
+
+        # TB stats saver (has to be build here, inside process method, since summ_writer...)
+        self.sm = StatsMNG(
+            name=       self.name,
+            p_addrL=    self.p_addrL,
+            start_hand= self.start_hand,
+            stats_iv=   self.stats_iv,
+            acc_won_iv= self.acc_won_iv,
+            verb=       self.verb) if self.stats_iv else None
+
+    # runs GamesManager commands
+    @abstractmethod
+    def _do_what_GM_says(self, gm_data) -> None: pass
 
     # process method (loop, target of process)
     def _dmk_proc(self):
@@ -457,7 +333,7 @@ class ProDMK(Process, DMK, ABC):
             # now, if got any waiting >> make decisions
             if n_waiting:
                 self.process_stats['2.n_waiting'].append(n_waiting)
-                decL = self.make_decisions()
+                decL = self.make_decisions_task()
                 self.process_stats['3.n_dec'].append(len(decL))
                 n_waiting -= len(decL)
                 for d in decL:
@@ -471,28 +347,21 @@ class ProDMK(Process, DMK, ABC):
                     if gm_data == 'stop':
                         self.gm_que.put((self.name, 'finished', None))
                         break
-                    else: self._do_what_gm_says(gm_data)
+                    else: self._do_what_GM_says(gm_data)
             except Empty: pass
 
-    # prepare process stats, publish and reset
-    def _pstats(self):
-        if self.sm:
-            for k in self.process_stats:
-                val = sum(self.process_stats[k])/len(self.process_stats[k]) if len(self.process_stats[k]) else 0
-                val_summ = tf.Summary(value=[tf.Summary.Value(tag=f'reports.PCS/{k}', simple_value=val)])
-                self.sm.summ_writer.add_summary(val_summ, self.upd_step)
-        for k in self.process_stats: self.process_stats[k] = [] # reset
-
-    # nothing new added
-    def _run_update(self) -> None:
-        self._pstats()
-        super()._run_update() # to flush _done_states
-
-# ProDMK with baseline (equal) probs
-class RProDMK(ProDMK):
+# Random Qued DMK (implements baseline/equal probs >> choice is fully random then)
+class RnDMK(QDMK):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+
+    # nothing new, just copy
+    def _enc_states(
+            self,
+            pID,
+            player_stateL: List[list]) -> List[State]:
+        return super()._enc_states(pID, player_stateL)
 
     # calculates probabilities - baseline: sets equal for all new states of players with possible moves
     def _calc_probs(self) -> None:
@@ -501,12 +370,117 @@ class RProDMK(ProDMK):
             if self._new_states[p_addr][-1].possible_moves:
                 self._new_states[p_addr][-1].probs = baseline_probs
 
+    # nothing new, just implementation
+    def _learning_subtask(self): return super()._run_update_task()
+
+    # nothing new, just implementation
+    def _update_done_states(self, ust_details) -> None: super()._update_done_states(ust_details)
+
+    # nothing new, just implementation
+    def _do_what_GM_says(self, gm_data) -> None: super()._do_what_GM_says(gm_data)
+
+# Human driven QDMK
+class HDMK(QDMK):
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.family = None # TODO <<
+
+    # print incoming states
+    def _enc_states(
+            self,
+            pID,
+            player_stateL: List[list]) -> List[State]:
+        for state in player_stateL: print(f' # state: {state}')
+        return super()._enc_states(pID, player_stateL)
+
+    # calculates probabilities - baseline: sets equal for all new states of players with possible moves
+    def _calc_probs(self) -> None:
+        probs = [0] * self.n_moves
+        for p_addr in self._new_states:
+            if self._new_states[p_addr][-1].possible_moves:
+                print(f' # possible_moves: {self._new_states[p_addr][-1].possible_moves}')
+                sys.stdout.flush()
+                val = input(f' @ enter decision:')
+                val = int(val)
+                print('got',val)
+                probs[val] = 1
+                self._new_states[p_addr][-1].probs = probs
+
+    # nothing new, just implementation
+    def _learning_subtask(self): return super()._run_update_task()
+
+    # nothing new, just implementation
+    def _update_done_states(self, ust_details) -> None: super()._update_done_states(ust_details)
+
+    def _pre_process(self) -> None:
+        print('entered pre process')
+        root = Tk()
+        my_gui = MyFirstGUI(root)
+        root.mainloop()
+        print('gui created')
+        super()._pre_process()
+
+
+    # nothing new, just implementation
+    def _do_what_GM_says(self, gm_data) -> None: super()._do_what_GM_says(gm_data)
+
+# (abstract) Exploring Qued DMK
+class ExDMK(QDMK, ABC):
+
+    def __init__(
+            self,
+            pmex_init :float=   0.2,    # <0;1> possible_moves exploration (probability of random sampling from possible_moves space)
+            pmex_trg=           0.02,   # pmex target value
+            ex_reduce=          0.95,   # exploration reduction factor (with each update)
+            **kwargs):
+
+        QDMK.__init__(self, **kwargs)
+
+        self.pmex = pmex_init
+        self.pmex_trg = pmex_trg
+        self.ex_reduce = ex_reduce
+        # self.suex - by now not used, <0;1> self uncertainty exploration (probability of sampling from probability (rather than taking max))
+
+    # random probs forced by self.pmex
+    def __pmex_probs(
+            self,
+            probs :List[float]):
+        if self.pmex > 0 and random.random() < self.pmex: probs = np.random.rand(self.n_moves)
+        return probs
+
+    # using pmex and suex samples single move for given probabilities and possibilities
+    def _sample_move(
+            self,
+            probs :List[float],
+            possible_moves :List[bool]) -> int:
+        probs = self.__pmex_probs(probs)
+        return super()._sample_move(probs, possible_moves)
+
+    # publish pmex to TB
+    def __publish_pmex(self):
+        self.sm.summ_writer.add_summary(
+            tf.Summary(
+                value=[tf.Summary.Value(
+                    tag=            'nn/4.pmex',
+                    simple_value=   self.pmex)]),
+            self.upd_step)
+
+    # applies policy for pmex value
+    def _apply_pmex_policy(self):
+        # reduce pmex/suex after update
+        if self.pmex > self.pmex_trg:
+            self.pmex *= self.ex_reduce
+            if self.pmex < self.pmex_trg: self.pmex = self.pmex_trg
+
+    # add exploration reduction
+    def _run_update_task(self) -> None:
+        self.__publish_pmex()
+        super()._run_update_task()
+        self._apply_pmex_policy()
+
 # Neural DMK
-# + encodes states for NN
-# + makes decisions with NN
-# + updates NN (learns)
-# + exploration reduction (policy)
-class NeurDMK(RProDMK):
+class NeurDMK(ExDMK):
 
     def __init__(
             self,
@@ -516,7 +490,6 @@ class NeurDMK(RProDMK):
             device=         None,   # cpu/gpu (check dev_manager @ptools)
             trainable=      True,
             upd_BS=         50000,  # estimated target batch size of update
-            ex_reduce=      0.95,   # exploration reduction factor (with each update)
             **kwargs):
 
         upd_trigger = 2*upd_BS # twice size since updating half_rectangle in trapeze (check selection state policy @UPD)
@@ -532,39 +505,6 @@ class NeurDMK(RProDMK):
         self.device = device
 
         self.trainable = trainable
-        self.ex_reduce = ex_reduce
-
-    # run in the process_target_method (before the loop)
-    def _pre_process(self):
-
-        self.mdl = NEModel(
-            fwd_func=   self.fwd_func,
-            mdict=      self.mdict,
-            devices=    self.device,
-            verb=       self.verb)
-
-        # get counters
-        self.start_hand = self.mdl.session.run(self.mdl['n_hands'])
-        self.upd_step = self.mdl.session.run(self.mdl['g_step'])
-        super()._pre_process() # activates SM
-
-        self.zero_state = self.mdl.session.run(self.mdl['single_zero_state'])
-        self.last_fwd_state =   {pa: self.zero_state    for pa in self.p_addrL}  # net state after last fwd
-        self.last_upd_state =   {pa: self.zero_state    for pa in self.p_addrL}  # net state after last upd
-        self.my_cards =         {pa: []                 for pa in self.p_addrL}  # current cards of player, updated while encoding states
-
-        # reversed dicts from ptable, helpful while encoding states
-        self.pos_nms_r = {k:POS_NMS[3].index(k) for k in POS_NMS[3]}  # hardcoded 3 here
-        self.tbl_mov_r = {TBL_MOV[k]: k for k in TBL_MOV}
-
-        self.ze_pro_cnn = ZeroesProcessor(
-            intervals=      (5,20),
-            tag_pfx=        'nane_cnn',
-            summ_writer=    self.sm.summ_writer)
-        self.ze_pro_enc = ZeroesProcessor(
-            intervals=      (5,20),
-            tag_pfx=        'nane_enc',
-            summ_writer=    self.sm.summ_writer)
 
     # prepares state into form of nn input
     #  - encodes only selection of states
@@ -698,16 +638,18 @@ class NeurDMK(RProDMK):
                             break
                 if self.verb>1 and not got_probs_for_possible: print(' > (@_calc_probs) another loop...')
 
-    # runs update of DMK based on saved _done_states
-    def _run_update(self) ->None:
+    # min, avg, max ..of num list
+    @staticmethod
+    def __mam(valL: list):
+        return [min(valL), sum(valL) / len(valL), max(valL)]
 
-        def mam(valL: list):
-            return [min(valL), sum(valL)/len(valL), max(valL)]
+    # adds summary with upd_step
+    def __add_upd_summ(self, summ: tf.Summary):
+        self.sm.summ_writer.add_summary(summ, self.upd_step)
 
-        def add_summ(summ :tf.Summary):
-            self.sm.summ_writer.add_summary(summ, self.upd_step)
+    # NN update
+    def _learning_subtask(self):
 
-        # learn from _done_states
         if self.trainable:
 
             p_addrL = sorted(list(self._done_states.keys()))
@@ -774,23 +716,23 @@ class NeurDMK(RProDMK):
             # print(f' >>> BS   : {len(upd_p)} x {n_upd} ({len(upd_p)*n_upd})')
 
             # num of states (@_done_states per player)
-            n_sts = mam([len(self._done_states[p_addr]) for p_addr in p_addrL]) #
-            add_summ(tf.Summary(value=[tf.Summary.Value(tag='reports.UPD/0.n_states_min', simple_value=n_sts[0] )]))
-            add_summ(tf.Summary(value=[tf.Summary.Value(tag='reports.UPD/1.n_states_max', simple_value=n_sts[2] )]))
+            n_sts = self.__mam([len(self._done_states[p_addr]) for p_addr in p_addrL]) #
+            self.__add_upd_summ(tf.Summary(value=[tf.Summary.Value(tag='reports.UPD/0.n_states_min', simple_value=n_sts[0])]))
+            self.__add_upd_summ(tf.Summary(value=[tf.Summary.Value(tag='reports.UPD/1.n_states_max', simple_value=n_sts[2])]))
 
             # num of states with moves
-            n_mov = mam([sum([len(ml) for ml in rewards[p_addr]]) for p_addr in p_addrL])
-            add_summ(tf.Summary(value=[tf.Summary.Value(tag='reports.UPD/2.n_moves_min', simple_value=n_mov[0] )]))
-            add_summ(tf.Summary(value=[tf.Summary.Value(tag='reports.UPD/3.n_moves_max', simple_value=n_mov[2] )]))
+            n_mov = self.__mam([sum([len(ml) for ml in rewards[p_addr]]) for p_addr in p_addrL])
+            self.__add_upd_summ(tf.Summary(value=[tf.Summary.Value(tag='reports.UPD/2.n_moves_min', simple_value=n_mov[0])]))
+            self.__add_upd_summ(tf.Summary(value=[tf.Summary.Value(tag='reports.UPD/3.n_moves_max', simple_value=n_mov[2])]))
 
             # num of states with rewards
-            n_rew = mam([len(rewards[p_addr]) for p_addr in p_addrL])
-            add_summ(tf.Summary(value=[tf.Summary.Value(tag='reports.UPD/4.n_rewards_min', simple_value=n_rew[0] )]))
-            add_summ(tf.Summary(value=[tf.Summary.Value(tag='reports.UPD/5.n_rewards_max', simple_value=n_rew[2] )]))
+            n_rew = self.__mam([len(rewards[p_addr]) for p_addr in p_addrL])
+            self.__add_upd_summ(tf.Summary(value=[tf.Summary.Value(tag='reports.UPD/4.n_rewards_min', simple_value=n_rew[0])]))
+            self.__add_upd_summ(tf.Summary(value=[tf.Summary.Value(tag='reports.UPD/5.n_rewards_max', simple_value=n_rew[2])]))
 
-            add_summ(tf.Summary(value=[tf.Summary.Value(tag='reports.UPD/6.n_sts/mov', simple_value=n_sts[1]/ n_mov[1] )]))
-            add_summ(tf.Summary(value=[tf.Summary.Value(tag='reports.UPD/7.n_sts/rew', simple_value=n_sts[1]/ n_rew[1] )]))
-            add_summ(tf.Summary(value=[tf.Summary.Value(tag='reports.UPD/8.n_mov/rew', simple_value=n_mov[1] / n_rew[1] )]))
+            self.__add_upd_summ(tf.Summary(value=[tf.Summary.Value(tag='reports.UPD/6.n_sts/mov', simple_value=n_sts[1] / n_mov[1])]))
+            self.__add_upd_summ(tf.Summary(value=[tf.Summary.Value(tag='reports.UPD/7.n_sts/rew', simple_value=n_sts[1] / n_rew[1])]))
+            self.__add_upd_summ(tf.Summary(value=[tf.Summary.Value(tag='reports.UPD/8.n_mov/rew', simple_value=n_mov[1] / n_rew[1])]))
 
             cards_batch = []
             switch_batch = []
@@ -855,33 +797,59 @@ class NeurDMK(RProDMK):
             self.ze_pro_enc.process(enc_zs, self.upd_step)
             self.ze_pro_cnn.process(cnn_zs, self.upd_step)
 
-            add_summ(tf.Summary(value=[tf.Summary.Value(tag='nn/0.loss',    simple_value=loss)]))
-            add_summ(tf.Summary(value=[tf.Summary.Value(tag='nn/1.sLR',     simple_value=sLR)]))
-            add_summ(tf.Summary(value=[tf.Summary.Value(tag='nn/2.gn',      simple_value=gn)]))
-            add_summ(tf.Summary(value=[tf.Summary.Value(tag='nn/3.agn',     simple_value=agn)]))
+            self.__add_upd_summ(tf.Summary(value=[tf.Summary.Value(tag='nn/0.loss', simple_value=loss)]))
+            self.__add_upd_summ(tf.Summary(value=[tf.Summary.Value(tag='nn/1.sLR', simple_value=sLR)]))
+            self.__add_upd_summ(tf.Summary(value=[tf.Summary.Value(tag='nn/2.gn', simple_value=gn)]))
+            self.__add_upd_summ(tf.Summary(value=[tf.Summary.Value(tag='nn/3.agn', simple_value=agn)]))
 
-            # leave only not used
+            return n_upd, upd_p
+
+        return None
+
+    # flush properly
+    def _update_done_states(self, ust_details) -> None:
+        if ust_details is None: super()._update_done_states(ust_details) # to remove all while not learning
+        # leave only not used
+        else:
+            n_upd, upd_p = ust_details
             for p_addr in upd_p:
                 self._done_states[p_addr] = self._done_states[p_addr][n_upd:]
             self._n_done -= n_upd * len(upd_p)
 
-        # only flush
-        else:
-            for p_addr in self._done_states: self._done_states[p_addr] = []
-            self._n_done = 0
+    # run in the process_target_method (before the loop)
+    def _pre_process(self):
 
-        # reduce pmex/suex after each update
-        if self.pmex > self.pmex_trg:
-            self.pmex *= self.ex_reduce
-            if self.pmex < self.pmex_trg: self.pmex = self.pmex_trg
-        add_summ(tf.Summary(value=[tf.Summary.Value(tag='nn/4.pmex', simple_value=self.pmex)]))
+        self.mdl = NEModel(
+            fwd_func=   self.fwd_func,
+            mdict=      self.mdict,
+            devices=    self.device,
+            verb=       self.verb)
 
-        self._pstats()
+        # get counters
+        self.start_hand = self.mdl.session.run(self.mdl['n_hands'])
+        self.upd_step = self.mdl.session.run(self.mdl['g_step'])
+        super()._pre_process() # activates SM
 
-        self.upd_step += 1
+        self.zero_state = self.mdl.session.run(self.mdl['single_zero_state'])
+        self.last_fwd_state =   {pa: self.zero_state    for pa in self.p_addrL}  # net state after last fwd
+        self.last_upd_state =   {pa: self.zero_state    for pa in self.p_addrL}  # net state after last upd
+        self.my_cards =         {pa: []                 for pa in self.p_addrL}  # current cards of player, updated while encoding states
+
+        # reversed dicts from ptable, helpful while encoding states
+        self.pos_nms_r = {k:POS_NMS[3].index(k) for k in POS_NMS[3]}  # hardcoded 3 here
+        self.tbl_mov_r = {TBL_MOV[k]: k for k in TBL_MOV}
+
+        self.ze_pro_cnn = ZeroesProcessor(
+            intervals=      (5,20),
+            tag_pfx=        'nane_cnn',
+            summ_writer=    self.sm.summ_writer)
+        self.ze_pro_enc = ZeroesProcessor(
+            intervals=      (5,20),
+            tag_pfx=        'nane_enc',
+            summ_writer=    self.sm.summ_writer)
 
     # runs GamesManager decisions (called within _dmk_proc method)
-    def _do_what_gm_says(self, gm_data):
+    def _do_what_GM_says(self, gm_data):
 
         supported_commands = [
             'send_report',
@@ -903,7 +871,7 @@ class NeurDMK(RProDMK):
             self._reload_model()
             self.gm_que.put((self.name, 'model_reloaded', None))
 
-    # saves checkpoints
+    # saves model checkpoint
     def _save_model(self):
         self.mdl.session.run(self.mdl['n_hands'].assign(self.sm.stats['nH'][0]))
         self.mdl.saver.save()

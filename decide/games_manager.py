@@ -33,18 +33,18 @@ class GamesManager:
 
         self.in_que = Queue() # here receives data from DMKs and tables
 
-        assert sum([dmk_dna[n]['n_players'] for n in dmk_dna]) % N_TABLE_PLAYERS == 0
+        assert sum([dmk_dna[nm][1]['n_players'] for nm in dmk_dna]) % N_TABLE_PLAYERS == 0
         self.tables = [] # list of tables
 
         self.gx_iv = acc_won_iv[-2]
 
         # create DMK dictionary
         self.dmkD = {
-            name: NeurDMK(
+            name: dmk_dna[name][0](
                 gm_que=         self.in_que,
                 name=           name,
                 acc_won_iv=     acc_won_iv,
-                **dmk_dna[name]
+                **dmk_dna[name][1]
             ) for name in dmk_dna}
 
         self.families = set([self.dmkD[name].family for name in self.dmkD])
