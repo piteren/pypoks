@@ -4,9 +4,9 @@
 
 """
 
+from functools import partial
 from multiprocessing import Queue
-from tkinter import Tk, Label, Button
-
+from tkinter import Tk, Label, Button, Frame
 
 
 class TkProc:
@@ -15,37 +15,55 @@ class TkProc:
         self.tk = Tk()
         self.tk_que = Queue()
         self.out_que = Queue()
-        self.runh = None
-        self.message_event = '<<message>>'
-        self.tk.bind(self.message_event, self.process_message_queue)
+
+        self.tk.title('pypoks HDMK')
+        self.tk.geometry('400x250+100+100')
+        self.tk.resizable(0,0)
+
+        self.cards = []
+        self.table_cash = 0
+        self.dec_btnL = []
+
+        self.dec_btnL.append(Button(self.tk, text='C/F', command=partial(self.put_decision,0), pady=2, padx=2, width=4))
+        self.dec_btnL.append(Button(self.tk, text='CLL', command=partial(self.put_decision,1), pady=2, padx=2, width=4))
+        self.dec_btnL.append(Button(self.tk, text='BR5', command=partial(self.put_decision,2), pady=2, padx=2, width=4))
+        self.dec_btnL.append(Button(self.tk, text='BR8', command=partial(self.put_decision,3), pady=2, padx=2, width=4))
+        for ix in range(len(self.dec_btnL)): self.dec_btnL[ix].grid(row=0,column=ix)
+        self.__set_dec_btn_act([0,0,0,0])
+
+        #self.tk.grid_columnconfigure(0, weight=1)
+        #self.tk.grid_columnconfigure(5, weight=1)
+        subframe = Frame(self.tk)
+        buttonA = Button(subframe).grid(row=0,column=0)
+        buttonB = Button(subframe).grid(row=0,column=1)
+        subframe.grid(row=1,column=4)
 
     def run_tk(self):
-        self.tk.title('My Window')  # add buttons, etc.
-
-        label = Label(self.tk, text="This is our first GUI!")
-        label.pack()
-
-        greet_button = Button(self.tk, text="Greet", command=self.runh)
-        greet_button.pack()
-
-        close_button = Button(self.tk, text="Close", command=self.tk.quit)
-        close_button.pack()
-
         self.tk.lift()
+        self.__afterloop()
         self.tk.mainloop()
 
-    def send_message_to_ui(self, message):
-        self.tk_que.put(message)
-        self.tk.event_generate(self.message_event, when='tail')
+    def __afterloop(self, ms :int=500):
+        self.tk.after(ms, self.check_message_queue)
 
-    def process_message_queue(self, event):
-        #print('@@@ event',event) # ?
-        #while not self.tk_que.empty():
-        message = self.tk_que.get()
-        label = Label(self.tk, text=str(message))
-        label.pack()
-        #print(f' # tk received: {message}')
-        # process the message here
+    def __set_dec_btn_act(self, act :list):
+        for ix in range(len(self.dec_btnL)):
+            self.dec_btnL[ix]['state'] = 'normal' if act[ix] else'disabled'
 
-    def greet(self):
-        print("Greetings!")
+    def __update_cards(self):
+        pass
+
+    def __print_state(self, state):
+        if state[0] == 'TST':
+            if state[1] == 'idle':  print('\n ***** hand starts')
+            else:                   print(f' * {state[1]}')
+
+    def check_message_queue(self):
+        while not self.tk_que.empty():
+            message = self.tk_que.get()
+            print(message)
+        self.__afterloop()
+
+    def put_decision(self, dec :int):
+        self.out_que.put(dec)
+        self.__set_dec_btn_act([0,0,0,0])

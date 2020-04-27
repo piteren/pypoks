@@ -75,10 +75,8 @@ def start_big_games():
 
 def start_human_game():
 
-    tk_proc = TkProc()
-
     @proc
-    def runh():
+    def runh(tk_proc :TkProc):
         dmk_dna = {
         'am0': (NeurDMK, {
                 'family':       'A',
@@ -95,7 +93,8 @@ def start_human_game():
                 'stats_iv':     10})}
         run_human_eval(dmk_dna)
 
-    tk_proc.runh = runh
+    tk_proc = TkProc()
+    runh(tk_proc)
     tk_proc.run_tk()
 
 

@@ -388,28 +388,24 @@ class HDMK(QDMK):
         super().__init__(**kwargs)
         self.family = None # TODO <<
 
-        self.tkout_que = tk_proc.out_que
-        self.send_message_to_ui = tk_proc.send_message_to_ui
+        self.tk_IQ = tk_proc.tk_que
+        self.tk_OQ = tk_proc.out_que
 
     # send incoming states to tk
     def _enc_states(
             self,
             pID,
             player_stateL: List[list]) -> List[State]:
-        for state in player_stateL:
-            self.send_message_to_ui(state)
-            print('state sent')
+        for state in player_stateL: self.tk_IQ.put(state)
         return super()._enc_states(pID, player_stateL)
 
-    # calculates probabilities - baseline: sets equal for all new states of players with possible moves
+    # waits for a human decision
     def _calc_probs(self) -> None:
         probs = [0] * self.n_moves
         for p_addr in self._new_states:
             if self._new_states[p_addr][-1].possible_moves:
-                self.send_message_to_ui(f' # possible_moves: {self._new_states[p_addr][-1].possible_moves}')
-                print('possible_moves sent')
-                val = self.tkout_que.get()
-                print('got',val)
+                self.tk_IQ.put(f' # possible_moves: {self._new_states[p_addr][-1].possible_moves}')
+                val = self.tk_OQ.get()
                 probs[val] = 1
                 self._new_states[p_addr][-1].probs = probs
 
