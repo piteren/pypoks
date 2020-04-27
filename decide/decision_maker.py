@@ -64,7 +64,6 @@ from abc import ABC, abstractmethod
 from multiprocessing import Process, Queue
 import numpy as np
 import random
-import sys
 import tensorflow as tf
 from typing import List
 from queue import Empty
@@ -77,8 +76,8 @@ from pologic.poenvy import N_TABLE_PLAYERS
 from pologic.podeck import PDeck
 from pologic.potable import POS_NMS, TBL_MOV
 
-from gui.gui_test import MyFirstGUI
-from tkinter import Tk
+from tkproc import TkProc
+
 
 
 # State type, here DMK saves table events
@@ -382,16 +381,24 @@ class RnDMK(QDMK):
 # Human driven QDMK
 class HDMK(QDMK):
 
-    def __init__(self, **kwargs):
+    def __init__(
+            self,
+            tk_proc :TkProc,
+            **kwargs):
         super().__init__(**kwargs)
         self.family = None # TODO <<
 
-    # print incoming states
+        self.tkout_que = tk_proc.out_que
+        self.send_message_to_ui = tk_proc.send_message_to_ui
+
+    # send incoming states to tk
     def _enc_states(
             self,
             pID,
             player_stateL: List[list]) -> List[State]:
-        for state in player_stateL: print(f' # state: {state}')
+        for state in player_stateL:
+            self.send_message_to_ui(state)
+            print('state sent')
         return super()._enc_states(pID, player_stateL)
 
     # calculates probabilities - baseline: sets equal for all new states of players with possible moves
@@ -399,10 +406,9 @@ class HDMK(QDMK):
         probs = [0] * self.n_moves
         for p_addr in self._new_states:
             if self._new_states[p_addr][-1].possible_moves:
-                print(f' # possible_moves: {self._new_states[p_addr][-1].possible_moves}')
-                sys.stdout.flush()
-                val = input(f' @ enter decision:')
-                val = int(val)
+                self.send_message_to_ui(f' # possible_moves: {self._new_states[p_addr][-1].possible_moves}')
+                print('possible_moves sent')
+                val = self.tkout_que.get()
                 print('got',val)
                 probs[val] = 1
                 self._new_states[p_addr][-1].probs = probs
@@ -412,15 +418,6 @@ class HDMK(QDMK):
 
     # nothing new, just implementation
     def _update_done_states(self, ust_details) -> None: super()._update_done_states(ust_details)
-
-    def _pre_process(self) -> None:
-        print('entered pre process')
-        root = Tk()
-        my_gui = MyFirstGUI(root)
-        root.mainloop()
-        print('gui created')
-        super()._pre_process()
-
 
     # nothing new, just implementation
     def _do_what_GM_says(self, gm_data) -> None: super()._do_what_GM_says(gm_data)

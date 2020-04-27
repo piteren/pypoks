@@ -2,6 +2,10 @@
 
  2020 (c) piteren
 
+ multiprocessing and tkinter:
+    https://www.reddit.com/r/learnpython/comments/6flxe7/multiprocessingthreads_and_tkinter/
+    https://stackoverflow.com/questions/16745507/tkinter-how-to-use-threads-to-preventing-main-event-loop-from-freezing
+
 """
 
 from tkinter import Tk, Label, Button
@@ -20,6 +24,8 @@ class MyFirstGUI:
 
         self.close_button = Button(master, text="Close", command=master.quit)
         self.close_button.pack()
+
+        print('initialized!')
 
     def greet(self):
         print("Greetings!")

@@ -5,17 +5,29 @@
 """
 
 from ptools.neuralmess.dev_manager import nestarter
-from ptools.mpython.mpdecor import proc_wait
+from ptools.mpython.mpdecor import proc_wait, proc
 from ptools.lipytools.decorators import timing
 
 from decide.games_manager import GamesManager
 from decide.decision_maker import NeurDMK, HDMK
 from decide.neural.neural_graphs import cnnCEM_GFN
 
+from tkproc import TkProc
 
-@timing # reports time
-@proc_wait # runs in waiting subprocess
-def run(ddna, gx_limit=10):
+
+def run_human_eval(ddna):
+    gm = GamesManager(
+        dmk_dna=        ddna,
+        acc_won_iv=     (100000,200000),
+        verb=           1)
+    gm.run_games(
+        gx_loop_sh=     False,
+        gx_exit_sh=     False,
+        gx_limit=       None)
+
+@timing
+@proc_wait
+def run_GM_training(ddna, gx_limit=10):
     gm = GamesManager(
         dmk_dna=        ddna,
         acc_won_iv=     (100000,200000),
@@ -57,25 +69,34 @@ def start_big_games():
         if loopIX:
             #break  # to break after first loop
             for dn in dmk_dna: dmk_dna[dn][1]['pmex_init'] = dmk_dna[dn][1]['pmex_trg']
-        run(dmk_dna, 3)
+        run_GM_training(dmk_dna, 3)
         loopIX += 1
 
 
 def start_human_game():
-    dmk_dna = {
-    'am0': (NeurDMK, {
-            'family':       'A',
-            'fwd_func':     cnnCEM_GFN,
-            #'mdict':        {},
-            'n_players':    2,
-            'pmex_init':    0,
-            'pmex_trg':     0,
-            'stats_iv':     10,
-            'trainable':    False}),
-    'hm0': (HDMK, {
-            'n_players':    1,
-            'stats_iv':     10})}
-    run(dmk_dna, 1)
+
+    tk_proc = TkProc()
+
+    @proc
+    def runh():
+        dmk_dna = {
+        'am0': (NeurDMK, {
+                'family':       'A',
+                'fwd_func':     cnnCEM_GFN,
+                #'mdict':        {},
+                'n_players':    2,
+                'pmex_init':    0,
+                'pmex_trg':     0,
+                'stats_iv':     10,
+                'trainable':    False}),
+        'hm0': (HDMK, {
+                'tk_proc':      tk_proc,
+                'n_players':    1,
+                'stats_iv':     10})}
+        run_human_eval(dmk_dna)
+
+    tk_proc.runh = runh
+    tk_proc.run_tk()
 
 
 if __name__ == "__main__":
