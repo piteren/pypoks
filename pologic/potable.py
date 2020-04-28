@@ -2,20 +2,21 @@
 
  2019 (c) piteren
 
- PTable is a process that holds single poker game environment (with table players)
+    PTable is a process that holds single poker game environment (with table players)
 
- During single hand table builds hand history (hh)
- Each PPlayer uses this history (translated to its perspective - e.g. does not see other player cards)
- and is asked to make decisions (based on hh)
+        During single hand table builds hand history (hh)
+        Each PPlayer uses this history translated to its perspective:
+            > does not see other player cards
+            > players are replaced with ints: 0-this player, 1-next ....
+        Each PPlayer is asked to make decisions (based on hh)
 
- QPPlayer (qued PPlayer) sends with que hh (o_que) and asks for decisions from que (i_que)
- o_que is common for all game players, i_que is one for player
- QPPlayer sends with o_que dicts of two types:
-    { 'id': 'state_changes': }  - informs about new states @table (list of states)
-    { 'id': 'possible_moves': } - asks for move (from list of possible moves)
+    QPTable (qued PTable) is a PTable process to run hands with QPPlayers
 
- QPTable (qued PTable) is a PTable process to run hands with QPPlayers
-
+        QPPlayer (qued PPlayer) sends with que hh (o_que) and asks for decisions from que (i_que)
+            > o_que is common for all game players, i_que is one for player
+        QPPlayer sends with o_que dicts of two types:
+            { 'id': 'state_changes': }                  - sends new states @table (list of states)
+            { 'id': 'possible_moves': 'moves_cash': }   - asks for move (from list of possible moves)
 """
 
 import copy
@@ -23,11 +24,13 @@ from multiprocessing import Process, Queue
 import random
 import time
 from typing import List
+from tqdm import tqdm
 from queue import Empty
 
 from pologic.podeck import PDeck
 
 from pologic.poenvy import N_TABLE_PLAYERS, \
+    TBL_MOV, POS_NMS, \
     TABLE_CASH_START, TABLE_SB, TABLE_BB
 
 # table states
@@ -39,31 +42,16 @@ TBL_STT = {
     4:  'river',
     5:  'fin'}
 
-# supported table moves (moves of player supported by table)
-TBL_MOV = {
-    0:  'C/F',  # check/fold
-    1:  'CLL',  # call
-    2:  'BR5',  # bet/raise 0.5
-    3:  'BR8'}  # bet/raise 0.8
-    # 4:'BRA'   # all-in
-
-# position names for table sizes
-POS_NMS = {
-    2:  ['SB','BB'],
-    3:  ['SB','BB','BTN'],
-    6:  ['SB','BB','UTG','MP','CT','BTN'],
-    9:  ['SB','BB','UTG1','UTG2','MP1','MP2','HJ','CT','BTN']}
 
 # poker hand history
 class HHistory:
 
     """
-        TIN:    table state (table_name:str)
         HST:    hand starts ((table_name:str,hand_id:int))
         TST:    table state (state:str)                         # state comes from potable.TBL_STT
         POS:    player position (pl.name:str, pos:str)          # pos in potable.POS_NMS
-        PSB:    player small blind (pl.name:str, SB:int)
-        PBB:    player big blind (pl.name:str, BB:int)
+        PSB:    player puts small blind (pl.name:str, SB:int)
+        PBB:    player puts big blind (pl.name:str, BB:int)
         T$$:    table cash(cash:int, cash_cr:int, cash_tc)      # on table, current river, to call(river)
         PLH:    player hand (pl.name:str, ca:str, cb:str)       # c.str comes from PDeck.cts
         TCD:    table cards dealt (c0,c1,c2...)                 # only new cards are shown
@@ -126,9 +114,11 @@ class PTable:
             self.nhs_IX = 0 # next hand_state index to update from (while sending game states)
 
         # makes decision for possible moves (base implementation with random), to be implemented using taken hh
-        def _make_decision(self, possible_moves :List[bool]) -> int:
-            #decision = sorted(list(TBL_MOV.keys()))
-            decision = [0,1,2,3] # hardcoded to speed-up
+        def _make_decision(
+                self,
+                possible_moves :List[bool],
+                moves_cash: List[int]) -> int:
+            decision = self.table.moves
             pm_probs = [int(pm) for pm in possible_moves]
             dec = random.choices(decision, weights=pm_probs)[0] # decision returned as int from TBL_MOV
             return dec
@@ -137,7 +127,7 @@ class PTable:
         def _pmc(self) -> tuple:
 
             # by now simple hardcoded amounts of cash
-            move_cash = {
+            moves_cash = {
                 0:  0,
                 1:  self.table.cash_tc - self.cash_cr,
                 2:  int(self.table.cash_tc *1.5) if self.table.cash_tc else int(0.5*self.table.cash),
@@ -146,14 +136,14 @@ class PTable:
             # calculate possible moves and cash based on table state and hand history
             possible_moves = [True]*4 # by now all
             if self.table.cash_tc == self.cash_cr: possible_moves[1] = False  # cannot call (already called)
-            if self.cash <= move_cash[2]: possible_moves[3] = False # cannot make higher B/R
+            if self.cash <= moves_cash[2]: possible_moves[3] = False # cannot make higher B/R
 
             # eventually reduce cash amount for call and smaller bet
-            if self.cash < move_cash[2]: move_cash[2] = self.cash
-            if possible_moves[1] and self.cash < move_cash[1]: move_cash[1] = self.cash
-            if possible_moves[3] and self.cash < move_cash[3]: move_cash[3] = self.cash
+            if self.cash < moves_cash[2]: moves_cash[2] = self.cash
+            if possible_moves[1] and self.cash < moves_cash[1]: moves_cash[1] = self.cash
+            if possible_moves[3] and self.cash < moves_cash[3]: moves_cash[3] = self.cash
 
-            return possible_moves, move_cash
+            return possible_moves, moves_cash
 
         # prepares list of new & translated events from table hh
         def _prepare_nt_states(self, hh):
@@ -162,14 +152,14 @@ class PTable:
             return state_changes
 
         # takes actual hh from table, to be implemented how to use that information
-        # called twice #table loop: before making a move and after hand finished(...last states and rewards)
+        # called twice @table loop: before making a move and after hand finished(...last states and rewards)
         def take_hh(self, hh): pass
 
         # makes move (based on hand history)
         def make_move(self) -> tuple:
-            possible_moves, move_cash = self._pmc()
-            selected_move = self._make_decision(possible_moves)
-            return selected_move, move_cash[selected_move]
+            possible_moves, moves_cash = self._pmc()
+            selected_move = self._make_decision(possible_moves, moves_cash)
+            return selected_move, moves_cash[selected_move]
 
     def __init__(
             self,
@@ -184,6 +174,7 @@ class PTable:
         self.name = name
         self.verb = verb
 
+        self.moves = sorted(list(TBL_MOV.keys()))
         self.SB = SB
         self.BB = BB
         self.start_cash = start_cash
@@ -425,10 +416,14 @@ class QPTable(PTable, Process):
             self.o_que = None # player output que
 
         # makes decision (communicates with ques)
-        def _make_decision(self, possible_moves :list):
+        def _make_decision(
+                self,
+                possible_moves :List[bool],
+                moves_cash :List[int]):
             qd = {
                 'id':               self.id,
-                'possible_moves':   possible_moves}
+                'possible_moves':   possible_moves,
+                'moves_cash':       moves_cash}
             self.o_que.put(qd)
             selected_move = self.i_que.get()  # get move from DMK
             return selected_move
@@ -477,14 +472,30 @@ class QPTable(PTable, Process):
             except Empty: pass
 
 
-if __name__ == "__main__":
-
-    table = PTable([0,1,2],verb=1)
-    n_hands = 100000
+def example_table_speed(n_hands=100000):
+    table = PTable(
+        name=       'table_speed',
+        pl_ids=     [0,1,2],
+        verb=       1)
     stime = time.time()
-    for _ in range(n_hands):
+    for _ in tqdm(range(n_hands)):
         table.run_hand()
         #hh = table.run_hand()
         #print('%s\n'%hh)
     n_sec = time.time()-stime
     print('time taken: %.1fsec (%d h/s)'%(n_sec, n_hands/n_sec))
+
+
+def example_table_history(n=3):
+    table = PTable(
+        name=   'table_history',
+        pl_ids= [0,1,2],
+        verb=   1)
+    for _ in range(n):
+        hh = table.run_hand()
+        print(f'{hh}\n')
+
+if __name__ == "__main__":
+
+    #example_table_speed(100000)
+    example_table_history(3)

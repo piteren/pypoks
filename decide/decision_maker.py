@@ -89,6 +89,7 @@ class State:
 
         self.value = value                                  # value of state (any object)
         self.possible_moves :List[bool] or None=    None    # list of player possible moves
+        self.moves_cash: List[int] or None =        None    # list of player cash amount for possible moves
         self.probs :List[float] or None=            None    # probabilities of moves
         self.move :int or None=                     None    # move (performed/selected by DMK)
         self.reward :float or None=                 None    # reward (after hand finished)
@@ -145,9 +146,13 @@ class DMK(ABC):
     def take_possible_moves(
             self,
             p_addr,
-            possible_moves :List[bool]):
+            possible_moves :List[bool],
+            moves_cash :List[int]):
         assert p_addr in self._new_states # TODO (dev safety check): player should have new states while getting possible moves
-        self._new_states[p_addr][-1].possible_moves = possible_moves # add to last new state
+        # add to last new state
+        last_state = self._new_states[p_addr][-1]
+        last_state.possible_moves = possible_moves
+        last_state.moves_cash = moves_cash
 
     # using data from _new_states prepares list of decisions in form: [(p_addr,move)...]
     @abstractmethod
@@ -326,7 +331,7 @@ class QDMK(Process, DMK, ABC):
                     self.take_states(p_addr, player_data['state_changes'])
 
                 if 'possible_moves' in player_data:
-                    self.take_possible_moves(p_addr, player_data['possible_moves'])
+                    self.take_possible_moves(p_addr, player_data['possible_moves'], player_data['moves_cash'])
                     n_waiting += 1
 
             # now, if got any waiting >> make decisions
@@ -501,10 +506,10 @@ class NeurDMK(ExDMK):
 
     # prepares state into form of nn input
     #  - encodes only selection of states
-    #   event has values (ids):
-    #       0 : pad (cards)
+    #  - each event has values (ids):
+    #       0 : pad (...for cards factually)
     #       1,2,3 : my positions SB,BB,BTN
-    #       4,5,6,7, 8,9,10,11 : moves of two opponents 1,2 * C/F,CLL,BR5,BR8
+    #       4,5,6,7, 8,9,10,11 : moves of two opponents(1,2) * 4 moves(C/F,CLL,BR5,BR8)
     def _enc_states(
             self,
             p_addr,
