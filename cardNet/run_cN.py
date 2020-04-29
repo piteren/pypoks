@@ -73,7 +73,7 @@ def train_cn(
 
     ze_pro = ZeroesProcessor(
         intervals=      (50,500,5000),
-        tag_pfx=        '7_nane',
+        tag_pfx=        '7_zeroes',
         summ_writer=    cnet.summ_writer)
 
     rep_freq = 100

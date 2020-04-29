@@ -72,6 +72,7 @@ def card_enc(
                 seed=       121)
             in_cemb = in_cemb * tf.expand_dims(feats_drop, axis=-2)
 
+        # TODO: what is that : ?
         """
         # sequence layer norm (on (dropped)input, always)
         in_cemb = tf.contrib.layers.layer_norm(
@@ -138,7 +139,7 @@ def card_net(
         dr_layers=          2,      # None, 0 or int
         dropout_DR=         0.0,    # DR dropout
         # train parameters
-        opt_class=          partial(tf.train.AdamOptimizer, beta1=0.7, beta2=0.7),
+        opt_class=          partial(tf.compat.v1.train.AdamOptimizer, beta1=0.7, beta2=0.7),
         iLR=                1e-3,
         warm_up=            10000,
         ann_base=           0.999,
@@ -203,11 +204,9 @@ def card_net(
                 n_layers=       n_layers,
                 verb=           verb))
 
-        enc_vars = enc_outL[0]['enc_vars'] # encoder variables (with cards embeddings)
-
-        # get nn_zeros
-        zsL = enc_outL[0]['zeroes']
-        hist_summ = enc_outL[0]['hist_summ'] # get histograms from A
+        enc_vars =      enc_outL[0]['enc_vars']     # encoder variables (with cards embeddings)
+        zsL =           enc_outL[0]['zeroes']       # get nn_zeros
+        hist_summ =     enc_outL[0]['hist_summ']    # get histograms from A
 
         # where all cards of A are known
         where_all_ca = tf.reduce_max(inA_PH, axis=-1)
@@ -256,7 +255,7 @@ def card_net(
                 n_layers=       dr_layers,
                 dropout=        dropout_DR,
                 training_flag=  train_PH,
-                n_hist=            0,
+                n_hist=         0,
                 verb=           verb)
             out_conc =  enc_out['output']
             zsL +=      enc_out['zeroes']
