@@ -346,7 +346,7 @@ if __name__ == "__main__":
     nestarter(devices=-1, verb=1)
 
     cndGD = {
-        'name':         'cnet_rf_nln',
+        'name':         'cnet_TEST',
         #'opt_class':    tf.train.GradientDescentOptimizer,
         #'iLR':          3e-2,
         #'warm_up':      None,
