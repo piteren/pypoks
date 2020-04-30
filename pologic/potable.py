@@ -47,7 +47,9 @@ TBL_STT = {
 class HHistory:
 
     """
+        hand history is build by the table, while playing a hand, below are implemented states:
         HST:    hand starts ((table_name:str,hand_id:int))
+            - maybe later add game info (table size, SB,BB ... )
         TST:    table state (state:str)                         # state comes from potable.TBL_STT
         POS:    player position (pl.name:str, pos:str)          # pos in potable.POS_NMS
         PSB:    player puts small blind (pl.name:str, SB:int)
@@ -56,7 +58,7 @@ class HHistory:
         PLH:    player hand (pl.name:str, ca:str, cb:str)       # c.str comes from PDeck.cts
         TCD:    table cards dealt (c0,c1,c2...)                 # only new cards are shown
         MOV:    player move (pl.name:str, move:str, cash:int)   # move from TBL_MOV.values()
-        PRS:    player result (pl.name, won:int)
+        PRS:    player result (pl.name, won:int, full_rank)     # full_rank is a tuple returned by PDeck.cards_rank
     """
 
     def __init__(self):
@@ -292,23 +294,12 @@ class PTable:
                 pl = h_pls[cmv_pIX]
                 if pl.cash: # player has cash (not all-in-ed yet)
 
-                    """
-                    # before move
-                    mv_d = {
-                        'tState':       self.state,
-                        'tBCash':       self.cash,
-                        'pName':        pl.name,
-                        'pBCash':       pl.cash,        # player (before) cash
-                        'pBCHandCash':  pl.ch_cash,
-                        'pBCRiverCash': pl.cr_cash,
-                        'bCashToCall':  self.cash_tc}   # (before) cash to call
-                    """
+                    #TODO: consider(?) adding to events info BEFORE MOVE: pl.cash, pl.ch_cash, pl.cr_cash ... and then AFTER MOVE, although it is redundant info, but given directly may help (?)
 
                     # player makes move
                     pl.take_hh(hh) # takes actual hh from table
                     mv_id, mv_cash = pl.make_move()  # makes move
                     hh.add('MOV', [pl.name, TBL_MOV[mv_id], mv_cash])
-                    # TODO: add to hh other cash info: player, before, after...
 
                     pl.cash -= mv_cash
                     pl.ch_cash += mv_cash
@@ -325,16 +316,6 @@ class PTable:
                         self.cash_tc = pl.cr_cash
                         clc_pIX = cmv_pIX-1 if cmv_pIX>0 else len(h_pls) - 1 # player before in loop
 
-                    """
-                    # after move
-                    mv_d.update({
-                        'plMove':       pl_mv,
-                        'tACash':       self.cash,
-                        'pACash':       pl.cash,
-                        'pACHandCash':  pl.ch_cash,
-                        'pACRiverCash': pl.cr_cash,
-                        'aCashToCall':  self.cash_tc}) # (after) cash to call
-                    """
                     hh.add('T$$', [self.cash, self.cash_cr, self.cash_tc])
 
                 if clc_pIX == cmv_pIX and not player_raised: break # player closing loop made decision (without raise)
@@ -355,16 +336,16 @@ class PTable:
         winners_data = []
         for pl in self.players:
             winners_data.append({
-                'pName':        pl.name,
+                'p_name':       pl.name,
                 'winner':       False,
-                'fullRank':     None,
-                'simpleRank':   0,
+                'full_rank':    None,
+                'simple_rank':  0,
                 'won':          0})
 
         if len(h_pls) == 1:
             winIX = self.players.index(h_pls[0])
             winners_data[winIX]['winner'] = True
-            winners_data[winIX]['fullRank'] = 'muck'
+            winners_data[winIX]['full_rank'] = 'muck'
             nWinners = 1
         else:
             top_rank = 0
@@ -374,13 +355,13 @@ class PTable:
                 plIX = self.players.index(pl)
                 if top_rank < rank[1]:
                     top_rank = rank[1]
-                    winners_data[plIX]['fullRank'] = rank
+                    winners_data[plIX]['full_rank'] = rank
                 else:
-                    winners_data[plIX]['fullRank'] = 'muck'
-                winners_data[plIX]['simpleRank'] = rank[1]
+                    winners_data[plIX]['full_rank'] = 'muck'
+                winners_data[plIX]['simple_rank'] = rank[1]
             nWinners = 0
             for data in winners_data:
-                if data['simpleRank'] == top_rank:
+                if data['simple_rank'] == top_rank:
                     data['winner'] = True
                     nWinners += 1
 
@@ -392,15 +373,10 @@ class PTable:
             if winners_data[ix]['winner']: myWon += prize # add netto winning
             winners_data[ix]['won'] = myWon
 
-        for data in winners_data:
-            hh.add('PRS', [data['pName'], data['won']])
-        # TODO: add hand/mucked to hh
+        for data in winners_data: hh.add('PRS', [data['p_name'], data['won'], data['full_rank']])
 
         for pl in self.players: pl.take_hh(hh) # occasion to take reward
-
         self.players.append(self.players.pop(0)) # rotate table players for next hand
-
-        #print('\n@@@ hh\n%s'%hh)
         return hh
 
 # Poker Table with (communication) ques(in fact managed by QPPlayer), implemented as a process
@@ -488,12 +464,13 @@ def example_table_speed(n_hands=100000):
 
 def example_table_history(n=3):
     table = PTable(
-        name=   'table_history',
+        name=   'table_exh',
         pl_ids= [0,1,2],
         verb=   1)
     for _ in range(n):
         hh = table.run_hand()
         print(f'{hh}\n')
+
 
 if __name__ == "__main__":
 

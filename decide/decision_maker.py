@@ -505,11 +505,12 @@ class NeurDMK(ExDMK):
         self.trainable = trainable
 
     # prepares state into form of nn input
-    #  - encodes only selection of states
+    #  - encodes only selection of states: [POS,PLH,TCD,MOV,PRS] ...does not use: HST,TST,PSB,PBB,T$$
     #  - each event has values (ids):
     #       0 : pad (...for cards factually)
     #       1,2,3 : my positions SB,BB,BTN
     #       4,5,6,7, 8,9,10,11 : moves of two opponents(1,2) * 4 moves(C/F,CLL,BR5,BR8)
+    # TODO: make compatible with pologic.poenvy constants
     def _enc_states(
             self,
             p_addr,
@@ -642,7 +643,7 @@ class NeurDMK(ExDMK):
         return [min(valL), sum(valL) / len(valL), max(valL)]
 
     # adds summary with upd_step
-    def __add_upd_summ(self, summ: tf.Summary):
+    def __add_upd_summ(self, summ: tf.compat.v1.Summary):
         self.sm.summ_writer.add_summary(summ, self.upd_step)
 
         # learn/update from _done_states

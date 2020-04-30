@@ -102,5 +102,5 @@ if __name__ == "__main__":
 
     nestarter('_log', custom_name='dmk_games')
 
-    #start_big_games()
-    start_human_game()
+    start_big_games()
+    #start_human_game()

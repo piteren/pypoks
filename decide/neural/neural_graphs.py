@@ -24,7 +24,7 @@ def cnnCEM_GFN(
         width=          None,   # representation width (number of filters), for None uses input width
         activation=     tf.nn.relu,
         n_moves=        4,      # number of moves supported by the model
-        opt_class=      partial(tf.train.AdamOptimizer, beta1=0.7, beta2=0.7),
+        opt_class=      partial(tf.compat.v1.train.AdamOptimizer, beta1=0.7, beta2=0.7),
         iLR=            3e-5,
         warm_up=        100,    # num of steps has to be small (since we do rare updates)
         avt_SVal=       0.04,

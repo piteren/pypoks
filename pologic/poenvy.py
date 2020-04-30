@@ -21,6 +21,9 @@ POS_NMS = {
 
 N_TABLE_PLAYERS = 3
 
-TABLE_CASH_START = 500
+TABLE_CASH_START = 500 # player starts every hand with 500
+# no ante yet (...and ever probably)
 TABLE_SB = 2
 TABLE_BB = 5
+
+# by now 'shorthanded' & side flop is not supported (but it is not needed since 500 @start of each hand)
