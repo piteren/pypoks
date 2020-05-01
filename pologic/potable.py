@@ -47,18 +47,17 @@ TBL_STT = {
 class HHistory:
 
     """
-        hand history is build by the table, while playing a hand, below are implemented states:
-        HST:    hand starts ((table_name:str,hand_id:int))
-            - maybe later add game info (table size, SB,BB ... )
-        TST:    table state (state:str)                         # state comes from potable.TBL_STT
-        POS:    player position (pl.name:str, pos:str)          # pos in potable.POS_NMS
-        PSB:    player puts small blind (pl.name:str, SB:int)
-        PBB:    player puts big blind (pl.name:str, BB:int)
-        T$$:    table cash(cash:int, cash_cr:int, cash_tc)      # on table, current river, to call(river)
-        PLH:    player hand (pl.name:str, ca:str, cb:str)       # c.str comes from PDeck.cts
-        TCD:    table cards dealt (c0,c1,c2...)                 # only new cards are shown
-        MOV:    player move (pl.name:str, move:str, cash:int)   # move from TBL_MOV.values()
-        PRS:    player result (pl.name, won:int, full_rank)     # full_rank is a tuple returned by PDeck.cards_rank
+    hand history is build by the table, while playing a hand, below are implemented states:
+    HST:    [table_name:str, hand_id:int]                           hand starts - maybe later add game info (table size, SB,BB ... )
+    TST:    state:str                                               table state (potable.TBL_STT)
+    POS:    [pln:str, pos:str]                                      player position (potable.POS_NMS)
+    PSB:    [pln:str, SB:int]                                       player puts small blind
+    PBB:    [pln:str, BB:int]                                       player puts big blind
+    T$$:    [cash:int, cash_cr:int, cash_tc]                        table cash (on table, current river, to call(river))
+    PLH:    [pln:str, ca:str, cb:str]                               player hand (PDeck.cts)
+    TCD:    [c0,c1,c2...]                                           table cards dealt, only new cards are shown
+    MOV:    [pln:str, move:str, mv_$:int, (pl.$, pl.$_ch, pl.$_cr)] player move (TBL_MOV.values()), pl.cashes BEFORE move!
+    PRS:    [pln, won:int, full_rank]                               player result, full_rank is a tuple returned by PDeck.cards_rank
     """
 
     def __init__(self):
@@ -96,97 +95,104 @@ class HHistory:
         for el in self.events: hstr += '%s %s\n'%(el[0],el[1])
         return hstr[:-1]
 
+# PPlayer is an interface of player @table (used deciding object (...DMK))
+class PPlayer:
+
+    def __init__(self, id): # player id/address, unique for all tables
+
+        self.id = id
+        self.name = 'pl_%s' % str(self.id)
+
+        # fields below are managed(updated) by table
+        self.table = None
+        self.pls = [] # names of all players @table, initialised with table constructor, self name always first
+
+        self.hand = None
+        self.cash = 0       # cash (player left)
+        self.cash_ch = 0    # cash current hand (how much player put yet, now its not needed cause can be calculated, but when player starts with diff cash amount it will be needed)
+        self.cash_cr = 0    # cash current river (how much player put on current river)
+
+        self.nhs_IX = 0 # next hand_state index to update from (while sending game states)
+
+    # makes decision for possible moves (base implementation with random), to be implemented using taken hh
+    def _make_decision(
+            self,
+            possible_moves :List[bool],
+            moves_cash: List[int]) -> int:
+        decision = self.table.moves
+        pm_probs = [int(pm) for pm in possible_moves]
+        dec = random.choices(decision, weights=pm_probs)[0] # decision returned as int from TBL_MOV
+        return dec
+
+    # returns possible moves and move cash (based on table cash)
+    def _pmc(self) -> tuple:
+
+        # we do not have to consider case of no self.cash, cause player wont be asked for move when no cash
+
+        # TODO: check those amounts according to poker rules / min.bet / typical.betting 1/2 3/4
+        # by now simple hardcoded amounts of cash
+        moves_cash = {
+            0:  0,
+            1:  self.table.cash_tc - self.cash_cr,
+            2:  int(self.table.cash_tc *1.5) if self.table.cash_tc else int(0.5*self.table.cash),
+            3:  int(self.table.cash_tc *  2) if self.table.cash_tc else int(0.8*self.table.cash)}
+
+        possible_moves = [True]*4 # by now all
+        if moves_cash[1]==0:
+            possible_moves[1] = False  # cannot call (e.g. beginning of the river > check or bet)
+        # eventually reduce moves_cash and disable next possibilities
+        if possible_moves[1] and self.cash <= moves_cash[1]:
+            moves_cash[1] = self.cash
+            possible_moves[2] = False
+            possible_moves[3] = False
+        if possible_moves[2] and self.cash <= moves_cash[2]:
+            moves_cash[2] = self.cash
+            possible_moves[3] = False
+        if possible_moves[3] and self.cash < moves_cash[3]:
+            moves_cash[3] = self.cash
+
+        return possible_moves, moves_cash
+
+    # prepares list of new & translated events from table hh
+    def _prepare_nt_states(self, hh):
+        state_changes = hh.translated(pls=self.pls, fr=self.nhs_IX)
+        self.nhs_IX = len(hh.events)  # update index for next
+        return state_changes
+
+    # takes actual hh from table, to be implemented how to use that information
+    # called twice @table loop: before making a move and after hand finished(...last states and rewards)
+    def take_hh(self, hh): pass
+
+    # makes move (based on hand history)
+    def make_move(self) -> tuple:
+        possible_moves, moves_cash = self._pmc()
+        selected_move = self._make_decision(possible_moves, moves_cash)
+        return selected_move, moves_cash[selected_move]
+
 # Poker Table is a single poker game environment
 class PTable:
-
-    # PPlayer is an interface of player @table (used deciding object (...DMK))
-    class PPlayer:
-
-        def __init__(self, id): # player id/address, unique for all tables
-
-            self.id = id
-            self.name = 'pl_%s' % str(self.id)
-            self.table = None # to be set by table
-
-            # fields below are managed(updated) by table
-            self.pls = [] # names of all players @table, initialised with table constructor, self name always first
-            self.cash = 0 # player cash
-            self.cash_cr = 0  # current river cash (amount put by player on current river)
-            self.hand = None
-            self.nhs_IX = 0 # next hand_state index to update from (while sending game states)
-
-        # makes decision for possible moves (base implementation with random), to be implemented using taken hh
-        def _make_decision(
-                self,
-                possible_moves :List[bool],
-                moves_cash: List[int]) -> int:
-            decision = self.table.moves
-            pm_probs = [int(pm) for pm in possible_moves]
-            dec = random.choices(decision, weights=pm_probs)[0] # decision returned as int from TBL_MOV
-            return dec
-
-        # returns possible moves and move cash (based on table cash)
-        def _pmc(self) -> tuple:
-
-            # by now simple hardcoded amounts of cash
-            moves_cash = {
-                0:  0,
-                1:  self.table.cash_tc - self.cash_cr,
-                2:  int(self.table.cash_tc *1.5) if self.table.cash_tc else int(0.5*self.table.cash),
-                3:  int(self.table.cash_tc *  2) if self.table.cash_tc else int(0.8*self.table.cash)}
-
-            # calculate possible moves and cash based on table state and hand history
-            possible_moves = [True]*4 # by now all
-            if self.table.cash_tc == self.cash_cr: possible_moves[1] = False  # cannot call (already called)
-            if self.cash <= moves_cash[2]: possible_moves[3] = False # cannot make higher B/R
-
-            # eventually reduce cash amount for call and smaller bet
-            if self.cash < moves_cash[2]: moves_cash[2] = self.cash
-            if possible_moves[1] and self.cash < moves_cash[1]: moves_cash[1] = self.cash
-            if possible_moves[3] and self.cash < moves_cash[3]: moves_cash[3] = self.cash
-
-            return possible_moves, moves_cash
-
-        # prepares list of new & translated events from table hh
-        def _prepare_nt_states(self, hh):
-            state_changes = hh.translated(pls=self.pls, fr=self.nhs_IX)
-            self.nhs_IX = len(hh.events)  # update index for next
-            return state_changes
-
-        # takes actual hh from table, to be implemented how to use that information
-        # called twice @table loop: before making a move and after hand finished(...last states and rewards)
-        def take_hh(self, hh): pass
-
-        # makes move (based on hand history)
-        def make_move(self) -> tuple:
-            possible_moves, moves_cash = self._pmc()
-            selected_move = self._make_decision(possible_moves, moves_cash)
-            return selected_move, moves_cash[selected_move]
 
     def __init__(
             self,
             name,
             pl_ids :list,                           # len(pl_ids) == num players @table
             pl_class :type(PPlayer)=    PPlayer,
-            SB=                         TABLE_SB,
-            BB=                         TABLE_BB,
-            start_cash=                 TABLE_CASH_START,
             verb=                       0):
 
         self.name = name
         self.verb = verb
 
         self.moves = sorted(list(TBL_MOV.keys()))
-        self.SB = SB
-        self.BB = BB
-        self.start_cash = start_cash
+        self.SB = TABLE_SB
+        self.BB = TABLE_BB
+        self.start_cash = TABLE_CASH_START
 
         self.deck = PDeck()
         self.state = 0
         self.cards = []     # table cards (max 5)
-        self.cash = 0       # on table
-        self.cash_cr = 0    # current river cash
-        self.cash_tc = 0    # how much player has to put to call ON CURRENT RIVER
+        self.cash = 0       # cash (on table total)
+        self.cash_cr = 0    # cash current river
+        self.cash_tc = 0    # cash to call by player (on current river)
 
         self.hand_ID = -1   # int incremented every hand
 
@@ -195,7 +201,7 @@ class PTable:
         if self.verb: print(' *** PTable *** %s created' % self.name)
 
     # builds players list
-    def _make_players(self, pl_class, pl_ids):
+    def _make_players(self, pl_class :type(PPlayer), pl_ids :list):
 
         players = [pl_class(id) for id in pl_ids]
 
@@ -205,7 +211,7 @@ class PTable:
         pls = [pl.name for pl in players] # list of names
         for pl in players:
             pl.pls = [] + pls # copy
-            # rotate
+            # rotate for every player to put his on first pos
             while pl.pls[0] != pl.name:
                 nm = pl.pls.pop(0)
                 pl.pls.append(nm)
@@ -227,9 +233,9 @@ class PTable:
         for pl in self.players:
             pl.hand = None  # players return cards
             pl.cash = self.start_cash
+            pl.cash_ch = 0
+            pl.cash_cr = 0
             pl.nhs_IX = 0
-            pl.ch_cash = 0
-            pl.cr_cash = 0
 
         # reset table data
         self.cards = []
@@ -243,13 +249,13 @@ class PTable:
 
         # put blinds on table
         h_pls[0].cash -= self.SB
-        h_pls[0].ch_cash = self.SB
-        h_pls[0].cr_cash = self.SB
+        h_pls[0].cash_ch = self.SB
+        h_pls[0].cash_cr = self.SB
         hh.add('PSB', [h_pls[0].name, self.SB])
 
         h_pls[1].cash -= self.BB
-        h_pls[1].ch_cash = self.BB
-        h_pls[1].cr_cash = self.BB
+        h_pls[1].cash_ch = self.BB
+        h_pls[1].cash_cr = self.BB
         hh.add('PBB', [h_pls[1].name, self.BB])
 
         self.cash = self.SB + self.BB
@@ -266,9 +272,6 @@ class PTable:
             pl.hand = PDeck.cts(ca), PDeck.cts(cb)
             hh.add('PLH', [pl.name, pl.hand[0], pl.hand[1]])
 
-        #hahi = [{'playersPC': [[pl.name, pl.hand] for pl in h_pls]}] # hand history list, one for all players
-        # TODO: for pl in self.players: pl.upd_state(hahi=hahi)  ?? why it was send here at the beginning...
-
         # rivers loop
         while self.state < 5 and len(h_pls) > 1:
 
@@ -282,7 +285,6 @@ class PTable:
                 new_table_cards = [PDeck.cts(c) for c in new_table_cards]
                 self.cards += new_table_cards
                 hh.add('TCD', new_table_cards)
-                #hahi.append({'newTableCards': new_table_cards})
 
             # ask players for moves
             while len(h_pls)>1: # game end breaks in the loop
@@ -294,26 +296,24 @@ class PTable:
                 pl = h_pls[cmv_pIX]
                 if pl.cash: # player has cash (not all-in-ed yet)
 
-                    #TODO: consider(?) adding to events info BEFORE MOVE: pl.cash, pl.ch_cash, pl.cr_cash ... and then AFTER MOVE, although it is redundant info, but given directly may help (?)
-
                     # player makes move
                     pl.take_hh(hh) # takes actual hh from table
                     mv_id, mv_cash = pl.make_move()  # makes move
-                    hh.add('MOV', [pl.name, TBL_MOV[mv_id], mv_cash])
+                    hh.add('MOV', [pl.name, TBL_MOV[mv_id], mv_cash, (pl.cash, pl.cash_ch, pl.cash_cr)])
 
                     pl.cash -= mv_cash
-                    pl.ch_cash += mv_cash
-                    pl.cr_cash += mv_cash
+                    pl.cash_ch += mv_cash
+                    pl.cash_cr += mv_cash
                     self.cash += mv_cash
                     self.cash_cr += mv_cash
 
-                    if mv_id == 0 and self.cash_tc > pl.cr_cash:
+                    if mv_id == 0 and self.cash_tc > pl.cash_cr:
                         player_folded = True
                         h_pls.pop(cmv_pIX)
 
                     if mv_id > 1:
                         player_raised = True
-                        self.cash_tc = pl.cr_cash
+                        self.cash_tc = pl.cash_cr
                         clc_pIX = cmv_pIX-1 if cmv_pIX>0 else len(h_pls) - 1 # player before in loop
 
                     hh.add('T$$', [self.cash, self.cash_cr, self.cash_tc])
@@ -328,88 +328,89 @@ class PTable:
             cmv_pIX = 0
             self.cash_cr = 0
             self.cash_tc = 0
-            for pl in self.players: pl.cr_cash = 0
+            for pl in self.players: pl.cash_cr = 0
 
             self.state += 1  # move table to next state
 
-        # winners template
-        winners_data = []
-        for pl in self.players:
-            winners_data.append({
-                'p_name':       pl.name,
+        winnersD = {
+            pl.name: {
                 'winner':       False,
-                'full_rank':    None,
-                'simple_rank':  0,
-                'won':          0})
+                'full_rank':    'muck',
+                'won':          0} for pl in self.players}
 
+        # one player left finally (other passed)
         if len(h_pls) == 1:
-            winIX = self.players.index(h_pls[0])
-            winners_data[winIX]['winner'] = True
-            winners_data[winIX]['full_rank'] = 'muck'
-            nWinners = 1
+            w_name = h_pls[0].name
+            winnersD[w_name]['winner'] = True
+            winnersD[w_name]['full_rank'] = 'muck'
+            n_winners = 1
+        # got more than one player @showdown
         else:
+            # get their ranks and top rank
             top_rank = 0
             for pl in h_pls:
                 cards = list(pl.hand)+self.cards
                 rank = PDeck.cards_rank(cards)
-                plIX = self.players.index(pl)
-                if top_rank < rank[1]:
-                    top_rank = rank[1]
-                    winners_data[plIX]['full_rank'] = rank
-                else:
-                    winners_data[plIX]['full_rank'] = 'muck'
-                winners_data[plIX]['simple_rank'] = rank[1]
-            nWinners = 0
-            for data in winners_data:
-                if data['simple_rank'] == top_rank:
-                    data['winner'] = True
-                    nWinners += 1
+                winnersD[pl.name]['full_rank'] = rank
+                if top_rank < rank[1]: top_rank = rank[1]
+
+            # who's got top rank
+            n_winners = 0
+            for pln in winnersD:
+                if winnersD[pln]['full_rank'][1] == top_rank:
+                    winnersD[pln]['winner'] = True
+                    n_winners += 1
+
+            # not shown for rest
+            for pln in winnersD:
+                if not winnersD[pln]['winner']:
+                    if winnersD[pln]['full_rank'] != 'muck':
+                        winnersD[pln]['full_rank'] = 'not_shown'
 
         # manage cash and information about
-        prize = self.cash / nWinners
-        for ix in range(len(self.players)):
-            pl = self.players[ix]
-            myWon = -pl.ch_cash # netto lost
-            if winners_data[ix]['winner']: myWon += prize # add netto winning
-            winners_data[ix]['won'] = myWon
+        prize = self.cash / n_winners
+        for pl in self.players:
+            my_won = -pl.cash_ch  # netto lost
+            if winnersD[pl.name]['winner']: my_won += prize  # add netto winning
+            winnersD[pl.name]['won'] = my_won
 
-        for data in winners_data: hh.add('PRS', [data['p_name'], data['won'], data['full_rank']])
+        for pln in winnersD: hh.add('PRS', [pln, winnersD[pln]['won'], winnersD[pln]['full_rank']])
 
         for pl in self.players: pl.take_hh(hh) # occasion to take reward
         self.players.append(self.players.pop(0)) # rotate table players for next hand
         return hh
 
+# PPlayer with (communication) ques
+class QPPlayer(PPlayer):
+
+    def __init__(self, id):
+
+        super().__init__(id)
+        self.i_que = None # player input que
+        self.o_que = None # player output que
+
+    # makes decision (communicates with ques)
+    def _make_decision(
+            self,
+            possible_moves :List[bool],
+            moves_cash :List[int]):
+        qd = {
+            'id':               self.id,
+            'possible_moves':   possible_moves,
+            'moves_cash':       moves_cash}
+        self.o_que.put(qd)
+        selected_move = self.i_que.get()  # get move from DMK
+        return selected_move
+
+    # takes actual hh from table, sends new & translated states using que
+    def take_hh(self, hh):
+        qd = {
+            'id':               self.id,
+            'state_changes':    self._prepare_nt_states(hh)}
+        self.o_que.put(qd)
+
 # Poker Table with (communication) ques(in fact managed by QPPlayer), implemented as a process
 class QPTable(PTable, Process):
-
-    # PPlayer with (communication) ques
-    class QPPlayer(PTable.PPlayer):
-
-        def __init__(self,id):
-
-            super().__init__(id)
-            self.i_que = None # player input que
-            self.o_que = None # player output que
-
-        # makes decision (communicates with ques)
-        def _make_decision(
-                self,
-                possible_moves :List[bool],
-                moves_cash :List[int]):
-            qd = {
-                'id':               self.id,
-                'possible_moves':   possible_moves,
-                'moves_cash':       moves_cash}
-            self.o_que.put(qd)
-            selected_move = self.i_que.get()  # get move from DMK
-            return selected_move
-
-        # takes actual hh from table, sends new & translated states using que
-        def take_hh(self, hh):
-            qd = {
-                'id':               self.id,
-                'state_changes':    self._prepare_nt_states(hh)}
-            self.o_que.put(qd)
 
     def __init__(
             self,
@@ -424,7 +425,7 @@ class QPTable(PTable, Process):
         PTable.__init__(
             self,
             pl_ids=     pl_ids,
-            pl_class=   QPTable.QPPlayer,
+            pl_class=   QPPlayer,
             **kwargs)
 
 

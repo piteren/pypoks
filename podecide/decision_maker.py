@@ -71,7 +71,7 @@ from queue import Empty
 from ptools.neuralmess.nemodel import NEModel
 from ptools.neuralmess.base_elements import ZeroesProcessor
 
-from decide.stats_manager import StatsMNG
+from podecide.stats_manager import StatsMNG
 from pologic.poenvy import N_TABLE_PLAYERS
 from pologic.podeck import PDeck
 from pologic.potable import POS_NMS, TBL_MOV

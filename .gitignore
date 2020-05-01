@@ -6,6 +6,6 @@ _models_arch
 _nnSaves
 _nnTB
 flowcharts
-venv*
-posts
+venv
+media
 saves

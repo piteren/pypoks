@@ -15,8 +15,8 @@ from tqdm import tqdm
 
 from pologic.poenvy import N_TABLE_PLAYERS
 from pologic.potable import QPTable
-from decide.decision_maker import NeurDMK
-from decide.gx import xross
+from podecide.decision_maker import NeurDMK
+from podecide.gx import xross
 
 
 # manages DMKs, tables, games
@@ -29,7 +29,7 @@ class GamesManager:
             verb=           0):
 
         self.verb = verb
-        if self.verb > 0: print('\n *** GamesManager *** starting...')
+        if self.verb > 0: print('\n *** GamesManager *** stars...')
 
         self.in_que = Queue() # here receives data from DMKs and tables
 

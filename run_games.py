@@ -8,9 +8,11 @@ from ptools.neuralmess.dev_manager import nestarter
 from ptools.mpython.mpdecor import proc_wait, proc
 from ptools.lipytools.decorators import timing
 
-from decide.games_manager import GamesManager
-from decide.decision_maker import NeurDMK, HDMK
-from decide.neural.neural_graphs import cnnCEM_GFN
+from pologic.poenvy import N_TABLE_PLAYERS
+
+from podecide.games_manager import GamesManager
+from podecide.decision_maker import NeurDMK, HDMK
+from podecide.neural.neural_graphs import cnnCEM_GFN
 
 from tkproc import TkProc
 
@@ -93,7 +95,7 @@ def start_human_game():
                 'stats_iv':     10})}
         run_human_eval(dmk_dna)
 
-    tk_proc = TkProc()
+    tk_proc = TkProc(N_TABLE_PLAYERS)
     runh(tk_proc)
     tk_proc.run_tk()
 

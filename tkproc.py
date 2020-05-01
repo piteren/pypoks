@@ -11,19 +11,22 @@ from tkinter import Tk, Label, Button, Frame
 
 class TkProc:
 
-    def __init__(self):
-        self.tk = Tk()
+    def __init__(
+            self,
+            n_players):
+
         self.tk_que = Queue()
         self.out_que = Queue()
 
+        self.tk = Tk()
         self.tk.title('pypoks HDMK')
         self.tk.geometry('400x250+100+100')
         self.tk.resizable(0,0)
 
         self.cards = []
         self.table_cash = 0
-        self.dec_btnL = []
 
+        self.dec_btnL = []
         self.dec_btnL.append(Button(self.tk, text='C/F', command=partial(self.put_decision,0), pady=2, padx=2, width=4))
         self.dec_btnL.append(Button(self.tk, text='CLL', command=partial(self.put_decision,1), pady=2, padx=2, width=4))
         self.dec_btnL.append(Button(self.tk, text='BR5', command=partial(self.put_decision,2), pady=2, padx=2, width=4))
