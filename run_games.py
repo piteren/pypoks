@@ -14,7 +14,7 @@ from podecide.games_manager import GamesManager
 from podecide.decision_maker import NeurDMK, HDMK
 from podecide.neural.neural_graphs import cnnCEM_GFN
 
-from tkproc import TkProc
+from gui.tkproc import TkProc
 
 
 def run_human_eval(ddna):
@@ -91,7 +91,6 @@ def start_human_game():
                 'trainable':    False}),
         'hm0': (HDMK, {
                 'tk_proc':      tk_proc,
-                'n_players':    1,
                 'stats_iv':     10})}
         run_human_eval(dmk_dna)
 
@@ -104,5 +103,5 @@ if __name__ == "__main__":
 
     nestarter('_log', custom_name='dmk_games')
 
-    start_big_games()
-    #start_human_game()
+    #start_big_games()
+    start_human_game()

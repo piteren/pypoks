@@ -76,7 +76,7 @@ from pologic.poenvy import N_TABLE_PLAYERS
 from pologic.podeck import PDeck
 from pologic.potable import POS_NMS, TBL_MOV
 
-from tkproc import TkProc
+from gui.tkproc import TkProc
 
 
 
@@ -390,7 +390,7 @@ class HDMK(QDMK):
             self,
             tk_proc :TkProc,
             **kwargs):
-        super().__init__(**kwargs)
+        super().__init__(n_players=1, **kwargs)
         self.family = None # TODO <<
 
         self.tk_IQ = tk_proc.tk_que
@@ -409,7 +409,10 @@ class HDMK(QDMK):
         probs = [0] * self.n_moves
         for p_addr in self._new_states:
             if self._new_states[p_addr][-1].possible_moves:
-                self.tk_IQ.put(f' # possible_moves: {self._new_states[p_addr][-1].possible_moves}')
+                pmd = {
+                    'possible_moves':   self._new_states[p_addr][-1].possible_moves,
+                    'moves_cash':       self._new_states[p_addr][-1].moves_cash}
+                self.tk_IQ.put(pmd)
                 val = self.tk_OQ.get()
                 probs[val] = 1
                 self._new_states[p_addr][-1].probs = probs

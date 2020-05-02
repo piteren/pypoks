@@ -15,7 +15,6 @@ from tqdm import tqdm
 
 from pologic.poenvy import N_TABLE_PLAYERS
 from pologic.potable import QPTable
-from podecide.decision_maker import NeurDMK
 from podecide.gx import xross
 
 
@@ -33,9 +32,6 @@ class GamesManager:
 
         self.in_que = Queue() # here receives data from DMKs and tables
 
-        assert sum([dmk_dna[nm][1]['n_players'] for nm in dmk_dna]) % N_TABLE_PLAYERS == 0
-        self.tables = [] # list of tables
-
         self.gx_iv = acc_won_iv[-2]
 
         # create DMK dictionary
@@ -44,10 +40,13 @@ class GamesManager:
                 gm_que=         self.in_que,
                 name=           name,
                 acc_won_iv=     acc_won_iv,
-                **dmk_dna[name][1]
-            ) for name in dmk_dna}
+                **dmk_dna[name][1]) for name in dmk_dna}
+
+        assert sum([self.dmkD[nm].n_players for nm in self.dmkD]) % N_TABLE_PLAYERS == 0
 
         self.families = set([self.dmkD[name].family for name in self.dmkD])
+
+        self.tables = []  # list of tables
 
     # creates tables using (ques of) DMKs
     def _create_tables(self):
