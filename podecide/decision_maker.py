@@ -76,7 +76,7 @@ from pologic.poenvy import N_TABLE_PLAYERS
 from pologic.podeck import PDeck
 from pologic.potable import POS_NMS, TBL_MOV
 
-from gui.tkproc import TkProc
+from gui.gui_hdmk import Tk_HDMK_gui
 
 
 
@@ -388,13 +388,13 @@ class HDMK(QDMK):
 
     def __init__(
             self,
-            tk_proc :TkProc,
+            tk_gui :Tk_HDMK_gui,
             **kwargs):
         super().__init__(n_players=1, **kwargs)
         self.family = None # TODO <<
 
-        self.tk_IQ = tk_proc.tk_que
-        self.tk_OQ = tk_proc.out_que
+        self.tk_IQ = tk_gui.tk_que
+        self.tk_OQ = tk_gui.out_que
 
     # send incoming states to tk
     def _enc_states(

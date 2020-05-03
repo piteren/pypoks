@@ -14,7 +14,7 @@ from podecide.games_manager import GamesManager
 from podecide.decision_maker import NeurDMK, HDMK
 from podecide.neural.neural_graphs import cnnCEM_GFN
 
-from gui.tkproc import TkProc
+from gui.gui_hdmk import Tk_HDMK_gui
 
 
 def run_human_eval(ddna):
@@ -78,7 +78,7 @@ def start_big_games():
 def start_human_game():
 
     @proc
-    def runh(tk_proc :TkProc):
+    def runh(tk_gui :Tk_HDMK_gui):
         dmk_dna = {
         'am0': (NeurDMK, {
                 'family':       'A',
@@ -90,13 +90,13 @@ def start_human_game():
                 'stats_iv':     10,
                 'trainable':    False}),
         'hm0': (HDMK, {
-                'tk_proc':      tk_proc,
+                'tk_gui':      tk_gui,
                 'stats_iv':     10})}
         run_human_eval(dmk_dna)
 
-    tk_proc = TkProc(N_TABLE_PLAYERS)
-    runh(tk_proc)
-    tk_proc.run_tk()
+    tk_gui = Tk_HDMK_gui(N_TABLE_PLAYERS)
+    runh(tk_gui)
+    tk_gui.run_tk()
 
 
 if __name__ == "__main__":

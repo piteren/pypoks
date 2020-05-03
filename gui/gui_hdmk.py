@@ -15,7 +15,7 @@ from pologic.podeck import CRD_FIG, CRD_COL
 
 # returns card graphic file name for given cards srt (e.g. 6D - six diamond)
 def get_card_FN(cs: str or None):
-    spath = 'gui/cards/dfR/'
+    spath = 'gui/imgs/cards/dfR/'
     epath = '0000.png'
     if not cs: return spath + 'REV' + epath
     return spath + cs + epath
@@ -35,7 +35,7 @@ def set_image(lbl :Label, img :ImageTk.PhotoImage):
     lbl.image = img
 
 
-class TkProc:
+class Tk_HDMK_gui:
 
     def __init__(
             self,
@@ -57,7 +57,7 @@ class TkProc:
 
         pyp_lbl = Label(self.tk)
         pyp_lbl.grid(row=0, column=0)
-        set_image(pyp_lbl, ImageTk.PhotoImage(Image.open('gui/pypoks_bar.png')))
+        set_image(pyp_lbl, ImageTk.PhotoImage(Image.open('gui/imgs/pypoks_bar.png')))
 
 
         # players frame ************************************************************************************************
@@ -65,10 +65,10 @@ class TkProc:
         pl_frm = Frame(self.tk, padx=5, pady=5)
         pl_frm.grid(row=1, column=0)
         self.plx_elD = {}
-        self.dealer_img = ImageTk.PhotoImage(Image.open('gui/dealer.png'))
-        self.nodealer_img = ImageTk.PhotoImage(Image.open('gui/no_dealer.png'))
-        user_ico = ImageTk.PhotoImage(Image.open('gui/user.png'))
-        ai_ico = ImageTk.PhotoImage(Image.open('gui/ai.png'))
+        self.dealer_img = ImageTk.PhotoImage(Image.open('gui/imgs/dealer.png'))
+        self.nodealer_img = ImageTk.PhotoImage(Image.open('gui/imgs/no_dealer.png'))
+        user_ico = ImageTk.PhotoImage(Image.open('gui/imgs/user.png'))
+        ai_ico = ImageTk.PhotoImage(Image.open('gui/imgs/ai.png'))
         for ix in range(n_players):
             plx_frm = Frame(pl_frm, padx=5, pady=5)
             plx_frm.grid(row=0, column=ix)
