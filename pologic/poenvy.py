@@ -4,6 +4,8 @@
 
 """
 
+DEBUG_MODE = True # True allows more information to be shown
+
 # supported table moves (moves of player supported by table)
 TBL_MOV = {
     0:  'C/F',  # check/fold

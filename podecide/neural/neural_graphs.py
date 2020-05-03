@@ -64,7 +64,7 @@ def cnnCEM_GFN(
         switch_PH = tf.placeholder( # switch placeholder
             name=           'switch_PH',
             dtype=          tf.int32, # 0 for move, 1 for cards
-            shape=          [None, None, 1])  # [bsz,seq,val]
+            shape=          [None, None, 1])  # [bsz,seq,1]
 
         event_PH = tf.placeholder(  # event id placeholder
             name=           'event_PH',
@@ -80,6 +80,7 @@ def cnnCEM_GFN(
         event_in = tf.nn.embedding_lookup(params=event_emb, ids=event_PH)
         if verb>1: print(' > event_in:', event_in)
 
+        # tried with tf.where and switching inputs, but speed was the same...
         switch = tf.cast(switch_PH, dtype=tf.float32)
         input = switch*cards_encoded + (1-switch)*event_in
         if verb>1: print(' > input (merged):', input)
@@ -89,7 +90,7 @@ def cnnCEM_GFN(
             input = lay_dense(
                 input=          input,
                 units=          width,
-                use_bias=        False)
+                use_bias=       False)
             if verb>1: print(' > projected input (projected):', input)
         else: width = cards_encoded.shape[-1]
 

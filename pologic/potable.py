@@ -31,7 +31,7 @@ from pologic.podeck import PDeck
 
 from pologic.poenvy import N_TABLE_PLAYERS, \
     TBL_MOV, POS_NMS, \
-    TABLE_CASH_START, TABLE_SB, TABLE_BB
+    TABLE_CASH_START, TABLE_SB, TABLE_BB, DEBUG_MODE
 
 # table states
 TBL_STT = {
@@ -83,7 +83,7 @@ class HHistory:
                 state[1][0] = pls.index(state[1][0])
 
             # remove not 0 (I'am 0) cards
-            if state[0] == 'PLH':
+            if state[0] == 'PLH' and not DEBUG_MODE:
                 if state[1][0]:
                     state[1][1], state[1][2] = None, None
 
@@ -228,6 +228,7 @@ class PTable:
 
         self.state = 0
         hh.add('TST', TBL_STT[self.state])
+        hh.add('T$$', [self.cash, self.cash_cr, self.cash_tc])
 
         # reset player data (cash, cards)
         for pl in self.players:
@@ -276,6 +277,7 @@ class PTable:
         while self.state < 5 and len(h_pls) > 1:
 
             hh.add('TST', TBL_STT[self.state])
+            hh.add('T$$', [self.cash, self.cash_cr, self.cash_tc])
 
             # manage table cards
             new_table_cards = []
@@ -342,7 +344,7 @@ class PTable:
         if len(h_pls) == 1:
             w_name = h_pls[0].name
             winnersD[w_name]['winner'] = True
-            winnersD[w_name]['full_rank'] = 'muck'
+            winnersD[w_name]['full_rank'] = 'not_shown'
             n_winners = 1
         # got more than one player @showdown
         else:

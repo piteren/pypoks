@@ -593,7 +593,6 @@ class NeurDMK(ExDMK):
             cards_batch.append([cards])
             event_batch.append([event])
             switch_batch.append([[switch]])
-
             state_batch.append(self.last_fwd_state[p_addr])
 
         feed = {
@@ -650,6 +649,7 @@ class NeurDMK(ExDMK):
         self.sm.summ_writer.add_summary(summ, self.upd_step)
 
         # learn/update from _done_states
+
     # NN update
     def _learning_subtask(self):
 

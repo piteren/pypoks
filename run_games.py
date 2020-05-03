@@ -42,7 +42,7 @@ def run_GM_training(ddna, gx_limit=10):
 
 def start_big_games():
     dmk_dna = {
-        f'am{ix}': (NeurDMK, {
+        f'cm{ix}': (NeurDMK, {
                 'family':       'A',
                 'fwd_func':     cnnCEM_GFN,
                 #'mdict':        {},
@@ -55,7 +55,7 @@ def start_big_games():
     #"""
     #for k in ['fm0','fm4','fm3','fm6','fm10','fm11','fm9']: dmk_dna.pop(k)
     dmk_dna.update({
-        f'bm{ix}': (NeurDMK, {
+        f'dm{ix}': (NeurDMK, {
                 'family':       'B',
                 'fwd_func':     cnnCEM_GFN,
                 'mdict':        {'c_embW':18, 'n_lay':18},
