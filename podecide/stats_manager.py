@@ -22,14 +22,14 @@ class StatsMNG:
             p_addrL :list,              # list of (unique) player ids, used as keys in dicts
             start_hand= 0,              # number of hand to start with
             stats_iv=   1000,           # interval (n_hands) for putting stats on TB
-            acc_won_iv= (30000,100000), # should be multiplication of stats_iv
+            acc_won_iv= (100000,200000),# should be multiplication of stats_iv
             verb=       0):
 
         self.verb = verb
         self.stats_iv = stats_iv
         for v in acc_won_iv: assert v % stats_iv == 0
         self.speed =        None # speed of running in H/s
-        self.won_save =     {0: 0} # {n_hand: $won} saved while putting to TB (for stats_iv), it will grow but won't be big...
+        self.won_save =     {start_hand: 0} # {n_hand: $won} saved while putting to TB (for stats_iv), it will grow but won't be big...
         self.acc_won =      {k: 0 for k in acc_won_iv} # $won/hand in ranges of acc_won_iv
         self.stats =        {} # stats of DMK (for all players)
         self.chsd =         {pID: None for pID in p_addrL} # current hand stats data (per player)

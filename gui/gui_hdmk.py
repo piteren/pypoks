@@ -74,11 +74,11 @@ class Tk_HDMK_gui:
             plx_frm.grid(row=0, column=ix)
 
             plx_lblL = []
-            lbl = Label(plx_frm) # icon
+            lbl = Label(plx_frm, bg='gray80') # icon
             lbl.grid(row=0, column=0)
             plx_lblL.append(lbl)
             set_image(lbl, ai_ico if ix else user_ico)
-            lbl = Label(plx_frm)  # dealer
+            lbl = Label(plx_frm, bg='gray80')  # dealer
             lbl.grid(row=1, column=0)
             plx_lblL.append(lbl)
             set_image(lbl, self.nodealer_img)
@@ -137,7 +137,7 @@ class Tk_HDMK_gui:
         # decision frame ***********************************************************************************************
 
         lcol = ['black', 'DodgerBlue3'] + ['red'] * (len(TBL_MOV) - 2)  # fg colors in frame
-        mnm = [TBL_MOV[k] for k in sorted(list(TBL_MOV.keys()))]  # moves names
+        mnm = [TBL_MOV[k][0] for k in sorted(list(TBL_MOV.keys()))]  # moves names
         dec_frm = Frame(m_frm, padx=5, pady=5)
         dec_frm.grid(row=0, column=1)
 
@@ -146,14 +146,14 @@ class Tk_HDMK_gui:
             lbl = Label(dec_frm, fg=lcol[ix], font=('Helvetica', 14))
             lbl.grid(row=0, column=ix)
             self.dec_lblL.append(lbl)
-        self.__set_dec_lbl_val(['-','-','-','-'])
+        self.__set_dec_lbl_val()
 
         self.dec_btnL = []
         for ix in range(len(mnm)):
             btn = Button(dec_frm, text=mnm[ix], fg=lcol[ix], font=('Helvetica', 12), command=partial(self.__put_decision, ix), pady=2, padx=2, width=4)
             btn.grid(row=1,column=ix)
             self.dec_btnL.append(btn)
-        self.__set_dec_btn_act([0,0,0,0])
+        self.__set_dec_btn_act()
 
         # next
         self.next_go = IntVar()
@@ -180,7 +180,7 @@ class Tk_HDMK_gui:
             if type(message) is list:
                 self.__proc_message(message)
             if type(message) is dict:
-                cv = [message['moves_cash'][ix] if message['possible_moves'][ix] else '-' for ix in range(4)]
+                cv = [message['moves_cash'][ix] if message['possible_moves'][ix] else '-' for ix in range(len(TBL_MOV))]
                 self.__set_dec_lbl_val(cv)
                 self.__set_dec_btn_act(message['possible_moves'])
         self.__afterloop()
@@ -193,14 +193,16 @@ class Tk_HDMK_gui:
             if DEBUG_MODE:
                 if self.ops_cards[1]:
                     for ix in [1,2]:
-                        print(f' DEBUG: player {ix} cards: {self.ops_cards[ix][0]} {self.ops_cards[ix][1]}')
+                        print(f' DEB: pl{ix} cards: {self.ops_cards[ix][0]} {self.ops_cards[ix][1]}')
             self.next_btn['state'] = 'normal'
             print('\npress GO to start next hand')
             self.next_btn.wait_variable(self.next_go)
             self.next_btn['state'] = 'disabled'
             prn = False
 
-        if message[0] in ['PSB', 'PBB']: prn = False
+        if message[0] in ['PSB', 'PBB']:
+            print(f'  pl{message[1][0]} {message[0][1:]} {message[1][1]}')
+            prn = False
 
         if message[0] == 'TST':
             if message[1] == 'idle':
@@ -211,7 +213,7 @@ class Tk_HDMK_gui:
                 for plix in self.plx_elD:
                     self.__upd_plcsh(plix, TABLE_CASH_START)
                     self.__set_pl_active(plix)
-            else: print(f' * {message[1]}')
+            else: print(f' ** {message[1]}')
             self.tcsh_tc = 0
             if message[1] != 'preflop':
                 for plix in self.plx_elD:
@@ -246,11 +248,12 @@ class Tk_HDMK_gui:
                 self.__set_pl_active(message[1][0], False)
             else:
                 self.__upd_plcsh(message[1][0], message[1][3][0]-message[1][2], message[1][3][2]+message[1][2])
+            print(f'  pl{message[1][0]} {message[1][1]} {message[1][2]}')
             prn = False
 
         if message[0] == 'PRS':
             r = message[1][2] if type(message[1][2]) is str else message[1][2][-1]
-            print(f' $$$: player {message[1][0]} {message[1][1]} {r}')
+            print(f' $$$: pl{message[1][0]} {message[1][1]} {r}')
             prn = False
 
         self.tk.update_idletasks()
@@ -260,17 +263,20 @@ class Tk_HDMK_gui:
     # returns decision (decision button pressed)
     def __put_decision(self, dec :int):
         self.out_que.put(dec)
-        self.__set_dec_btn_act([0,0,0,0])
+        self.__set_dec_lbl_val()
+        self.__set_dec_btn_act()
 
     # decision frame methods **************************************************************************** decision frame
 
     # sets $ values oflabels
-    def __set_dec_lbl_val(self, val :list):
+    def __set_dec_lbl_val(self, val :list=None):
+        if not val: val = ['-']*len(TBL_MOV)
         for ix in range(len(self.dec_lblL)):
             self.dec_lblL[ix]['text'] = val[ix]
 
     # sets state of buttons
-    def __set_dec_btn_act(self, act :list):
+    def __set_dec_btn_act(self, act :list=None):
+        if not act: act = [False]*len(TBL_MOV)
         for ix in range(len(self.dec_btnL)):
             self.dec_btnL[ix]['state'] = 'normal' if act[ix] else'disabled'
 

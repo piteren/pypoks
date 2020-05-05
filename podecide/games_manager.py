@@ -24,7 +24,7 @@ class GamesManager:
     def __init__(
             self,
             dmk_dna :dict,
-            acc_won_iv,
+            acc_won_iv=     (100000,200000),
             verb=           0):
 
         self.verb = verb

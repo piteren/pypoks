@@ -12,21 +12,21 @@ from ptools.neuralmess.base_elements import my_initializer, num_var_floats
 from ptools.neuralmess.layers import lay_dense
 from ptools.neuralmess.encoders import enc_CNN
 
+from pologic.poenvy import TBL_MOV, N_TABLE_PLAYERS
 from cardNet.card_network import card_enc
 
 
 # base CNN+RES+CE+move neural graph (nemodel compatible)
 def cnnCEM_GFN(
         name :str,
-        train_ce :bool= True,   # train cards encoder
-        c_embW :int=    12,     # card emb width >> makes network width (x7)
-        n_lay=          12,     # number of CNNR layers >> makes network deep ( >> context length)
-        width=          None,   # representation width (number of filters), for None uses input width
+        train_ce :bool= True,           # train cards encoder
+        c_embW :int=    12,             # card emb width >> makes network width (x7)
+        n_lay=          12,             # number of CNNR layers >> makes network deep ( >> context length)
+        width=          None,           # representation width (number of filters), for None uses input width
         activation=     tf.nn.relu,
-        n_moves=        4,      # number of moves supported by the model
         opt_class=      partial(tf.compat.v1.train.AdamOptimizer, beta1=0.7, beta2=0.7),
         iLR=            3e-5,
-        warm_up=        100,    # num of steps has to be small (since we do rare updates)
+        warm_up=        100,            # num of steps has to be small (since we do rare updates)
         avt_SVal=       0.04,
         avt_window=     20,
         do_clip=        True,
@@ -71,9 +71,10 @@ def cnnCEM_GFN(
             dtype=          tf.int32,
             shape=          [None, None])  # [bsz,seq]
 
+        n_events = 1 + N_TABLE_PLAYERS + len(TBL_MOV)*(N_TABLE_PLAYERS-1)
         event_emb = tf.get_variable(  # event type embeddings
             name=           'event_emb',
-            shape=          [12, cards_encoded.shape[-1]],
+            shape=          [n_events, cards_encoded.shape[-1]],
             dtype=          tf.float32,
             initializer=    my_initializer())
 
@@ -126,7 +127,7 @@ def cnnCEM_GFN(
         # projection to logits
         logits = lay_dense(
             input=          out,
-            units=          n_moves,
+            units=          len(TBL_MOV),
             use_bias=       False)
         if verb>1: print(' > logits:', logits)
 

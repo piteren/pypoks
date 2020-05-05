@@ -72,9 +72,8 @@ from ptools.neuralmess.nemodel import NEModel
 from ptools.neuralmess.base_elements import ZeroesProcessor
 
 from podecide.stats_manager import StatsMNG
-from pologic.poenvy import N_TABLE_PLAYERS
+from pologic.poenvy import TBL_MOV_R, POS_NMS_R, N_TABLE_PLAYERS, TABLE_CASH_START
 from pologic.podeck import PDeck
-from pologic.potable import POS_NMS, TBL_MOV
 
 from gui.gui_hdmk import Tk_HDMK_gui
 
@@ -102,7 +101,7 @@ class DMK(ABC):
             self,
             name :str,                          # name should be unique (@table)
             n_players :int,                     # number of managed players
-            n_moves :int=       len(TBL_MOV),   # number of (all) moves supported by DM, has to match table
+            n_moves :int=       len(TBL_MOV_R), # number of (all) moves supported by DM, has to match table
             upd_trigger :int=   1000,           # how much _done_states to accumulate to launch update procedure
             verb=               0):
 
@@ -201,8 +200,8 @@ class QDMK(Process, DMK, ABC):
 
     def __init__(
             self,
-            gm_que :Queue,              # GamesManager que, here DMK puts data for GM, data is always put in form of tuple (name, type, data) # TODO: implement tuple everywhere...
-            stats_iv=           1000,
+            gm_que :Queue, # GamesManager que, here DMK puts data for GM, data is always put in form of tuple (name, type, data)
+            stats_iv=           10000,
             acc_won_iv=         (100000,200000),
             **kwargs):
 
@@ -310,7 +309,7 @@ class QDMK(Process, DMK, ABC):
     def _dmk_proc(self):
 
         self._pre_process()
-        self.gm_que.put(f'{self.name} (DMK process) started')
+        self.gm_que.put((self.name, '(DMK process) started', None))
         self.in_que.get() # waits for GO!
 
         n_waiting = 0 # num players ( ~> tables) waiting for decision
@@ -510,10 +509,9 @@ class NeurDMK(ExDMK):
     # prepares state into form of nn input
     #  - encodes only selection of states: [POS,PLH,TCD,MOV,PRS] ...does not use: HST,TST,PSB,PBB,T$$
     #  - each event has values (ids):
-    #       0 : pad (...for cards factually)
-    #       1,2,3 : my positions SB,BB,BTN
-    #       4,5,6,7, 8,9,10,11 : moves of two opponents(1,2) * 4 moves(C/F,CLL,BR5,BR8)
-    # TODO: make compatible with pologic.poenvy constants
+    #       0                                                           : pad (...for cards factually)
+    #       1,2,3..N_TABLE_PLAYERS                                      : my positions SB,BB,BTN...
+    #       1+N_TABLE_PLAYERS ... len(TBL_MOV)*(N_TABLE_PLAYERS-1)-1    : n_opponents * n_moves
     def _enc_states(
             self,
             p_addr,
@@ -524,11 +522,6 @@ class NeurDMK(ExDMK):
         for s in es:
             val = s.value
             nval = None
-
-            if val[0] == 'POS' and val[1][0] == 0: # my position
-                nval = {
-                    'cards':    None,
-                    'event':    1 + self.pos_nms_r[val[1][1]]}
 
             if val[0] == 'PLH' and val[1][0] == 0: # my hand
                 self.my_cards[p_addr] = [PDeck.cti(c) for c in val[1][1:]]
@@ -542,10 +535,16 @@ class NeurDMK(ExDMK):
                     'cards':    [] + self.my_cards[p_addr], # copy cards
                     'event':    0}
 
-            if val[0] == 'MOV' and val[1][0] != 0: # moves, all but mine
+            if val[0] == 'POS' and val[1][0] == 0: # my position
                 nval = {
                     'cards':    None,
-                    'event':    4 + self.tbl_mov_r[val[1][1]] + 4*(val[1][0]-1)}  # hardcoded for 2 opponents
+                    'event':    1 + POS_NMS_R[val[1][1]]}
+
+            if val[0] == 'MOV' and val[1][0] != 0: # moves, all but mine
+                evsIX = 1 + N_TABLE_PLAYERS
+                nval = {
+                    'cards':    None,
+                    'event':    evsIX + TBL_MOV_R[val[1][1]] + len(TBL_MOV_R)*(val[1][0]-1)}
 
             if val[0] == 'PRS' and val[1][0] == 0: # my result
                 reward = val[1][1]
@@ -762,7 +761,7 @@ class NeurDMK(ExDMK):
                     switch_seq.append([switch])
                     event_seq.append(val['event'])
                     move_seq.append(state.move if state.move is not None else 0)
-                    reward_seq.append(state.move_rew/500 if state.move_rew is not None else 0) #TODO: hardcoded 500
+                    reward_seq.append(state.move_rew/TABLE_CASH_START if state.move_rew is not None else 0)
 
                 cards_batch.append(cards_seq)
                 switch_batch.append(switch_seq)
@@ -835,10 +834,6 @@ class NeurDMK(ExDMK):
         self.last_fwd_state =   {pa: self.zero_state    for pa in self.p_addrL}  # net state after last fwd
         self.last_upd_state =   {pa: self.zero_state    for pa in self.p_addrL}  # net state after last upd
         self.my_cards =         {pa: []                 for pa in self.p_addrL}  # current cards of player, updated while encoding states
-
-        # reversed dicts from ptable, helpful while encoding states
-        self.pos_nms_r = {k:POS_NMS[3].index(k) for k in POS_NMS[3]}  # hardcoded 3 here
-        self.tbl_mov_r = {TBL_MOV[k]: k for k in TBL_MOV}
 
         self.ze_pro_cnn = ZeroesProcessor(
             intervals=      (5,20),
