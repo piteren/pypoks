@@ -75,7 +75,7 @@ from podecide.stats_manager import StatsMNG
 from pologic.poenvy import TBL_MOV_R, POS_NMS_R, N_TABLE_PLAYERS, TABLE_CASH_START
 from pologic.podeck import PDeck
 
-from gui.gui_hdmk import Tk_HDMK_gui
+from gui.gui_hdmk import GUI_HDMK
 
 
 
@@ -387,7 +387,7 @@ class HDMK(QDMK):
 
     def __init__(
             self,
-            tk_gui :Tk_HDMK_gui,
+            tk_gui :GUI_HDMK,
             **kwargs):
         super().__init__(n_players=1, **kwargs)
         self.family = None # TODO <<

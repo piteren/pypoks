@@ -17,8 +17,8 @@ TABLE_BB = 5
 TBL_MOV = {
     0:  ('C/F', None),      # check/fold
     1:  ('CLL', None),      # call
-    2:  ('BRS', 2.5, 0.6),  # bet/raise small # TODO
-    3:  ('BRL', 4.0, 1.0),  # bet/raise large # TODO
+    2:  ('BRS', 2.5, 0.6),  # bet/raise small
+    3:  ('BRL', 4.0, 1.0),  # bet/raise large
     #4:  ('BR6', 6/3),  # bet/raise 6/3 pot
     #5:  ('BR8', 8/3),  # bet/raise 8/3 pot
     # 4:'BRA'   # all-in

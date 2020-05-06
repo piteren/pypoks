@@ -35,7 +35,7 @@ def set_image(lbl :Label, img :ImageTk.PhotoImage):
     lbl.image = img
 
 
-class Tk_HDMK_gui:
+class GUI_HDMK:
 
     def __init__(
             self,
@@ -53,12 +53,13 @@ class Tk_HDMK_gui:
         self.cards_imagesD = build_cards_img_dict()
         self.tcards = [] # here hand table cards are stored
         self.tcsh_tc = 0 # will keep it for fold capture
+        self.pl_won = [0 for _ in range(n_players)]
+        self.n_hands = 0
         self.ops_cards = {1:[],2:[]}
 
         pyp_lbl = Label(self.tk)
         pyp_lbl.grid(row=0, column=0)
         set_image(pyp_lbl, ImageTk.PhotoImage(Image.open('gui/imgs/pypoks_bar.png')))
-
 
         # players frame ************************************************************************************************
 
@@ -72,26 +73,30 @@ class Tk_HDMK_gui:
         for ix in range(n_players):
             plx_frm = Frame(pl_frm, padx=5, pady=5)
             plx_frm.grid(row=0, column=ix)
-
             plx_lblL = []
-            lbl = Label(plx_frm, bg='gray80') # icon
+            lbl = Label(plx_frm, text=0, font=('Helvetica bold', 9), width=5, pady=2)  # won
             lbl.grid(row=0, column=0)
+            plx_lblL.append(lbl)
+            lbl = Label(plx_frm, bg='gray80') # icon
+            lbl.grid(row=1, column=0)
             plx_lblL.append(lbl)
             set_image(lbl, ai_ico if ix else user_ico)
             lbl = Label(plx_frm, bg='gray80')  # dealer
-            lbl.grid(row=1, column=0)
-            plx_lblL.append(lbl)
-            set_image(lbl, self.nodealer_img)
-            lbl = Label(plx_frm, font=('Helvetica bold', 12), width=5)
             lbl.grid(row=2, column=0)
             plx_lblL.append(lbl)
-            lbl = Label(plx_frm, font=('Helvetica', 18), width=5)
+            set_image(lbl, self.nodealer_img)
+            lbl = Label(plx_frm, text=f'pl{ix}', font=('Helvetica bold', 9), width=5, pady=2) # name
             lbl.grid(row=3, column=0)
+            plx_lblL.append(lbl)
+            lbl = Label(plx_frm, font=('Helvetica bold', 12), width=5)
+            lbl.grid(row=4, column=0)
+            plx_lblL.append(lbl)
+            lbl = Label(plx_frm, font=('Helvetica', 18), width=5)
+            lbl.grid(row=5, column=0)
             plx_lblL.append(lbl)
             self.plx_elD[ix] = {'lblL': plx_lblL}
 
             self.__upd_plcsh(ix)
-
 
         # table frame **************************************************************************************************
 
@@ -123,7 +128,7 @@ class Tk_HDMK_gui:
         m_frm = Frame(self.tk, padx=5, pady=5)
         m_frm.grid(row=3, column=0)
 
-        # my cards frame ***********************************************************************************************
+        # my cards subframe ********************************************************************************************
 
         myc_frm = Frame(m_frm, padx=5, pady=5)
         myc_frm.grid(row=0, column=0)
@@ -134,7 +139,7 @@ class Tk_HDMK_gui:
             self.myc_lblL.append(clbl)
         self.__upd_myc()
 
-        # decision frame ***********************************************************************************************
+        # decision subframe ********************************************************************************************
 
         lcol = ['black', 'DodgerBlue3'] + ['red'] * (len(TBL_MOV) - 2)  # fg colors in frame
         mnm = [TBL_MOV[k][0] for k in sorted(list(TBL_MOV.keys()))]  # moves names
@@ -155,11 +160,15 @@ class Tk_HDMK_gui:
             self.dec_btnL.append(btn)
         self.__set_dec_btn_act()
 
-        # next
+        # GO
+        go_frm = Frame(self.tk, padx=5, pady=5)
+        go_frm.grid(row=4, column=0)
         self.next_go = IntVar()
-        self.next_btn = Button(self.tk, text='GO', command=lambda: self.next_go.set(1), pady=2, padx=2, width=15)
-        self.next_btn.grid(row=4, column=0, pady=5)
+        self.next_btn = Button(go_frm, text='GO', command=lambda: self.next_go.set(1), pady=2, padx=2, width=15)
+        self.next_btn.grid(row=0, column=0, pady=5)
         self.next_btn['state'] = 'disabled'
+        self.nHlbl = Label(go_frm, text=0, font=('Helvetica bold', 11), width=5)  # n_hands
+        self.nHlbl.grid(row=0, column=1)
 
     # GUI main logic methods ******************************************************************************** main logic
 
@@ -198,6 +207,8 @@ class Tk_HDMK_gui:
             print('\npress GO to start next hand')
             self.next_btn.wait_variable(self.next_go)
             self.next_btn['state'] = 'disabled'
+            self.n_hands += 1
+            self.nHlbl['text'] = self.n_hands
             prn = False
 
         if message[0] in ['PSB', 'PBB']:
@@ -254,6 +265,7 @@ class Tk_HDMK_gui:
         if message[0] == 'PRS':
             r = message[1][2] if type(message[1][2]) is str else message[1][2][-1]
             print(f' $$$: pl{message[1][0]} {message[1][1]} {r}')
+            self.__upd_pl_won(message[1][0], message[1][1])
             prn = False
 
         self.tk.update_idletasks()
@@ -266,26 +278,37 @@ class Tk_HDMK_gui:
         self.__set_dec_lbl_val()
         self.__set_dec_btn_act()
 
-    # decision frame methods **************************************************************************** decision frame
+    # players frames methods **************************************************************************** players frames
 
-    # sets $ values oflabels
-    def __set_dec_lbl_val(self, val :list=None):
-        if not val: val = ['-']*len(TBL_MOV)
-        for ix in range(len(self.dec_lblL)):
-            self.dec_lblL[ix]['text'] = val[ix]
+    # updates player tot won
+    def __upd_pl_won(
+            self,
+            plix :int,
+            won):
+        self.pl_won[plix] += int(won)
+        self.plx_elD[plix]['lblL'][0]['text'] = self.pl_won[plix]
 
-    # sets state of buttons
-    def __set_dec_btn_act(self, act :list=None):
-        if not act: act = [False]*len(TBL_MOV)
-        for ix in range(len(self.dec_btnL)):
-            self.dec_btnL[ix]['state'] = 'normal' if act[ix] else'disabled'
+    # updates player cash
+    def __upd_plcsh(
+            self,
+            plix :int,
+            csh :int=       None,   # True does not update
+            csh_cr :int=    None):  # True does not update
+        if csh is None: csh = '-'
+        if csh_cr is None: csh_cr = '-'
+        if csh is not True:     self.plx_elD[plix]['lblL'][4]['text'] = csh
+        if csh_cr is not True:  self.plx_elD[plix]['lblL'][5]['text'] = csh_cr
 
-    # my cards frame methods **************************************************************************** my cards frame
+    def __set_pl_active(self, plix :int, a=True):
+        self.plx_elD[plix]['lblL'][4]['fg'] = 'black' if a else 'gray36'
+        self.plx_elD[plix]['lblL'][5]['fg'] = 'black' if a else 'gray36'
 
-    # updates my cards
-    def __upd_myc(self, ca :str=None, cb :str=None):
-        set_image(self.myc_lblL[0], self.cards_imagesD[ca])
-        set_image(self.myc_lblL[1], self.cards_imagesD[cb])
+    def __set_button(self, i :int=None):
+        set_image(self.plx_elD[i]['lblL'][2], self.dealer_img)
+        other = [0, 1, 2]
+        other.pop(i)
+        for ix in other:
+            set_image(self.plx_elD[ix]['lblL'][2], self.nodealer_img)
 
     # table frame methods ********************************************************************************** table frame
 
@@ -309,28 +332,23 @@ class Tk_HDMK_gui:
         self.tcsh_lblL[0]['text'] = a
         self.tcsh_lblL[1]['text'] = f'({b})'
 
-    # players frames ************************************************************************************ players frames
+    # my cards frame methods **************************************************************************** my cards frame
 
-    # updates player cash
-    def __upd_plcsh(
-            self,
-            plix :int,
-            csh :int=       None,   # True does not update
-            csh_cr :int=    None):  # True does not update
-        if csh is None: csh = '-'
-        if csh_cr is None: csh_cr = '-'
-        if csh is not True:     self.plx_elD[plix]['lblL'][2]['text'] = csh
-        if csh_cr is not True:  self.plx_elD[plix]['lblL'][3]['text'] = csh_cr
+    # updates my cards
+    def __upd_myc(self, ca :str=None, cb :str=None):
+        set_image(self.myc_lblL[0], self.cards_imagesD[ca])
+        set_image(self.myc_lblL[1], self.cards_imagesD[cb])
 
-    def __set_pl_active(self, plix :int, a=True):
-        self.plx_elD[plix]['lblL'][2]['fg'] = 'black' if a else 'gray36'
-        self.plx_elD[plix]['lblL'][3]['fg'] = 'black' if a else 'gray36'
+    # decision frame methods **************************************************************************** decision frame
 
-    def __set_button(self, i :int=None):
-        set_image(self.plx_elD[i]['lblL'][1], self.dealer_img)
-        other = [0, 1, 2]
-        other.pop(i)
-        for ix in other:
-            set_image(self.plx_elD[ix]['lblL'][1], self.nodealer_img)
+    # sets $ values oflabels
+    def __set_dec_lbl_val(self, val :list=None):
+        if not val: val = ['-']*len(TBL_MOV)
+        for ix in range(len(self.dec_lblL)):
+            self.dec_lblL[ix]['text'] = val[ix]
 
-    # other ****************************************************************************************************** other
+    # sets state of buttons
+    def __set_dec_btn_act(self, act :list=None):
+        if not act: act = [False]*len(TBL_MOV)
+        for ix in range(len(self.dec_btnL)):
+            self.dec_btnL[ix]['state'] = 'normal' if act[ix] else'disabled'
