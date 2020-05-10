@@ -22,7 +22,7 @@ def cnnCEM_GFN(
         train_ce :bool= True,           # train cards encoder
         c_embW :int=    12,             # card emb width >> makes network width (x7)
         n_lay=          12,             # number of CNNR layers >> makes network deep ( >> context length)
-        width=          None,           # representation width (number of filters), for None uses input width
+        width=          None,           # representation width (number of filters), for None uses cards_encoded_width
         activation=     tf.nn.relu,
         opt_class=      partial(tf.compat.v1.train.AdamOptimizer, beta1=0.7, beta2=0.7),
         iLR=            3e-5,
