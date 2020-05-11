@@ -2,28 +2,28 @@
 
  2019 (c) piteren
 
- card net running
+    cardNet running script (training, infer)
 
- there are 2,598,960 hands not considering different suits, it is (52/5) - combination
+        there are 2,598,960 hands not considering different suits, it is (52/5) - combination
 
- stats of poks hands, for 5 (not 7) randomly taken:
- 0 (highCard)       - 50.1177%
- 1 (pair)           - 42.2569%
- 2 (2pairs)         -  4.7539%
- 3 (threeOf)        -  2.1128%
- 4 (straight)       -  0.3925%
- 5 (flush)          -  0.1965%
- 6 (FH)             -  0.1441%
- 7 (fourOf)         -  0.0240%
- 8 (straightFlush)  -  0.001544%
+        stats of poks hands, for 5 (not 7) randomly taken:
+        0 (highCard)       - 50.1177%
+        1 (pair)           - 42.2569%
+        2 (2pairs)         -  4.7539%
+        3 (threeOf)        -  2.1128%
+        4 (straight)       -  0.3925%
+        5 (flush)          -  0.1965%
+        6 (FH)             -  0.1441%
+        7 (fourOf)         -  0.0240%
+        8 (straightFlush)  -  0.001544%
 
- for seven cards (from 0 to 8):
- 0.17740 0.44400 0.23040 0.04785 0.04150 0.03060 0.02660 0.00145 0.00020 (fraction)
- 0.17740 0.62140 0.85180 0.89965 0.94115 0.97175 0.99835 0.99980 1.00000 (cumulative fraction)
+        for seven cards (from 0 to 8):
+        0.17740 0.44400 0.23040 0.04785 0.04150 0.03060 0.02660 0.00145 0.00020 (fraction)
+        0.17740 0.62140 0.85180 0.89965 0.94115 0.97175 0.99835 0.99980 1.00000 (cumulative fraction)
 
- for seven cards, when try_to_balance it (first attempt) (from 0 to 8):
- 0.11485 0.22095 0.16230 0.10895 0.08660 0.09515 0.08695 0.06490 0.05935
- 0.11485 0.33580 0.49810 0.60705 0.69365 0.78880 0.87575 0.94065 1.00000
+        for seven cards, when try_to_balance it (first attempt) (from 0 to 8):
+        0.11485 0.22095 0.16230 0.10895 0.08660 0.09515 0.08695 0.06490 0.05935
+        0.11485 0.33580 0.49810 0.60705 0.69365 0.78880 0.87575 0.94065 1.00000
 
 """
 
@@ -38,20 +38,21 @@ from ptools.neuralmess.base_elements import ZeroesProcessor
 from ptools.mpython.qmp import QueMultiProcessor
 
 from pologic.podeck import PDeck
-from cardNet.card_batcher import prep2X7Batch, get_test_batch
-from cardNet.card_network import card_net
-
-#TODO: - loss components influence
+from podecide.cardNet.card_batcher import prep2X7Batch, get_test_batch
+from podecide.cardNet.card_network import card_net
 
 
 # training function
 def train_cn(
         cn_dict :dict,
+        device=     -1,
         n_batches=  50000,
         tr_SM=      (1000,10), # train (size,montecarlo samples)
-        ts_SM=      (2000,100),   # test (size,montecarlo samples)
+        ts_SM=      (2000,100), # test (size,montecarlo samples)
         do_test=    True,
-        rQueTSize=  200,
+        rq_trgsize= 200,
+        rep_freq=   100,
+        his_freq=   500,
         verb=       0):
 
     test_batch, c_tuples = None, None
@@ -59,16 +60,16 @@ def train_cn(
 
     iPF = partial(prep2X7Batch, bs=tr_SM[0], n_monte=tr_SM[1])
     qmp = QueMultiProcessor( # QMP
-        proc_func=  iPF,
+        proc_func=      iPF,
         #taskObject=     c_tuples,
         #nProc=          10,
-        rq_trgsize=      rQueTSize,
+        rq_trgsize=     rq_trgsize,
         verb=           verb)
 
     cnet = NEModel( # model
         fwd_func=       card_net,
         mdict=          cn_dict,
-        #devices=
+        devices=        device,
         verb=           verb)
 
     ze_pro = ZeroesProcessor(
@@ -76,8 +77,6 @@ def train_cn(
         tag_pfx=        '7_zeroes',
         summ_writer=    cnet.summ_writer)
 
-    rep_freq = 100
-    his_freq = 500
     nHighAcc = 0
     sTime = time.time()
     for b in range(1, n_batches):
@@ -117,7 +116,7 @@ def train_cn(
             cnet['scaled_LR'],
             cnet['zeroes']]
         lenNH = len(fetches)
-        if b % his_freq == 0: fetches.append(cnet['hist_summ'])
+        if his_freq and b % his_freq == 0: fetches.append(cnet['hist_summ'])
 
         out = cnet.session.run(fetches, feed_dict=feed)
         if len(out)==lenNH: out.append(None)
@@ -125,7 +124,7 @@ def train_cn(
 
         if hist_summ: cnet.summ_writer.add_summary(hist_summ, b)
 
-        ze_pro.process(zs,b)
+        ze_pro.process(zs, b)
 
         if b % rep_freq == 0:
 
@@ -175,14 +174,14 @@ def train_cn(
 
             acc_RC = acc_RC.tolist()
             for cx in range(len(acc_RC)):
-                csum = tf.Summary(value=[tf.Summary.Value(tag='3_Rca/%dca'%cx, simple_value=1-acc_RC[cx])])
+                csum = tf.Summary(value=[tf.Summary.Value(tag=f'3_Rcia/{cx}ica', simple_value=1-acc_RC[cx])])
                 cnet.summ_writer.add_summary(csum, b)
 
             acc_WC = acc_WC.tolist()
             accC01 = (acc_WC[0]+acc_WC[1])/2
             accC2 = acc_WC[2]
-            c01sum = tf.Summary(value=[tf.Summary.Value(tag='5_Wca/01ca', simple_value=1-accC01)])
-            c2sum = tf.Summary(value=[tf.Summary.Value(tag='5_Wca/2ca', simple_value=1-accC2)])
+            c01sum = tf.Summary(value=[tf.Summary.Value(tag='5_Wcia/01cia', simple_value=1-accC01)])
+            c2sum = tf.Summary(value=[tf.Summary.Value(tag='5_Wcia/2cia', simple_value=1-accC2)])
             cnet.summ_writer.add_summary(c01sum, b)
             cnet.summ_writer.add_summary(c2sum, b)
 
@@ -276,14 +275,14 @@ def train_cn(
 
             acc_RC = acc_RC.tolist()
             for cx in range(len(acc_RC)):
-                csum = tf.Summary(value=[tf.Summary.Value(tag='4_RcaT/%dca'%cx, simple_value=1-acc_RC[cx])])
+                csum = tf.Summary(value=[tf.Summary.Value(tag=f'4_RciaT/{cx}ca', simple_value=1-acc_RC[cx])])
                 cnet.summ_writer.add_summary(csum, b)
 
             acc_WC = acc_WC.tolist()
             accC01 = (acc_WC[0]+acc_WC[1])/2
             accC2 = acc_WC[2]
-            c01sum = tf.Summary(value=[tf.Summary.Value(tag='6_WcaT/01ca', simple_value=1-accC01)])
-            c2sum = tf.Summary(value=[tf.Summary.Value(tag='6_WcaT/2ca', simple_value=1-accC2)])
+            c01sum = tf.Summary(value=[tf.Summary.Value(tag='6_WciaT/01cia', simple_value=1-accC01)])
+            c2sum = tf.Summary(value=[tf.Summary.Value(tag='6_WciaT/2cia', simple_value=1-accC2)])
             cnet.summ_writer.add_summary(c01sum, b)
             cnet.summ_writer.add_summary(c2sum, b)
 
@@ -291,74 +290,82 @@ def train_cn(
     qmp.close()
     if verb > 0: print('%s done' % cnet['name'])
 
-# inference function
-def inferW(
-        cNet,
-        batch):
+# inference on given batch
+def infer(cn, batch):
 
     feed = {
-        cNet['inA_PH']: batch['cA'],
-        cNet['inB_PH']: batch['cB']}
+        cn['inA_PH']: batch['cA'],
+        cn['inB_PH']: batch['cB']}
 
-    fetches = [cNet['predictions_W']]
-    return cNet.session.run(fetches, feed_dict=feed)
+    fetches = [cn['predictions_W']]
+    return cn.session.run(fetches, feed_dict=feed)
 
 # inference wrap
-# TODO: rewrite for NNmodel interface
-def infer():
+def example_inference(
+        cn_dict,
+        bs=     100000,
+        rs=     20,
+        verb=   1):
 
-    verbLev = 1
-
-    cNet = NEModel(  # model
+    cn = NEModel(  # model
         fwd_func=   card_net,
-        mdict=      {'name': 'cNet'},
-        verb=       verbLev)
+        mdict=      cn_dict,
+        verb=       verb)
 
+    """
     session = tf.Session( # session
-        graph=      cNet['graph'],
+        graph=      cn['graph'],
         config=     tf.ConfigProto(allow_soft_placement=True))
 
-    nSaver = MultiSaver( # saver
-        modelName=  cNet['name'],
-        variables=  {'FWD': cNet['tVars']},
-        savePath=   '_models',
+    saver = MultiSaver( # saver
+        model_name= cn['name'],
+        vars=       {'FWD': cn['tVars']},
+        root_FD=    '_models',
         session=    session,
-        verbLev=    verbLev)
-    nSaver.load()
+        verb=       verb)
+    saver.load()
+    """
 
-    bs = 1000000
-    rs = 20
-    inferBatch = prep2X7Batch(
+    infer_batch = prep2X7Batch(
         bs=         bs,
-        r_balance=   False,
-        d_balance=   False,
-        n_monte=     0,
-        verb=    verbLev)
-    sTime = time.time()
+        r_balance=  False,
+        d_balance=  False,
+        n_monte=    0,
+        verb=       verb)
+    s_time = time.time()
     for ix in range(rs):
-        res = inferW(cNet,inferBatch)
+        res = infer(cn, infer_batch)
         print(ix)
-    print('Finished, speed: %d/sec'%(int(bs*rs/(time.time()-sTime))))
+    print('Finished, speed: %d/sec'%(int(bs*rs/(time.time()-s_time))))
 
 
 if __name__ == "__main__":
 
-    nestarter(devices=-1, verb=1)
+    width = 24
+    name = f'cnet{width}'
+    device = -1
 
-    cndGD = {
-        'name':         'cnet_TEST',
+    nestarter(custom_name=name, devices=False)
+
+    cn_dict = {
+        'name':         name,
+        'emb_width':    width,
         #'opt_class':    tf.train.GradientDescentOptimizer,
         #'iLR':          3e-2,
         #'warm_up':      None,
         #'ann_base':     1
+        'verb':         1,
         }
 
     train_cn(
-        cn_dict=        cndGD,
+        cn_dict=        cn_dict,
+        device=         device,
         n_batches=      50000,
         tr_SM=          (1000,10),
         #ts_SM=          (2000,10000000), # 10M
         ts_SM=          (2000,100000),
-        rQueTSize=      200,
+        rq_trgsize=     200,
+        his_freq=       0,
         verb=           1)
-    #infer()
+
+    #example_inference(cn_dict)

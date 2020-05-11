@@ -13,7 +13,7 @@ from ptools.neuralmess.layers import lay_dense
 from ptools.neuralmess.encoders import enc_CNN
 
 from pologic.poenvy import TBL_MOV, N_TABLE_PLAYERS
-from cardNet.card_network import card_enc
+from podecide.cardNet.card_network import cards_enc
 
 
 # base CNN+RES+CE+move neural graph (nemodel compatible)
@@ -54,7 +54,10 @@ def cnnCEM_GFN(
             dtype=  tf.bool,
             shape=  [])
 
-        ce_out = card_enc(train_flag=train_PH, c_ids=cards_PH, c_embW=c_embW)
+        ce_out = cards_enc(
+            train_flag= train_PH,
+            c_ids=      cards_PH,
+            emb_width=  c_embW)
         cards_encoded = ce_out['output']
         enc_vars =      ce_out['enc_vars']
         enc_zsL =       ce_out['zeroes']
