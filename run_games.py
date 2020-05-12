@@ -4,6 +4,8 @@
 
 """
 
+import threading
+
 from ptools.neuralmess.dev_manager import nestarter
 from ptools.mpython.mpdecor import proc_wait, proc
 from ptools.lipytools.decorators import timing
@@ -44,27 +46,36 @@ def start_big_games():
         f'am{ix}': (NeurDMK, {
                 'family':       'A',
                 'fwd_func':     cnnCEM_GFN,
-                #'mdict':        {},
+                #'mdict':        {'train_ce':True},
                 'n_players':    150,
                 'pmex_init':    0.2,
                 'pmex_trg':     0.05,
                 #'stats_iv':     1000,
                 #'trainable':    False,
-            }) for ix in range(7)}
-    #"""
+            }) for ix in range(5)}
     #for k in ['fm0','fm4','fm3','fm6','fm10','fm11','fm9']: dmk_dna.pop(k)
     dmk_dna.update({
         f'bm{ix}': (NeurDMK, {
                 'family':       'B',
                 'fwd_func':     cnnCEM_GFN,
-                'mdict':        {'c_embW':18, 'n_lay':18},
+                'mdict':        {'train_ce':False},
                 'n_players':    150,
                 'pmex_init':    0.2,
                 'pmex_trg':     0.05,
                 #'stats_iv':     1000,
                 #'trainable':    False,
-            }) for ix in range(7)})
-    #"""
+            }) for ix in range(5)})
+    dmk_dna.update({
+        f'cm{ix}': (NeurDMK, {
+                'family':       'C',
+                'fwd_func':     cnnCEM_GFN,
+                #'mdict':        {'train_ce':False},
+                'n_players':    150,
+                'pmex_init':    0.2,
+                'pmex_trg':     0.05,
+                #'stats_iv':     1000,
+                #'trainable':    False,
+            }) for ix in range(5)})
     loopIX = 0
     while True:
         if loopIX:
@@ -74,13 +85,12 @@ def start_big_games():
         loopIX += 1
 
 
-def start_human_game():
+def start_human_game(model_name: str):
 
     @proc
     def runh(tk_gui :GUI_HDMK):
         dmk_dna = {
-        'bm1': (NeurDMK, {
-                'family':       'A',
+        model_name: (NeurDMK, {
                 'fwd_func':     cnnCEM_GFN,
                 #'mdict':        {},
                 'n_players':    2,
@@ -100,7 +110,9 @@ def start_human_game():
 
 if __name__ == "__main__":
 
+    #threading.stack_size(5000 * 1024)
+
     nestarter('_log', custom_name='dmk_games')
 
     #start_big_games()
-    start_human_game()
+    start_human_game('bm3')

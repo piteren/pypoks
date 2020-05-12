@@ -307,24 +307,10 @@ def example_inference(
         rs=     20,
         verb=   1):
 
-    cn = NEModel(  # model
+    cn = NEModel( # model
         fwd_func=   card_net,
         mdict=      cn_dict,
         verb=       verb)
-
-    """
-    session = tf.Session( # session
-        graph=      cn['graph'],
-        config=     tf.ConfigProto(allow_soft_placement=True))
-
-    saver = MultiSaver( # saver
-        model_name= cn['name'],
-        vars=       {'FWD': cn['tVars']},
-        root_FD=    '_models',
-        session=    session,
-        verb=       verb)
-    saver.load()
-    """
 
     infer_batch = prep2X7Batch(
         bs=         bs,
@@ -341,7 +327,7 @@ def example_inference(
 
 if __name__ == "__main__":
 
-    width = 24
+    width = 12
     name = f'cnet{width}'
     device = -1
 
@@ -357,6 +343,7 @@ if __name__ == "__main__":
         'verb':         1,
         }
 
+    """
     train_cn(
         cn_dict=        cn_dict,
         device=         device,
@@ -367,5 +354,5 @@ if __name__ == "__main__":
         rq_trgsize=     200,
         his_freq=       0,
         verb=           1)
-
-    #example_inference(cn_dict)
+    """
+    example_inference(cn_dict, verb=2)

@@ -33,7 +33,7 @@ def cnnCEM_GFN(
         verb=           0,
         **kwargs):
 
-    if verb>0: print('\nBuilding %s (CNN+RES+CE+M) graph...'%name)
+    if verb>0: print(f'\nBuilding {name} (CNN+RES+CE+M) graph...')
 
     with tf.variable_scope(name):
 
@@ -45,14 +45,14 @@ def cnnCEM_GFN(
             dtype=          tf.int32)
 
         cards_PH = tf.placeholder(  # 7 cards placeholder
-            name=   'cards_PH',
-            dtype=  tf.int32,
-            shape=  [None, None, 7])  # [bsz,seq,7cards]
+            name=           'cards_PH',
+            dtype=          tf.int32,
+            shape=          [None, None, 7])  # [bsz,seq,7cards]
 
         train_PH = tf.placeholder(  # train placeholder
-            name=   'train_PH',
-            dtype=  tf.bool,
-            shape=  [])
+            name=           'train_PH',
+            dtype=          tf.bool,
+            shape=          [])
 
         ce_out = cards_enc(
             train_flag= train_PH,
@@ -125,7 +125,7 @@ def cnnCEM_GFN(
 
         if verb > 1:
             print(' > out:', out)
-            print(' > fintate (split):', fin_state)
+            print(' > fin_state (split):', fin_state)
 
         # projection to logits
         logits = lay_dense(
@@ -158,7 +158,7 @@ def cnnCEM_GFN(
             logits=     logits,
             weights=    rew_PH)
 
-    train_vars = cnn_vars
+    train_vars = [] + cnn_vars
     if train_ce: train_vars += enc_vars
 
     return{
@@ -184,4 +184,12 @@ def cnnCEM_GFN(
 
 if __name__ == "__main__":
 
+    from ptools.neuralmess.nemodel import NEModel
+
     n = cnnCEM_GFN('pio',verb=2)
+
+    m = NEModel(
+        fwd_func=   cnnCEM_GFN,
+        mdict=      {'name':'pio'},
+        verb=       2)
+

@@ -823,6 +823,7 @@ class NeurDMK(ExDMK):
             fwd_func=   self.fwd_func,
             mdict=      self.mdict,
             devices=    self.device,
+            do_log=     False,
             verb=       self.verb)
 
         # get counters
