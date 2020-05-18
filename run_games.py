@@ -14,7 +14,7 @@ from pologic.poenvy import N_TABLE_PLAYERS
 
 from podecide.games_manager import GamesManager
 from podecide.decision_maker import NeurDMK, HDMK
-from podecide.neural_graphs import cnnCEM_GFN
+from podecide.decision_neural_graph import cnnCEM_GFN
 
 from gui.gui_hdmk import GUI_HDMK
 
@@ -46,7 +46,7 @@ def start_big_games():
         f'am{ix}': (NeurDMK, {
                 'family':       'A',
                 'fwd_func':     cnnCEM_GFN,
-                #'mdict':        {'train_ce':True},
+                'mdict':        {'n_lay':12},
                 'n_players':    150,
                 'pmex_init':    0.2,
                 'pmex_trg':     0.05,
@@ -58,7 +58,7 @@ def start_big_games():
         f'bm{ix}': (NeurDMK, {
                 'family':       'B',
                 'fwd_func':     cnnCEM_GFN,
-                'mdict':        {'train_ce':False},
+                'mdict':        {'n_lay':22},
                 'n_players':    150,
                 'pmex_init':    0.2,
                 'pmex_trg':     0.05,
@@ -69,7 +69,7 @@ def start_big_games():
         f'cm{ix}': (NeurDMK, {
                 'family':       'C',
                 'fwd_func':     cnnCEM_GFN,
-                #'mdict':        {'train_ce':False},
+                'mdict':        {'n_lay':36},
                 'n_players':    150,
                 'pmex_init':    0.2,
                 'pmex_trg':     0.05,
@@ -114,5 +114,5 @@ if __name__ == "__main__":
 
     nestarter('_log', custom_name='dmk_games')
 
-    #start_big_games()
-    start_human_game('bm3')
+    start_big_games()
+    #start_human_game('bm3')

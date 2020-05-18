@@ -39,7 +39,7 @@ from ptools.mpython.qmp import QueMultiProcessor
 
 from pologic.podeck import PDeck
 from podecide.cardNet.card_batcher import prep2X7Batch, get_test_batch
-from podecide.cardNet.card_network import card_net
+from podecide.cardNet.card_network_graph import card_net
 
 
 # training function

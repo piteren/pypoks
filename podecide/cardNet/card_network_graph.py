@@ -112,7 +112,7 @@ def cards_enc(
         'hist_summ':    hist_summ,
         'zeroes':       zsL}
 
-# cards network graph (FWD)
+# cards network graph (FWD), it is a cards_enc wrapped with input and classifiers
 def card_net(
         name=               'card_net',
         tat_case :bool=     False,

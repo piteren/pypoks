@@ -14,7 +14,7 @@ from ptools.neuralmess.base_elements import mrg_ckpts
 def xross(
         ppl :List[tuple],           # population (ckpt, eval, family):
         shape :tuple,               # (number of parents (from top), number of childs (from bottom))
-        noiseF :float=  0.03, # TODO: check this val
+        noiseF :float=  0.03,
         top_FD=         '_models/',
         verb=           0):
 
@@ -49,7 +49,7 @@ def xross(
         ckptL.remove('opt_vars')
 
         # merge checkpoints
-        # TODO: use sampling with probability (eval/pos as a prob)
+        # TODO: use sampling parents from players using probability (where prob may come from player winrate)
         mrg_dna = {name: [random.sample(parents_names,2), 0.2+0.6*random.random()] for name in replace_names}
         for name in mrg_dna:
             dmka_name =     mrg_dna[name][0][0]

@@ -141,14 +141,12 @@ class DMK(ABC):
             self._new_states[p_addr] += encoded_states
             self._n_new += len(encoded_states)
 
-    # takes player possible_moves, saves, updates cache
+    # takes player possible_moves, saves, updates cache (add to last new state)
     def take_possible_moves(
             self,
             p_addr,
             possible_moves :List[bool],
             moves_cash :List[int]):
-        assert p_addr in self._new_states # TODO (dev safety check): player should have new states while getting possible moves
-        # add to last new state
         last_state = self._new_states[p_addr][-1]
         last_state.possible_moves = possible_moves
         last_state.moves_cash = moves_cash
@@ -390,7 +388,7 @@ class HDMK(QDMK):
             tk_gui :GUI_HDMK,
             **kwargs):
         super().__init__(n_players=1, **kwargs)
-        self.family = None # TODO <<
+        self.family = None # TODO : hdmk shouldn't have family... ?
 
         self.tk_IQ = tk_gui.tk_que
         self.tk_OQ = tk_gui.out_que
@@ -494,7 +492,7 @@ class NeurDMK(ExDMK):
 
         upd_trigger = 2*upd_BS # twice size since updating half_rectangle in trapeze (check selection state policy @UPD)
         super().__init__(upd_trigger=upd_trigger, **kwargs)
-        assert self.stats_iv > 0 # Stats Manager is obligatory for NeurDMK # TODO
+        assert self.stats_iv > 0 # Stats Manager is obligatory for NeurDMK
 
         self.fwd_func = fwd_func
         self.mdict = mdict
