@@ -4,29 +4,15 @@
 
 """
 
-import threading
-
 from ptools.neuralmess.dev_manager import nestarter
-from ptools.mpython.mpdecor import proc_wait, proc
+from ptools.mpython.mpdecor import proc_wait
 from ptools.lipytools.decorators import timing
 
-from pologic.poenvy import N_TABLE_PLAYERS
-
 from podecide.games_manager import GamesManager
-from podecide.decision_maker import NeurDMK, HDMK
+from podecide.decision_maker import NeurDMK
 from podecide.decision_neural_graph import cnnCEM_GFN
 
-from gui.gui_hdmk import GUI_HDMK
 
-
-def run_human_eval(ddna):
-    gm = GamesManager(
-        dmk_dna=        ddna,
-        verb=           1)
-    gm.run_games(
-        gx_loop_sh=     False,
-        gx_exit_sh=     False,
-        gx_limit=       None)
 
 @timing
 @proc_wait
@@ -85,34 +71,8 @@ def start_big_games():
         loopIX += 1
 
 
-def start_human_game(model_name: str):
-
-    @proc
-    def runh(tk_gui :GUI_HDMK):
-        dmk_dna = {
-        model_name: (NeurDMK, {
-                'fwd_func':     cnnCEM_GFN,
-                #'mdict':        {},
-                'n_players':    2,
-                'pmex_init':    0,
-                'pmex_trg':     0,
-                'stats_iv':     10,
-                'trainable':    False}),
-        'hm0': (HDMK, {
-                'tk_gui':       tk_gui,
-                'stats_iv':     10})}
-        run_human_eval(dmk_dna)
-
-    tk_gui = GUI_HDMK(N_TABLE_PLAYERS)
-    runh(tk_gui)
-    tk_gui.run_tk()
-
-
 if __name__ == "__main__":
 
-    #threading.stack_size(5000 * 1024)
-
-    nestarter('_log', custom_name='dmk_games')
+    nestarter('_log', custom_name='dmk_training', silent_error=True)
 
     start_big_games()
-    #start_human_game('bm3')

@@ -20,9 +20,10 @@ if you are interested in collaboration please email [me](mailto:tojestprzedmalpa
 #
 setup:
 
-Create virtualenv with python 3.7
+
+Create virtualenv with python 3.6
 ```
-$ virtualenv -p python3.7 venv
+$ virtualenv -p python3.6 venv
 ```
 Activate it
 ```
@@ -36,3 +37,5 @@ Install spacy en model
 ```
 $ python -m spacy download en
 ```
+
+You will need tkinter for GUI, please install it for python3.6
