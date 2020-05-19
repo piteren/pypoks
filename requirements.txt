@@ -1,7 +1,6 @@
 GPUtil
 nltk
 pillow
-python-levenshtein
 regex
 rouge
 spacy

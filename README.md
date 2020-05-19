@@ -1,4 +1,4 @@
-![](pypoks.png)
+![](pypoks_logo.png)
 
 Deep Reinforcement Learning(RL) with neural network(NN) agent @poker game environment with Python & TensorFlow(TF)
 
@@ -20,9 +20,9 @@ if you are interested in collaboration please email [me](mailto:tojestprzedmalpa
 #
 setup:
 
-Create virtualenv with python 3.6
+Create virtualenv with python 3.7
 ```
-$ virtualenv -p python3.6 venv
+$ virtualenv -p python3.7 venv
 ```
 Activate it
 ```
