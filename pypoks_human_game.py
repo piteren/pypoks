@@ -9,13 +9,13 @@ from ptools.mpython.mpdecor import proc
 
 from pologic.poenvy import N_TABLE_PLAYERS
 from podecide.games_manager import GamesManager
-from podecide.decision_maker import NeurDMK, HDMK
-from podecide.decision_neural_graph import cnnCEM_GFN
+from podecide.dmk import NeurDMK, HDMK
+from podecide.dmk_graph import cnnCEM_GFN
 
 from gui.gui_hdmk import GUI_HDMK
 
 
-# function running human game in separate process that communicates with GUI via HDMK ques
+# function running human game in a separate process that communicates with GUI via HDMK ques
 @proc
 def run_human_eval(tk_gui :GUI_HDMK, model_name):
 
@@ -47,4 +47,3 @@ if __name__ == "__main__":
     tk_gui = GUI_HDMK(N_TABLE_PLAYERS)
     run_human_eval(tk_gui, 'bm3')
     tk_gui.run_tk()
-

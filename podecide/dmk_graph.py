@@ -13,7 +13,7 @@ from ptools.neuralmess.layers import lay_dense
 from ptools.neuralmess.encoders import enc_CNN
 
 from pologic.poenvy import TBL_MOV, N_TABLE_PLAYERS
-from podecide.cardNet.card_network_graph import cards_enc
+from podecide.cardNet.cardNet_graph import cards_enc
 
 
 # base CNN+RES+CE+move neural graph (nemodel compatible)

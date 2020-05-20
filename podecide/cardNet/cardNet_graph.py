@@ -27,7 +27,6 @@ def cards_enc(
         dense_mul :int=     4,          # transformer dense multiplication
         activation=         tf.nn.relu,
         dropout :float=     0,          # transformer dropout
-        # DRT (for concat enc)
         seed=               12321,
         verb=               0):
 
@@ -140,7 +139,7 @@ def card_net(
         avt_SVal=           0.1,
         avt_window=         500,
         avt_max_upd=        1.5,
-        do_clip=            False,#True,
+        do_clip=            False,
         seed=               12321,
         verb=               0):
 

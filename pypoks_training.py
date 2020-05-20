@@ -9,8 +9,8 @@ from ptools.mpython.mpdecor import proc_wait
 from ptools.lipytools.decorators import timing
 
 from podecide.games_manager import GamesManager
-from podecide.decision_maker import NeurDMK
-from podecide.decision_neural_graph import cnnCEM_GFN
+from podecide.dmk import NeurDMK
+from podecide.dmk_graph import cnnCEM_GFN
 
 
 

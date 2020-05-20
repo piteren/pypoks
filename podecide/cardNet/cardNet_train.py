@@ -31,15 +31,16 @@ from functools import partial
 import tensorflow as tf
 import time
 
+from ptools.lipytools.little_methods import prep_folder
 from ptools.neuralmess.dev_manager import nestarter
-from ptools.neuralmess.multi_saver import MultiSaver
 from ptools.neuralmess.nemodel import NEModel
 from ptools.neuralmess.base_elements import ZeroesProcessor
 from ptools.mpython.qmp import QueMultiProcessor
 
+from pypoks_envy import MODELS_FD, CN_MODELS_FD, get_cardNet_name
 from pologic.podeck import PDeck
-from podecide.cardNet.card_batcher import prep2X7Batch, get_test_batch
-from podecide.cardNet.card_network_graph import card_net
+from podecide.cardNet.cardNet_batcher import prep2X7Batch, get_test_batch
+from podecide.cardNet.cardNet_graph import card_net
 
 
 # training function
@@ -47,13 +48,16 @@ def train_cn(
         cn_dict :dict,
         device=     -1,
         n_batches=  50000,
-        tr_SM=      (1000,10), # train (size,montecarlo samples)
-        ts_SM=      (2000,100), # test (size,montecarlo samples)
+        tr_SM=      (1000,10),      # train (size,montecarlo samples)
+        ts_SM=      (2000,100000),  # test  (size,montecarlo samples)
         do_test=    True,
         rq_trgsize= 200,
         rep_freq=   100,
         his_freq=   500,
         verb=       0):
+
+    prep_folder(MODELS_FD)
+    prep_folder(CN_MODELS_FD)
 
     test_batch, c_tuples = None, None
     if do_test: test_batch, c_tuples = get_test_batch(ts_SM[0], ts_SM[1])
@@ -61,8 +65,6 @@ def train_cn(
     iPF = partial(prep2X7Batch, bs=tr_SM[0], n_monte=tr_SM[1])
     qmp = QueMultiProcessor( # QMP
         proc_func=      iPF,
-        #taskObject=     c_tuples,
-        #nProc=          10,
         rq_trgsize=     rq_trgsize,
         verb=           verb)
 
@@ -70,6 +72,7 @@ def train_cn(
         fwd_func=       card_net,
         mdict=          cn_dict,
         devices=        device,
+        save_TFD=       CN_MODELS_FD,
         verb=           verb)
 
     ze_pro = ZeroesProcessor(
@@ -275,7 +278,7 @@ def train_cn(
 
             acc_RC = acc_RC.tolist()
             for cx in range(len(acc_RC)):
-                csum = tf.Summary(value=[tf.Summary.Value(tag=f'4_RciaT/{cx}ca', simple_value=1-acc_RC[cx])])
+                csum = tf.Summary(value=[tf.Summary.Value(tag=f'4_RciaT/{cx}ca', simple_value=1-acc_RC[cx])]) # cia stands for "classification inverted accuracy"
                 cnet.summ_writer.add_summary(csum, b)
 
             acc_WC = acc_WC.tolist()
@@ -300,59 +303,23 @@ def infer(cn, batch):
     fetches = [cn['predictions_W']]
     return cn.session.run(fetches, feed_dict=feed)
 
-# inference wrap
-def example_inference(
-        cn_dict,
-        bs=     100000,
-        rs=     20,
-        verb=   1):
-
-    cn = NEModel( # model
-        fwd_func=   card_net,
-        mdict=      cn_dict,
-        verb=       verb)
-
-    infer_batch = prep2X7Batch(
-        bs=         bs,
-        r_balance=  False,
-        d_balance=  False,
-        n_monte=    0,
-        verb=       verb)
-    s_time = time.time()
-    for ix in range(rs):
-        res = infer(cn, infer_batch)
-        print(ix)
-    print('Finished, speed: %d/sec'%(int(bs*rs/(time.time()-s_time))))
-
 
 if __name__ == "__main__":
 
-    width = 12
-    name = f'cnet{width}'
     device = -1
+    c_embW = 24
+
+    name = get_cardNet_name(c_embW)
 
     nestarter(custom_name=name, devices=False)
 
     cn_dict = {
         'name':         name,
-        'emb_width':    width,
-        #'opt_class':    tf.train.GradientDescentOptimizer,
-        #'iLR':          3e-2,
-        #'warm_up':      None,
-        #'ann_base':     1
-        'verb':         1,
-        }
+        'emb_width':    c_embW,
+        'verb':         1}
 
-    """
     train_cn(
         cn_dict=        cn_dict,
         device=         device,
-        n_batches=      50000,
-        tr_SM=          (1000,10),
-        #ts_SM=          (2000,10000000), # 10M
-        ts_SM=          (2000,100000),
-        rq_trgsize=     200,
-        his_freq=       0,
+        #his_freq=       0,
         verb=           1)
-    """
-    example_inference(cn_dict, verb=2)

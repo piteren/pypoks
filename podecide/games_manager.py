@@ -13,6 +13,9 @@ import random
 import time
 from tqdm import tqdm
 
+from ptools.lipytools.little_methods import prep_folder
+
+from pypoks_envy import MODELS_FD, DMK_MODELS_FD
 from pologic.poenvy import N_TABLE_PLAYERS
 from pologic.potable import QPTable
 from podecide.gx import xross
@@ -29,6 +32,9 @@ class GamesManager:
 
         self.verb = verb
         if self.verb > 0: print('\n *** GamesManager *** stars...')
+
+        prep_folder(MODELS_FD)
+        prep_folder(DMK_MODELS_FD)
 
         self.in_que = Queue() # here receives data from DMKs and tables
 
