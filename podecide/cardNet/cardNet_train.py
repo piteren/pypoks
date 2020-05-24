@@ -307,7 +307,7 @@ def infer(cn, batch):
 if __name__ == "__main__":
 
     device = -1
-    c_embW = 24
+    c_embW = 12
 
     name = get_cardNet_name(c_embW)
 

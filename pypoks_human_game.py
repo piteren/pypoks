@@ -16,25 +16,25 @@ from gui.gui_hdmk import GUI_HDMK
 
 if __name__ == "__main__":
 
-    model_name = 'bm0'
+    model_name = 'am0'
 
     nestarter('_log', custom_name='human_game', silent_error=True)
 
     tk_gui = GUI_HDMK(N_TABLE_PLAYERS)
 
     dmk_dna = {
-    model_name: {
-            'dmk_type':     NeurDMK,
-            'fwd_func':     cnn_DMG,
-            'n_players':    2,
-            'pmex_init':    0,
-            'pmex_trg':     0,
-            'stats_iv':     10,
-            'trainable':    False},
-    'hm0': {
-            'dmk_type':     HDMK,
-            'tk_gui':       tk_gui,
-            'stats_iv':     10}}
+        model_name: {
+                'dmk_type':     NeurDMK,
+                'fwd_func':     cnn_DMG,
+                'n_players':    2,
+                'pmex_init':    0,
+                'pmex_trg':     0,
+                'stats_iv':     10,
+                'trainable':    False},
+        'hm0': {
+                'dmk_type':     HDMK,
+                'tk_gui':       tk_gui,
+                'stats_iv':     10}}
 
     gm = GamesManager(
         dmk_dna=            dmk_dna,

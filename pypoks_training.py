@@ -18,55 +18,49 @@ from podecide.dmk_graph import cnn_DMG
 @proc_wait
 def run_GM_training(
         ddna,
-        gx_limit=           10,
         use_pretrained_cn=  False):
 
     gm = GamesManager(
         dmk_dna=            ddna,
-        use_pretrained_cn=  use_pretrained_cn,
-        #acc_won_iv=        (10000,20000),
-        verb=               1)
-    gm.run_gx_games(gx_limit=gx_limit)
+        use_pretrained_cn=  use_pretrained_cn)
+    gm.run_gx_games()
 
 
-def start_big_games():
+def start_big_games(n_reloads=5):
 
-    dmks_spec = { # families and their specific parameters
-        'a': {'mdict': {'n_lay': 12}},
-        'b': {'mdict': {'n_lay': 6, 'c_embW': 16}},
-        'c': {'mdict': {'n_lay': 10}}}
-    dmks_common = { # common parameters of families
-        'dmk_type':     NeurDMK,
-        'fwd_func':     cnn_DMG,
-        'n_players':    150,
-        'pmex_init':    0.2,
-        'pmex_trg':     0.05}
+    print('Starting Big Games...')
+    dmks_spec = {
+        'a': {
+            'mdict': {'n_lay': 12},
+            'dmk_type':     NeurDMK,
+            'fwd_func':     cnn_DMG,
+            'n_players':    150,
+            'pmex_init':    0.2,
+            'pmex_trg':     0.05}}
 
     dmk_dna = {}
     for fm in dmks_spec:
-        for ix in range(5):
+        for ix in range(10):
             dmk_name = f'{fm}m{ix}'
             dmk_dict = {'family': fm}
             dmk_dict.update(deepcopy(dmks_spec[fm]))
-            dmk_dict.update(deepcopy(dmks_common))
             dmk_dna[dmk_name] = dmk_dict
 
     loopIX = 0
-    while True:
+    while loopIX < n_reloads:
 
         if loopIX==1:
-            #break  # to break after first loop
-            for dn in dmk_dna: dmk_dna[dn]['pmex_init'] = dmk_dna[dn]['pmex_trg']
+            for dn in dmk_dna:
+                dmk_dna[dn]['pmex_init'] = dmk_dna[dn]['pmex_trg']
 
         run_GM_training(
             dmk_dna,
-            #gx_limit=           2,
             use_pretrained_cn=  loopIX==0)
         loopIX += 1
+    print('Big Games finished!')
 
 
 if __name__ == "__main__":
 
-    nestarter('_log', custom_name='dmk_training', silent_error=True)
-
+    nestarter('_log', custom_name='big_games_training', silent_error=True)
     start_big_games()

@@ -30,7 +30,7 @@ class GamesManager:
             dmk_dna :dict,
             use_pretrained_cn=  True,
             acc_won_iv=         (100000,200000),
-            verb=               0):
+            verb=               1):
 
         self.verb = verb
         if self.verb > 0: print('\n *** GamesManager *** stars...')
