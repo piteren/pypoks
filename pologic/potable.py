@@ -58,6 +58,7 @@ class HHistory:
     TCD:    [c0,c1,c2...]                                           table cards dealt, only new cards are shown
     MOV:    [pln:str, move:str, mv_$:int, (pl.$, pl.$_ch, pl.$_cr)] player move (TBL_MOV.values()[0]), pl.cashes BEFORE move!
     PRS:    [pln, won:int, full_rank]                               player result, full_rank is a tuple returned by PDeck.cards_rank
+    HFN:    [table_name:str, hand_id:int]                           hand finished
     """
 
     def __init__(self):
@@ -383,6 +384,8 @@ class PTable:
 
         for pln in winnersD: hh.add('PRS', [pln, winnersD[pln]['won'], winnersD[pln]['full_rank']])
 
+        hh.add('HFN', [self.name, self.hand_ID])
+
         for pl in self.players: pl.take_hh(hh) # occasion to take reward
         self.players.append(self.players.pop(0)) # rotate table players for next hand
         return hh
@@ -454,6 +457,9 @@ class QPTable(PTable, Process):
                     self.gm_que.put('table_finished')
                     break
             except Empty: pass
+
+
+    def kill(self): Process.terminate(self)
 
 
 def example_table_speed(n_hands=100000):

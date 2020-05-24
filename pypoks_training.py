@@ -3,6 +3,7 @@
  2020 (c) piteren
 
 """
+from copy import deepcopy
 
 from ptools.neuralmess.dev_manager import nestarter
 from ptools.mpython.mpdecor import proc_wait
@@ -10,64 +11,57 @@ from ptools.lipytools.decorators import timing
 
 from podecide.games_manager import GamesManager
 from podecide.dmk import NeurDMK
-from podecide.dmk_graph import cnnCEM_GFN
-
+from podecide.dmk_graph import cnn_DMG
 
 
 @timing
 @proc_wait
-def run_GM_training(ddna, gx_limit=10):
+def run_GM_training(
+        ddna,
+        gx_limit=           10,
+        use_pretrained_cn=  False):
+
     gm = GamesManager(
-        dmk_dna=        ddna,
-        #acc_won_iv=     (10000,20000),
-        verb=           1)
-    gm.run_games(
-        #gx_loop_sh=     False,
-        #gx_exit_sh=     False,
-        gx_limit=       gx_limit)
+        dmk_dna=            ddna,
+        use_pretrained_cn=  use_pretrained_cn,
+        #acc_won_iv=        (10000,20000),
+        verb=               1)
+    gm.run_gx_games(gx_limit=gx_limit)
 
 
 def start_big_games():
-    dmk_dna = {
-        f'am{ix}': (NeurDMK, {
-                'family':       'A',
-                'fwd_func':     cnnCEM_GFN,
-                'mdict':        {'n_lay':12},
-                'n_players':    150,
-                'pmex_init':    0.2,
-                'pmex_trg':     0.05,
-                #'stats_iv':     1000,
-                #'trainable':    False,
-            }) for ix in range(5)}
-    #for k in ['fm0','fm4','fm3','fm6','fm10','fm11','fm9']: dmk_dna.pop(k)
-    dmk_dna.update({
-        f'bm{ix}': (NeurDMK, {
-                'family':       'B',
-                'fwd_func':     cnnCEM_GFN,
-                'mdict':        {'n_lay':22},
-                'n_players':    150,
-                'pmex_init':    0.2,
-                'pmex_trg':     0.05,
-                #'stats_iv':     1000,
-                #'trainable':    False,
-            }) for ix in range(5)})
-    dmk_dna.update({
-        f'cm{ix}': (NeurDMK, {
-                'family':       'C',
-                'fwd_func':     cnnCEM_GFN,
-                'mdict':        {'n_lay':36},
-                'n_players':    150,
-                'pmex_init':    0.2,
-                'pmex_trg':     0.05,
-                #'stats_iv':     1000,
-                #'trainable':    False,
-            }) for ix in range(5)})
+
+    dmks_spec = { # families and their specific parameters
+        'a': {'mdict': {'n_lay': 12}},
+        'b': {'mdict': {'n_lay': 6, 'c_embW': 16}},
+        'c': {'mdict': {'n_lay': 10}}}
+    dmks_common = { # common parameters of families
+        'dmk_type':     NeurDMK,
+        'fwd_func':     cnn_DMG,
+        'n_players':    150,
+        'pmex_init':    0.2,
+        'pmex_trg':     0.05}
+
+    dmk_dna = {}
+    for fm in dmks_spec:
+        for ix in range(5):
+            dmk_name = f'{fm}m{ix}'
+            dmk_dict = {'family': fm}
+            dmk_dict.update(deepcopy(dmks_spec[fm]))
+            dmk_dict.update(deepcopy(dmks_common))
+            dmk_dna[dmk_name] = dmk_dict
+
     loopIX = 0
     while True:
-        if loopIX:
+
+        if loopIX==1:
             #break  # to break after first loop
-            for dn in dmk_dna: dmk_dna[dn][1]['pmex_init'] = dmk_dna[dn][1]['pmex_trg']
-        run_GM_training(dmk_dna)
+            for dn in dmk_dna: dmk_dna[dn]['pmex_init'] = dmk_dna[dn]['pmex_trg']
+
+        run_GM_training(
+            dmk_dna,
+            #gx_limit=           2,
+            use_pretrained_cn=  loopIX==0)
         loopIX += 1
 
 

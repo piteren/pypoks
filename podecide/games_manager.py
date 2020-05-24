@@ -19,6 +19,7 @@ from pypoks_envy import MODELS_FD, DMK_MODELS_FD
 from pologic.poenvy import N_TABLE_PLAYERS
 from pologic.potable import QPTable
 from podecide.gx import xross
+from podecide.cardNet.put_cn_ckpt_to_models import put_cn_ckpts
 
 
 # manages DMKs, tables, games
@@ -27,8 +28,9 @@ class GamesManager:
     def __init__(
             self,
             dmk_dna :dict,
-            acc_won_iv=     (100000,200000),
-            verb=           0):
+            use_pretrained_cn=  True,
+            acc_won_iv=         (100000,200000),
+            verb=               0):
 
         self.verb = verb
         if self.verb > 0: print('\n *** GamesManager *** stars...')
@@ -36,25 +38,29 @@ class GamesManager:
         prep_folder(MODELS_FD)
         prep_folder(DMK_MODELS_FD)
 
+        self.use_pretrained_cn = use_pretrained_cn
+
         self.in_que = Queue() # here receives data from DMKs and tables
 
         self.gx_iv = acc_won_iv[-2]
 
         # create DMK dictionary
-        self.dmkD = {
-            name: dmk_dna[name][0](
-                gm_que=         self.in_que,
-                name=           name,
-                acc_won_iv=     acc_won_iv,
-                **dmk_dna[name][1]) for name in dmk_dna}
+        self.dmkD = {}
+        for name in dmk_dna:
+            dmk_type = dmk_dna[name].pop('dmk_type')
+            self.dmkD[name] = dmk_type(
+                gm_que=     self.in_que,
+                name=       name,
+                acc_won_iv= acc_won_iv,
+                **dmk_dna[name])
 
-        assert sum([self.dmkD[nm].n_players for nm in self.dmkD]) % N_TABLE_PLAYERS == 0
+        assert sum([self.dmkD[name].n_players for name in self.dmkD]) % N_TABLE_PLAYERS == 0
 
         self.families = set([self.dmkD[name].family for name in self.dmkD])
 
         self.tables = []  # list of tables
 
-    # creates tables using (ques of) DMKs
+    # creates tables using (ques of) DMKs, method uses family information to mix players
     def _create_tables(self):
 
         # build dict of lists of player ques tuples: {family: [(p_addr,in,out)]}
@@ -104,34 +110,71 @@ class GamesManager:
         if self.verb > 0: print('Stopping tables...')
         for table in self.tables: table.in_que.put('stop')
         for _ in tqdm(self.tables): self.in_que.get()
-        if self.verb > 0: print(' > all tables stopped!')
+        if self.verb > 0: print(' > all tables exited!')
 
     # starts DMKs
     def _start_dmks(self):
         if self.verb > 0: print('Starting DMKs...')
         for dmk in tqdm(self.dmkD.values()): dmk.start()
-        if self.verb > 0: print(' > DMKs init...')
+        if self.verb > 0: print(' > initializing...')
+        for _ in tqdm(self.dmkD): self.in_que.get()
+        if self.verb > 0: print(' > DMKs initialized!')
+
+        if self.use_pretrained_cn:
+            num_done = 0
+            for name in self.dmkD:
+                print(f' >> putting pretrained cardNet for {name}', end='')
+                done = put_cn_ckpts(name)
+                if done:
+                    self.dmkD[name].in_que.put('reload_model')
+                    num_done += 1
+                    print(' ...done!')
+                else: print(' - cardNet not found!')
+            for _ in range(num_done):
+                rel = self.in_que.get()
+                print(f' >>> after cardNet {rel[0]} {rel[1]}')
+
+        for dmk in self.dmkD.values(): dmk.in_que.put('start_game') # synchronizes DMKs a bit...
         for _ in self.dmkD: self.in_que.get()
-        for dmk in self.dmkD.values(): dmk.in_que.put('GO!') # to synchronize DMKs a bit...
         if self.verb > 0: print(f' > started {len(self.dmkD)} DMKs!')
 
     # stops DMKs
     def _stop_dmks(self):
         if self.verb > 0: print('Stopping DMKs...')
-        for dmk in self.dmkD.values(): dmk.in_que.put('stop')
+
+        for dmk in self.dmkD.values(): dmk.in_que.put('stop_game')
         for _ in tqdm(self.dmkD): self.in_que.get()
-        if self.verb > 0: print(' > all DMKs stopped!')
+        if self.verb > 0: print(' > all DMKs games stopped!')
 
-    # runs processed games
-    def run_games(
-            self,
-            gx_loop_sh= (3,1),  # shape of GXA while loop
-            gx_exit_sh= (3,3),  # shape of GXA after loop exit
-            gx_limit=   None):  # number of GAX to perform
+        for dmk in self.dmkD.values(): dmk.in_que.put('stop_dmk')
+        for _ in tqdm(self.dmkD): self.in_que.get()
+        if self.verb > 0: print(' > all DMKs exited!')
 
+
+    def start_games(self):
         self.tables = self._create_tables()
         self._start_tables()
         self._start_dmks()
+
+
+    def stop_games(self):
+        self._stop_tables()
+        self._stop_dmks()
+
+    # an alternative way of stopping all subprocesses (dmks & tables)
+    def kill_games(self):
+        if self.verb > 0: print('Killing games...')
+        for dmk in self.dmkD.values(): dmk.kill()
+        for table in self.tables: table.kill()
+
+    # runs processed games with gx
+    def run_gx_games(
+            self,
+            gx_loop_sh= (3,1),  # shape of GXA while loop
+            gx_exit_sh= (3,3),  # shape of GXA after loop exit
+            gx_limit=   10):    # number of GAX to perform, for None: no limit
+
+        self.start_games()
 
         stime = time.time()
         gx_time = stime
@@ -202,8 +245,7 @@ class GamesManager:
 
             time.sleep(n_sec_iv)
 
-        self._stop_tables()
-        self._stop_dmks()
+        self.stop_games()
 
         if gx_exit_sh: xross(gx_last_list, shape=gx_exit_sh, verb=2)
 

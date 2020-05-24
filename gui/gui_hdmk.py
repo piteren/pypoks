@@ -13,6 +13,8 @@ from PIL import Image, ImageTk
 from pologic.poenvy import TBL_MOV, N_TABLE_PLAYERS, TABLE_CASH_START, TABLE_SB, TABLE_BB, DEBUG_MODE
 from pologic.podeck import CRD_FIG, CRD_COL
 
+GUI_DELAY = 0.1 # seconds of delay for every message
+
 # returns card graphic file name for given cards srt (e.g. 6D - six diamond)
 def get_card_FN(cs: str or None):
     spath = 'gui/imgs/cards/dfR/'
@@ -49,6 +51,7 @@ class GUI_HDMK:
         self.tk.tk_setPalette(background='gray70')
         #self.tk.geometry('400x250+20+20')
         self.tk.resizable(0,0)
+        self.tk.protocol("WM_DELETE_WINDOW", self.__on_closing)
 
         self.cards_imagesD = build_cards_img_dict()
         self.tcards = [] # here hand table cards are stored
@@ -199,14 +202,6 @@ class GUI_HDMK:
         prn = True
 
         if message[0] == 'HST':
-            if DEBUG_MODE:
-                if self.ops_cards[1]:
-                    for ix in [1,2]:
-                        print(f' DEB: pl{ix} cards: {self.ops_cards[ix][0]} {self.ops_cards[ix][1]}')
-            self.next_btn['state'] = 'normal'
-            print('\npress GO to start next hand')
-            self.next_btn.wait_variable(self.next_go)
-            self.next_btn['state'] = 'disabled'
             self.n_hands += 1
             self.nHlbl['text'] = self.n_hands
             prn = False
@@ -268,12 +263,23 @@ class GUI_HDMK:
             self.__upd_pl_won(message[1][0], message[1][1])
             prn = False
 
+        if message[0] == 'HFN':
+            if DEBUG_MODE:
+                if self.ops_cards[1]:
+                    for ix in [1,2]:
+                        print(f' DEB: pl{ix} cards: {self.ops_cards[ix][0]} {self.ops_cards[ix][1]}')
+            self.next_btn['state'] = 'normal'
+            print('\npress GO to start next hand')
+            self.next_btn.wait_variable(self.next_go)
+            self.next_btn['state'] = 'disabled'
+            prn = False
+
         self.tk.update_idletasks()
         if prn: print(f' >>> {message}')
-        time.sleep(0.2)
+        time.sleep(GUI_DELAY)
 
     # returns decision (decision button pressed)
-    def __put_decision(self, dec :int):
+    def __put_decision(self, dec :int or None):
         self.out_que.put(dec)
         self.__set_dec_lbl_val()
         self.__set_dec_btn_act()
@@ -341,7 +347,7 @@ class GUI_HDMK:
 
     # decision frame methods **************************************************************************** decision frame
 
-    # sets $ values oflabels
+    # sets $ values of labels
     def __set_dec_lbl_val(self, val :list=None):
         if not val: val = ['-']*len(TBL_MOV)
         for ix in range(len(self.dec_lblL)):
@@ -352,3 +358,8 @@ class GUI_HDMK:
         if not act: act = [False]*len(TBL_MOV)
         for ix in range(len(self.dec_btnL)):
             self.dec_btnL[ix]['state'] = 'normal' if act[ix] else'disabled'
+
+
+    def __on_closing(self):
+        self.next_btn.invoke()
+        self.tk.quit()

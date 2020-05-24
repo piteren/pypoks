@@ -5,45 +5,42 @@
 """
 
 from ptools.neuralmess.dev_manager import nestarter
-from ptools.mpython.mpdecor import proc
 
 from pologic.poenvy import N_TABLE_PLAYERS
 from podecide.games_manager import GamesManager
 from podecide.dmk import NeurDMK, HDMK
-from podecide.dmk_graph import cnnCEM_GFN
+from podecide.dmk_graph import cnn_DMG
 
 from gui.gui_hdmk import GUI_HDMK
 
 
-# function running human game in a separate process that communicates with GUI via HDMK ques
-@proc
-def run_human_eval(tk_gui :GUI_HDMK, model_name):
-
-    dmk_dna = {
-        model_name: (NeurDMK, {
-                'fwd_func':     cnnCEM_GFN,
-                'n_players':    2,
-                'pmex_init':    0,
-                'pmex_trg':     0,
-                'stats_iv':     10,
-                'trainable':    False}),
-        'hm0': (HDMK, {
-                'tk_gui':       tk_gui,
-                'stats_iv':     10})}
-
-    gm = GamesManager(
-        dmk_dna=        dmk_dna,
-        verb=           1)
-    gm.run_games(
-        gx_loop_sh=     False,
-        gx_exit_sh=     False,
-        gx_limit=       None)
-
-
 if __name__ == "__main__":
+
+    model_name = 'bm0'
 
     nestarter('_log', custom_name='human_game', silent_error=True)
 
     tk_gui = GUI_HDMK(N_TABLE_PLAYERS)
-    run_human_eval(tk_gui, 'bm3')
+
+    dmk_dna = {
+    model_name: {
+            'dmk_type':     NeurDMK,
+            'fwd_func':     cnn_DMG,
+            'n_players':    2,
+            'pmex_init':    0,
+            'pmex_trg':     0,
+            'stats_iv':     10,
+            'trainable':    False},
+    'hm0': {
+            'dmk_type':     HDMK,
+            'tk_gui':       tk_gui,
+            'stats_iv':     10}}
+
+    gm = GamesManager(
+        dmk_dna=            dmk_dna,
+        use_pretrained_cn=  False,
+        verb=               1)
+
+    gm.start_games()
     tk_gui.run_tk()
+    gm.kill_games()

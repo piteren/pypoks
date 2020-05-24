@@ -10,12 +10,13 @@ from typing import List
 
 from ptools.neuralmess.base_elements import mrg_ckpts
 
+from pypoks_envy import DMK_MODELS_FD
+
 # genetic crossing for TF based checkpoints
 def xross(
         ppl :List[tuple],           # population (ckpt, eval, family):
         shape :tuple,               # (number of parents (from top), number of childs (from bottom))
         noiseF :float=  0.03,
-        top_FD=         '_models/',
         verb=           0):
 
     if verb > 0: print('\nXross (GA mixing)...')
@@ -40,30 +41,29 @@ def xross(
         f_parents_names[f] = parents_names
         f_replace_names[f] = replace_names
         if verb > 1:
-            print(' >> familiy', f)
-            print(' >> parents', parents_names)
-            print(' >> replace', replace_names)
+            print(f' > familiy {f}')
+            print(f' >> parents {parents_names}')
+            print(f' >> replace {replace_names}')
 
-        mfd = top_FD + '/' + parents_names[0]
+        mfd = f'{DMK_MODELS_FD}/{parents_names[0]}'
         ckptL = [dI for dI in os.listdir(mfd) if os.path.isdir(os.path.join(mfd,dI))]
         ckptL.remove('opt_vars')
 
         # merge checkpoints
-        # TODO: use sampling parents from players using probability (where prob may come from player winrate)
         mrg_dna = {name: [random.sample(parents_names,2), 0.2+0.6*random.random()] for name in replace_names}
         for name in mrg_dna:
             dmka_name =     mrg_dna[name][0][0]
             dmkb_name =     mrg_dna[name][0][1]
             rat =           mrg_dna[name][1]
-            if verb > 0: print(f' > merging({f}) {dmka_name} + {dmkb_name} >> {name} ({rat:.2f})')
+            if verb > 0: print(f' > merging: {dmka_name} + {dmkb_name} >> {name} ({rat:.2f})')
             for ckpt in ckptL:
                 mrg_ckpts(
                     ckptA =         ckpt,
-                    ckptA_FD =      '_models/%s/' % dmka_name,
+                    ckptA_FD =      f'{DMK_MODELS_FD}/{dmka_name}/',
                     ckptB =         ckpt,
-                    ckptB_FD =      '_models/%s/' % dmkb_name,
+                    ckptB_FD =      f'{DMK_MODELS_FD}/{dmkb_name}/',
                     ckptM =         ckpt,
-                    ckptM_FD =      '_models/%s/' % name,
+                    ckptM_FD =      f'{DMK_MODELS_FD}/{name}/',
                     replace_scope = name,
                     mrgF =          rat,
                     noiseF =        noiseF)

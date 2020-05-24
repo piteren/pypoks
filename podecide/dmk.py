@@ -29,8 +29,6 @@
      DMK leaves for implementation:
         _enc_states                         - states encoding/processing
         _decisions_from_new_states_subtask  - how to use _new_states to make decisions
-        _update_subtask                     - how to learn using _done_states
-        _flush_done_states                  - which states remove from _done_states after update
 
  QDMK is a DMK implemented as a process with ques
     - communicates with table and players using ques
@@ -43,11 +41,6 @@
     QDMK leaves for implementation:
         _enc_states
         _calc_probs                         - how to calculate probabilities for states
-        _do_what_gm_says                    - how to run GM commands
-        _update_subtask
-        _flush_done_states
-
-
 
  ExDMK implements exploration while sampling move (forces random model instead of probabilistic one)
     + implements basic exploration reduction (policy)
@@ -74,6 +67,7 @@ from ptools.neuralmess.base_elements import ZeroesProcessor
 from podecide.dmk_stats_manager import StatsMNG
 from pologic.poenvy import TBL_MOV_R, POS_NMS_R, N_TABLE_PLAYERS, TABLE_CASH_START
 from pologic.podeck import PDeck
+from pypoks_envy import DMK_MODELS_FD
 
 from gui.gui_hdmk import GUI_HDMK
 
@@ -178,11 +172,9 @@ class DMK(ABC):
         return decL
 
     # learn policy from _done_states (core of update task)
-    @abstractmethod
     def _learning_subtask(self): return 'no_update_done'
 
     # flush (all) & reset,
-    @abstractmethod
     def _update_done_states(self, ust_details) -> None:
         self._done_states = {pa: [] for pa in self._done_states}
         self._n_done = 0
@@ -205,6 +197,8 @@ class QDMK(Process, DMK, ABC):
 
         Process.__init__(self, target=self._dmk_proc)
         DMK.__init__(self, **kwargs)
+        self.running_process = False # flag for running process loop
+        self.running_game = False  # flag for running game loop
 
         self.gm_que = gm_que
         self.in_que = Queue() # here DMK receives data only! from GM
@@ -300,18 +294,22 @@ class QDMK(Process, DMK, ABC):
             verb=       self.verb) if self.stats_iv else None
 
     # runs GamesManager commands
-    @abstractmethod
-    def _do_what_GM_says(self, gm_data) -> None: pass
+    def _do_what_GM_says(self, gm_data) -> None:
 
-    # process method (loop, target of process)
-    def _dmk_proc(self):
+        if gm_data == 'start_game': self.__game_loop()
 
-        self._pre_process()
-        self.gm_que.put((self.name, '(DMK process) started', None))
-        self.in_que.get() # waits for GO!
+        if gm_data == 'stop_game': self.running_game = False
+
+        if gm_data == 'stop_dmk': self.running_process = False
+
+    # loop of the game
+    def __game_loop(self):
+
+        self.running_game = True
+        self.gm_que.put((self.name, 'game_started', None))
 
         n_waiting = 0 # num players ( ~> tables) waiting for decision
-        while True:
+        while self.running_game:
 
             # 'flush' the que of data from players
             pdL = []
@@ -343,13 +341,26 @@ class QDMK(Process, DMK, ABC):
 
             try: # eventually get data from GM
                 gm_data = self.in_que.get_nowait()
-                if gm_data:
-                    # stop DMK process
-                    if gm_data == 'stop':
-                        self.gm_que.put((self.name, 'finished', None))
-                        break
-                    else: self._do_what_GM_says(gm_data)
+                if gm_data: self._do_what_GM_says(gm_data)
             except Empty: pass
+
+        self.gm_que.put((self.name, 'game_stopped', None))
+
+    # process method (loop, target of process)
+    def _dmk_proc(self):
+
+        self._pre_process()
+        self.gm_que.put((self.name, '(DMK process) _pre_process() done', None))
+        self.running_process = True
+
+        while self.running_process:
+            gm_data = self.in_que.get()
+            self._do_what_GM_says(gm_data)
+
+        self.gm_que.put((self.name, '(DMK process) dmk stopped', None))
+
+
+    def kill(self): Process.terminate(self)
 
 # Random Qued DMK (implements baseline/equal probs >> choice is fully random then)
 class RnDMK(QDMK):
@@ -371,15 +382,6 @@ class RnDMK(QDMK):
             if self._new_states[p_addr][-1].possible_moves:
                 self._new_states[p_addr][-1].probs = baseline_probs
 
-    # nothing new, just implementation
-    def _learning_subtask(self): return super()._run_update_task()
-
-    # nothing new, just implementation
-    def _update_done_states(self, ust_details) -> None: super()._update_done_states(ust_details)
-
-    # nothing new, just implementation
-    def _do_what_GM_says(self, gm_data) -> None: super()._do_what_GM_says(gm_data)
-
 # Human driven QDMK
 class HDMK(QDMK):
 
@@ -388,7 +390,8 @@ class HDMK(QDMK):
             tk_gui :GUI_HDMK,
             **kwargs):
         super().__init__(n_players=1, **kwargs)
-        self.family = None # TODO : hdmk shouldn't have family... ?
+
+        self.family = None # for GM compatibility
 
         self.tk_IQ = tk_gui.tk_que
         self.tk_OQ = tk_gui.out_que
@@ -413,15 +416,6 @@ class HDMK(QDMK):
                 val = self.tk_OQ.get()
                 probs[val] = 1
                 self._new_states[p_addr][-1].probs = probs
-
-    # nothing new, just implementation
-    def _learning_subtask(self): return super()._run_update_task()
-
-    # nothing new, just implementation
-    def _update_done_states(self, ust_details) -> None: super()._update_done_states(ust_details)
-
-    # nothing new, just implementation
-    def _do_what_GM_says(self, gm_data) -> None: super()._do_what_GM_says(gm_data)
 
 # (abstract) Exploring Qued DMK
 class ExDMK(QDMK, ABC):
@@ -821,6 +815,7 @@ class NeurDMK(ExDMK):
             fwd_func=   self.fwd_func,
             mdict=      self.mdict,
             devices=    self.device,
+            save_TFD=   DMK_MODELS_FD,
             do_log=     False,
             verb=       self.verb)
 
@@ -846,11 +841,7 @@ class NeurDMK(ExDMK):
     # runs GamesManager decisions (called within _dmk_proc method)
     def _do_what_GM_says(self, gm_data):
 
-        supported_commands = [
-            'send_report',
-            'save_model',
-            'reload_model']
-        assert gm_data in supported_commands
+        super()._do_what_GM_says(gm_data)
 
         if gm_data == 'send_report':
             report = {

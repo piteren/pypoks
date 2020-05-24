@@ -16,8 +16,8 @@ from pologic.poenvy import TBL_MOV, N_TABLE_PLAYERS
 from podecide.cardNet.cardNet_graph import cards_enc
 
 
-# base CNN+RES+CE+move neural graph (nemodel compatible)
-def cnnCEM_GFN(
+# cardNet + CNN decision making neural graph (nemodel compatible)
+def cnn_DMG(
         name :str,
         train_ce :bool= True,           # train cards encoder
         c_embW :int=    12,             # card emb width >> makes network width (x7)
@@ -33,7 +33,7 @@ def cnnCEM_GFN(
         verb=           0,
         **kwargs):
 
-    if verb>0: print(f'\nBuilding {name} (CNN+RES+CE+M) graph...')
+    if verb>0: print(f'\nBuilding {name} cnn_DMG (graph)...')
 
     with tf.variable_scope(name):
 
@@ -186,10 +186,10 @@ if __name__ == "__main__":
 
     from ptools.neuralmess.nemodel import NEModel
 
-    n = cnnCEM_GFN('pio',verb=2)
+    n = cnn_DMG('pio', verb=2)
 
     m = NEModel(
-        fwd_func=   cnnCEM_GFN,
+        fwd_func=   cnn_DMG,
         mdict=      {'name':'pio'},
         verb=       2)
 

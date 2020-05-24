@@ -12,6 +12,8 @@ import tensorflow as tf
 import time
 from typing import List
 
+from pypoks_envy import DMK_MODELS_FD
+
 
 # Stats Manager (for DMK)
 class StatsMNG:
@@ -39,7 +41,7 @@ class StatsMNG:
         self.reset_stats(start_hand)
         for pID in self.chsd: self.__reset_chsd(pID)
 
-        self.summ_writer = tf.summary.FileWriter(logdir='_models/' + name, flush_secs=10)
+        self.summ_writer = tf.summary.FileWriter(logdir=f'{DMK_MODELS_FD}/{name}', flush_secs=10)
         self.stime = time.time()
 
     # resets stats (DMK)
