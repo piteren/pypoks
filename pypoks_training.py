@@ -3,6 +3,12 @@
  2020 (c) piteren
 
 """
+
+import os
+import sys
+workingFolder = os.getcwd()
+sys.path.insert(0, workingFolder) # working folder
+
 from copy import deepcopy
 
 from ptools.neuralmess.dev_manager import nestarter

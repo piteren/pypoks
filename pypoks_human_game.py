@@ -4,6 +4,11 @@
 
 """
 
+import os
+import sys
+workingFolder = os.getcwd()
+sys.path.insert(0, workingFolder) # working folder
+
 from ptools.neuralmess.dev_manager import nestarter
 
 from pologic.poenvy import N_TABLE_PLAYERS

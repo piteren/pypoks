@@ -7,6 +7,10 @@
 
 """
 
+import os
+import sys
+workingFolder = os.getcwd()
+sys.path.insert(0, workingFolder) # working folder
 
 import time
 

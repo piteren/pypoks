@@ -20,6 +20,7 @@ if you are interested in collaboration please email [me](mailto:me@piotrniewinsk
 #
 ###Setup:
 
+_To run training scripts you will need about 50 CPU cores, 100GB RAM and a single GPU system. If you are not going to use pretrained cardNet, which is optional, you will not need a GPU._
 
 * Create virtualenv with python 3.6
 ```
@@ -37,25 +38,35 @@ $ pip install -r requirements.txt
 ```
 $ python -m spacy download en
 ```
+* Init and update ptools submodule
+```
+$ git submodule init
+$ git submodule update
+```
 
 * You will also need tkinter for GUI (pypoks_human_game.py), please install it for python3.6
 
 #
 ###Reinforcement Learning
-To run reinforcement learning (NN training):
+This repo is configured for reinforcement learning of limit texas holdem poker with 3 players. You can change configuration or please contact me if you have any questions. To run reinforcement learning (NN training):
 
 * If you want to use pretrained cardNet (sppeds-up reinforcement learning) you have to train cardNet by running:
 ```
 $ python podecide/cardNet/cardNet_train.py
 ```
-cardNet training uses single GPU.
-You can also skip traing cardNet. Pypoks reinforcement learning will run without it.
+Training of cardNet uses single GPU and will take about 1 hour on GTX1080.
+You can also skip training of cardNet. Pypoks reinforcement learning will run without it.
 
-* Run pypoks_training.py, the process is configured for about 50 cores and 100GB RAM (no GPU needed)
+* Run pypoks_training.py
 ```
 $ python pypoks_training.py
 ```
-Check Tensorboard (--logdir="_models") for some stats of training and poker game.
+_In case of_ "OSError: [Errno 24] Too many open files" _You may need to increase open files limit before:_
+```
+$ ulimit -n 65535
+```
+
+After the training check Tensorboard (--logdir="_models") for some stats of the reinforcement process.
 
 #
 ### Test

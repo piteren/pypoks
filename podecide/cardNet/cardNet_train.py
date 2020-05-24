@@ -27,6 +27,11 @@
 
 """
 
+import os
+import sys
+workingFolder = os.getcwd()
+sys.path.insert(0, workingFolder) # working folder
+
 from functools import partial
 import tensorflow as tf
 import time
