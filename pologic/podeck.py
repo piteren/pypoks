@@ -15,7 +15,8 @@ from tqdm import tqdm
 
 import ptools.lipytools.little_methods as lM
 
-from ptools.mpython.qmp import QueMultiProcessor
+#from ptools.mpython.qmp import QueMultiProcessor
+from ptools.mpython.qmp import DeQueMP
 
 # card figures
 CRD_FIG = {
@@ -381,33 +382,33 @@ class ASC(dict):
             comb_list = list(itertools.combinations([x for x in range(52)], 7))
 
             if use_QMP:
+
                 def iPF(task):
                     tv = []
                     for t in task: tv.append((t,PDeck.cards_rank(t)[1]))
                     return tv
 
-                qmp = QueMultiProcessor( # QMP
-                    proc_func=  iPF,
-                    reload=    1000,
-                    user_tasks=      True,
-                    verb=           1)
+                dqmp = DeQueMP(
+                    func=       iPF,
+                    user_tasks= True,
+                    verb=       1)
 
                 np = 0
                 tcmb = []
                 for cmb in comb_list:
                     tcmb.append(cmb)
                     if len(tcmb) > 10000:
-                        qmp.putTask(tcmb)
+                        dqmp.put_task({'task':tcmb})
                         tcmb = []
                         np += 1
                 if tcmb:
-                    qmp.putTask(tcmb)
+                    dqmp.put_task({'task':tcmb})
                     np += 1
                 for _ in tqdm(range(np)):
-                    res = qmp.getResult()
+                    res = dqmp.get_result()
                     for r in res:
                         as_cards[r[0]] = r[1]
-                qmp.close()
+                dqmp.close()
 
             else: as_cards = {cmb: PDeck.cards_rank(cmb)[1] for cmb in tqdm(comb_list)}
 

@@ -40,7 +40,7 @@ from ptools.lipytools.little_methods import prep_folder
 from ptools.neuralmess.dev_manager import nestarter
 from ptools.neuralmess.nemodel import NEModel
 from ptools.neuralmess.base_elements import ZeroesProcessor
-from ptools.mpython.qmp import QueMultiProcessor
+from ptools.mpython.qmp import DeQueMP
 
 from pypoks_envy import MODELS_FD, CN_MODELS_FD, get_cardNet_name
 from pologic.podeck import PDeck
@@ -56,7 +56,7 @@ def train_cn(
         tr_SM=      (1000,10),      # train (size,montecarlo samples)
         ts_SM=      (2000,100000),  # test  (size,montecarlo samples)
         do_test=    True,
-        rq_trgsize= 200,
+        rq_trg=     200,
         rep_freq=   100,
         his_freq=   500,
         verb=       0):
@@ -68,9 +68,10 @@ def train_cn(
     if do_test: test_batch, c_tuples = get_test_batch(ts_SM[0], ts_SM[1])
 
     iPF = partial(prep2X7Batch, bs=tr_SM[0], n_monte=tr_SM[1])
-    qmp = QueMultiProcessor( # QMP
-        proc_func=      iPF,
-        rq_trgsize=     rq_trgsize,
+    iPF.__name__ = 'prep2X7Batch'
+    dqmp = DeQueMP(
+        func=           iPF,
+        rq_trg=         rq_trg,
         verb=           verb)
 
     cnet = NEModel( # model
@@ -90,7 +91,7 @@ def train_cn(
     for b in range(1, n_batches):
 
         # feed loop for towers
-        batches = [qmp.getResult() for _ in cnet.gFWD]
+        batches = [dqmp.get_result() for _ in cnet.gFWD]
         feed = {}
         for ix in range(len(cnet.gFWD)):
             batch = batches[ix]
@@ -295,7 +296,7 @@ def train_cn(
             cnet.summ_writer.add_summary(c2sum, b)
 
     cnet.saver.save(step=cnet['g_step'])
-    qmp.close()
+    dqmp.close()
     if verb > 0: print('%s done' % cnet['name'])
 
 # inference on given batch
@@ -326,5 +327,6 @@ if __name__ == "__main__":
     train_cn(
         cn_dict=        cn_dict,
         device=         device,
+        #n_batches=      5000,
         #his_freq=       0,
         verb=           1)
