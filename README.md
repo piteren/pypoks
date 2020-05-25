@@ -20,7 +20,7 @@ if you are interested in collaboration please email [me](mailto:me@piotrniewinsk
 #
 ###Setup:
 
-_To run training scripts you will need about 50 CPU cores, 100GB RAM and a single GPU system. If you are not going to use pretrained cardNet, which is optional, you will not need a GPU._
+_To run training scripts you will need about 50 CPU cores, 80GB RAM and a single GPU system. If you are not going to use pretrained cardNet, which is optional, you will not need a GPU._
 
 * Create virtualenv with python 3.6
 ```
