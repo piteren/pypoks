@@ -16,19 +16,19 @@ from pologic.podeck import CRD_FIG, CRD_COL
 GUI_DELAY = 0.1 # seconds of delay for every message
 
 # returns card graphic file name for given cards srt (e.g. 6D - six diamond)
-def get_card_FN(cs: str or None):
-    spath = 'gui/imgs/cards/dfR/'
-    epath = '0000.png'
-    if not cs: return spath + 'REV' + epath
-    return spath + cs + epath
+def get_card_FN(
+        imgs_FD,          # folder with gui images
+        cs: str or None): # reverse for none
+    if not cs: return f'{imgs_FD}/cards/dfR/REV0000.png'
+    return            f'{imgs_FD}/cards/dfR/{cs}0000.png'
 
 # builds tk images dict
-def build_cards_img_dict():
-    cD = {None: ImageTk.PhotoImage(Image.open(get_card_FN(None)))}
+def build_cards_img_dict(cards_FD):
+    cD = {None: ImageTk.PhotoImage(Image.open(get_card_FN(cards_FD, None)))}
     for cf in CRD_FIG.values():
         if cf != 'X': # remove pad
             for cc in CRD_COL.values():
-                cD[cf+cc] = ImageTk.PhotoImage(Image.open(get_card_FN(cf+cc)))
+                cD[cf+cc] = ImageTk.PhotoImage(Image.open(get_card_FN(cards_FD, cf+cc)))
     return cD
 
 # sets image of label
@@ -41,7 +41,8 @@ class GUI_HDMK:
 
     def __init__(
             self,
-            n_players=  N_TABLE_PLAYERS):
+            n_players=  N_TABLE_PLAYERS,
+            imgs_FD=    'gui/imgs'):
 
         self.tk_que = Queue()
         self.out_que = Queue()
@@ -53,7 +54,7 @@ class GUI_HDMK:
         self.tk.resizable(0,0)
         self.tk.protocol("WM_DELETE_WINDOW", self.__on_closing)
 
-        self.cards_imagesD = build_cards_img_dict()
+        self.cards_imagesD = build_cards_img_dict(imgs_FD)
         self.tcards = [] # here hand table cards are stored
         self.tcsh_tc = 0 # will keep it for fold capture
         self.pl_won = [0 for _ in range(n_players)]
@@ -62,17 +63,17 @@ class GUI_HDMK:
 
         pyp_lbl = Label(self.tk)
         pyp_lbl.grid(row=0, column=0)
-        set_image(pyp_lbl, ImageTk.PhotoImage(Image.open('gui/imgs/pypoks_bar.png')))
+        set_image(pyp_lbl, ImageTk.PhotoImage(Image.open(f'{imgs_FD}/pypoks_bar.png')))
 
         # players frame ************************************************************************************************
 
         pl_frm = Frame(self.tk, padx=5, pady=5)
         pl_frm.grid(row=1, column=0)
         self.plx_elD = {}
-        self.dealer_img = ImageTk.PhotoImage(Image.open('gui/imgs/dealer.png'))
-        self.nodealer_img = ImageTk.PhotoImage(Image.open('gui/imgs/no_dealer.png'))
-        user_ico = ImageTk.PhotoImage(Image.open('gui/imgs/user.png'))
-        ai_ico = ImageTk.PhotoImage(Image.open('gui/imgs/ai.png'))
+        self.dealer_img = ImageTk.PhotoImage(Image.open(f'{imgs_FD}/dealer.png'))
+        self.nodealer_img = ImageTk.PhotoImage(Image.open(f'{imgs_FD}/no_dealer.png'))
+        user_ico = ImageTk.PhotoImage(Image.open(f'{imgs_FD}/user.png'))
+        ai_ico = ImageTk.PhotoImage(Image.open(f'{imgs_FD}/ai.png'))
         for ix in range(n_players):
             plx_frm = Frame(pl_frm, padx=5, pady=5)
             plx_frm.grid(row=0, column=ix)

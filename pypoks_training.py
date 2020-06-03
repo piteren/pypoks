@@ -6,8 +6,8 @@
 
 import os
 import sys
-workingFolder = os.getcwd()
-sys.path.insert(0, workingFolder) # working folder
+working_folder = os.getcwd()
+sys.path.insert(0, working_folder) # working folder
 
 from copy import deepcopy
 
