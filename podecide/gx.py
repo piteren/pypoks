@@ -15,7 +15,7 @@ from pypoks_envy import DMK_MODELS_FD
 # genetic crossing for TF based checkpoints
 def xross(
         ppl :List[tuple],           # population (ckpt, eval, family):
-        shape :tuple,               # (number of parents (from top), number of childs (from bottom))
+        shape :tuple,               # (number of parents (from top), number of children (from bottom))
         noiseF :float=  0.03,
         verb=           0):
 
@@ -41,7 +41,7 @@ def xross(
         f_parents_names[f] = parents_names
         f_replace_names[f] = replace_names
         if verb > 1:
-            print(f' > familiy {f}')
+            print(f' > family {f}')
             print(f' >> parents {parents_names}')
             print(f' >> replace {replace_names}')
 

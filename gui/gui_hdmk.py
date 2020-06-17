@@ -56,7 +56,7 @@ class GUI_HDMK:
 
         self.cards_imagesD = build_cards_img_dict(imgs_FD)
         self.tcards = [] # here hand table cards are stored
-        self.tcsh_tc = 0 # will keep it for fold capture
+        self.tcsh_tc = 0 # will keep it to capture fold event
         self.pl_won = [0 for _ in range(n_players)]
         self.n_hands = 0
         self.ops_cards = {1:[],2:[]}
