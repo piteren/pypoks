@@ -4,5 +4,5 @@ pillow
 regex
 rouge
 spacy
-tensorflow-gpu==1.15.2
+tensorflow-gpu==2.5.2
 tqdm
