@@ -12,8 +12,8 @@ Machine Learining (ML) areas:
 tech scope:
 - advanced neural networks architectures @TensorFlow
 - data processing with Python
-- Python Multiprocessing & TF (many processes, many GPUs and a lot of data for parallel computing)
-- GA with TF
+- Python Multiprocessing & TensorFlow (many processes, many GPUs and a lot of data for parallel computing)
+- Genetic Algorithms with TensorFlow based neural models
 
 if you are interested in collaboration please email [me](mailto:me@piotrniewinski.com)
 
