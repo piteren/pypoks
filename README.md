@@ -1,6 +1,6 @@
 ![](pypoks_logo.png)
 
-###Deep Reinforcement Learning (RL) with neural network (NN) agent @poker game environment with Python & TensorFlow(TF)
+### Deep Reinforcement Learning (RL) with neural network (NN) agent @poker game environment with Python & TensorFlow(TF)
 
 Machine Learining (ML) areas:
 - DRL + NN to make good decisions (building the strategy)
