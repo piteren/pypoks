@@ -17,8 +17,7 @@ tech scope:
 
 if you are interested in collaboration please email [me](mailto:me@piotrniewinski.com)
 
-#
-###Setup:
+### Setup:
 
 _To run training scripts you will need about 50 CPU cores, 80GB RAM and a single GPU system. If you are not going to use pretrained cardNet, which is optional, you will not need a GPU._
 
