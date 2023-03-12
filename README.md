@@ -2,7 +2,7 @@
 
 ### Deep Reinforcement Learning (DRL) with neural network (NN) agent @poker game environment with Python & PyTorch
 
-Machine Learining (ML) areas:
+Machine Learning areas:
 - DRL + NN to make good decisions (building the strategy)
 - limited observation data and noisy input
 - efficient environment (data) representation for NN & RL 
