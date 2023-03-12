@@ -1,0 +1,2 @@
+class PyPoksException(Exception):
+    pass

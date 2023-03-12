@@ -1,106 +1,85 @@
-"""
-
- 2019 (c) piteren
-
- there are 2,598,960 hands not considering different suits it is (52/5) - combination
-
- stats of poks hands, for 5 (not 7) randomly taken:
- 0 (highCard)       - 50.1177%
- 1 (pair)           - 42.2569%
- 2 (2pairs)         -  4.7539%
- 3 (threeOf)        -  2.1128%
- 4 (straight)       -  0.3925%
- 5 (flush)          -  0.1965%
- 6 (FH)             -  0.1441%
- 7 (fourOf)         -  0.0240%
- 8 (straightFlush)  -  0.001544%
-
- for seven cards (from 0 to 8):
- 0.17740 0.44400 0.23040 0.04785 0.04150 0.03060 0.02660 0.00145 0.00020 (fraction)
- 0.17740 0.62140 0.85180 0.89965 0.94115 0.97175 0.99835 0.99980 1.00000 (cumulative fraction)
-
- for seven cards, when try_to_balance it (first attempt) (from 0 to 8):
- 0.11485 0.22095 0.16230 0.10895 0.08660 0.09515 0.08695 0.06490 0.05935
- 0.11485 0.33580 0.49810 0.60705 0.69365 0.78880 0.87575 0.94065 1.00000
-
-"""
-
 import random
 from tqdm import tqdm
+from typing import Dict, Optional
 
-import ptools.lipytools.little_methods as lim
+from pypaq.lipytools.files import r_pickle, w_pickle
+from pypaq.lipytools.pylogger import get_pylogger
 
 from pologic.podeck import PDeck, ASC
 
 
 # prepares batch of 2x 7cards with regression, MP ready
-def prep2X7Batch(
-        task=       None,   # needed by QMP, here passed avoid_tuples - list of sorted_card tuples (from test batch) to avoid in batch
-        bs=         1000,   # batch size
-        r_balance=  True,   # rank balance (forces to balance ranks)
-        d_balance=  0.1,    # draw balance (False or fraction of draws)
-        no_maskP=   None,   # probability of not masking (all cards are known), for None uses full random
-        n_monte=    30,     # num of montecarlo samples for A win chance estimation
-        asc: dict=  None,
-        verb=       0):
+def prep2X7batch(
+        deck: Optional[PDeck]=  None,
+        task=                   None,   # needed by QMP, here passed avoid_tuples - list of sorted_card tuples (from test batch) to avoid in batch
+        batch_size=             1000,   # batch size
+        r_balance=              True,   # rank balance (forces to balance ranks)
+        d_balance=              0.1,    # draw balance (False or fraction of draws)
+        no_maskP=               None,   # probability of not masking (all cards are known), for None uses full random
+        n_monte=                30,     # num of montecarlo samples for A win chance estimation
+        asc: dict=              None,
+        verbosity=              0
+) -> Dict[str,list]:
 
-    deck = PDeck() # since it is hard to give any object to method of subprocess...
+    if not deck:
+        deck = PDeck()
+
     avoid_tuples = task
 
     b_cA, b_cB, b_wins, b_rA, b_rB, b_mAWP = [],[],[],[],[],[] # batches
-    r_num = [0]*9 # ranks counter
-    w_num = [0]*3 # wins counter
+    rank_counter = [0]*9
+    won_counter =  [0]*3
 
-    iter = range(bs)
-    if verb: iter = tqdm(iter)
+    iter = range(batch_size)
+    if verbosity: iter = tqdm(iter)
     for _ in iter:
-        deck.reset_deck()
+        deck.reset()
 
         # look 4 the last freq rank
-        n_min_rank = min(r_num)
-        desired_rank = r_num.index(n_min_rank)
+        n_min_rank = min(rank_counter)
+        desired_rank = rank_counter.index(n_min_rank)
 
-        desired_draw = False if d_balance is False else w_num[2] < d_balance * sum(w_num)
+        desired_draw = False if d_balance is False else won_counter[2] < d_balance * sum(won_counter)
 
-        cA = None           # seven cards of A
-        cB = None           # seven cards of B
-        rA = None           # rank A
-        rB = None           # rank B
-        got_allC = False    # got all (proper) cards
-        while not got_allC:
+        cards_7A = None     # seven cards of A
+        cards_7B = None     # seven cards of B
+        rank_A = None
+        rank_B = None
+        rank_A_value = 0
+        rank_B_value = 0
 
-            cA = deck.get7of_rank(desired_rank) if r_balance else [deck.get_card() for _ in range(7)] # 7 cards for A
-            cB = [deck.get_card() for _ in range(2)] + cA[2:] # 2+5 cards for B
+        got_all_cards = False  # got all (proper) cards
+        while not got_all_cards:
+
+            cards_7A = deck.get7of_rank(desired_rank) if r_balance else [deck.get_card() for _ in range(7)] # 7 cards for A
+            cards_7B = [deck.get_card() for _ in range(2)] + cards_7A[2:] # 2+5 cards for B
 
             # randomly swap hands of A and B (to avoid win bias)
             if random.random() > 0.5:
-                temp = cA
-                cA = cB
-                cB = temp
+                temp = cards_7A
+                cards_7A = cards_7B
+                cards_7B = temp
 
             # get cards ranks
-            rA = deck.cards_rank(cA)
-            rB = deck.cards_rank(cB)
+            rank_A, rank_A_value, _, _ = deck.cards_rank(cards_7A)
+            rank_B, rank_B_value, _, _ = deck.cards_rank(cards_7B)
 
-            rAV = rA[1]
-            rBV = rB[1]
-            rA = rA[0]
-            rB = rB[0]
+            if not desired_draw or (desired_draw and rank_A_value==rank_B_value):
+                got_all_cards = True
+            if got_all_cards and type(avoid_tuples) is list and (tuple(sorted(cards_7A)) in avoid_tuples or tuple(sorted(cards_7B)) in avoid_tuples):
+                got_all_cards = False
 
-            if not desired_draw or (desired_draw and rAV==rBV): got_allC = True
-            if got_allC and type(avoid_tuples) is list and (tuple(sorted(cA)) in avoid_tuples or tuple(sorted(cB)) in avoid_tuples): got_allC = False
+        rank_counter[rank_A]+=1
+        rank_counter[rank_B]+=1
 
-        r_num[rA]+=1
-        r_num[rB]+=1
-
-        diff = rAV-rBV
+        diff = rank_A_value-rank_B_value
         wins = 0 if diff>0 else 1
         if diff==0: wins = 2 # a draw
-        w_num[wins] += 1
+        won_counter[wins] += 1
 
         # convert cards tuples to ints
-        cA = [PDeck.cti(c) for c in cA]
-        cB = [PDeck.cti(c) for c in cB]
+        cards_7A = [PDeck.cti(c) for c in cards_7A]
+        cards_7B = [PDeck.cti(c) for c in cards_7B]
 
         # mask some table cards
         nMask = [0]
@@ -108,17 +87,17 @@ def prep2X7Batch(
         elif random.random() > no_maskP: nMask = [5,2,1]
         random.shuffle(nMask)
         nMask = nMask[0]
-        for ix in range(2+5-nMask,7): cA[ix] = 52
+        for ix in range(2+5-nMask,7): cards_7A[ix] = 52
 
         # estimate A win chance with montecarlo
         n_wins = 0
         if diff > 0: n_wins = 1
         if diff == 0: n_wins = 0.5
         if n_monte > 0:
-            got_cards = {c for c in cA if c!=52} # set
+            got_cards = {c for c in cards_7A if c!=52} # set
             for it in range(n_monte):
                 nine_cards = got_cards.copy()
-                while len(nine_cards) < 9: nine_cards.add(int(52 * random.random())) # much faster than random.randrange(52), use numpy.random.randint(52, size=10...) for more
+                while len(nine_cards) < 9: nine_cards.add(int(52 * random.random())) # much faster than random.randrange(52), use numpy.random.randint(52, size=10..) for more
                 nine_cards = sorted(nine_cards)
                 if asc:
                     aR = asc[tuple(nine_cards[:7])]
@@ -130,65 +109,55 @@ def prep2X7Batch(
                 if aR == bR: n_wins += 0.5
         mcAChance = n_wins / (n_monte + 1)
 
-        b_cA.append(cA)             # 7 cards of A
-        b_cB.append(cB)             # 7 cards of B
+        b_cA.append(cards_7A)             # 7 cards of A
+        b_cB.append(cards_7B)             # 7 cards of B
         b_wins.append(wins)         # who wins {0,1,2}
-        b_rA.append(rA)             # rank of A
-        b_rB.append(rB)             # rank ok B
-        b_mAWP.append(mcAChance)    # chances for A
+        b_rA.append(rank_A)             # rank of A
+        b_rB.append(rank_B)             # rank ok B
+        b_mAWP.append(mcAChance)    # win chances for A
 
     return {
-        'cA':       b_cA,
-        'cB':       b_cB,
-        'wins':     b_wins,
-        'rA':       b_rA,
-        'rB':       b_rB,
-        'mAWP':     b_mAWP,
-        'r_num':    r_num,
-        'w_num':    w_num}
+        'cards_A':      b_cA,
+        'cards_B':      b_cB,
+        'label_won':    b_wins,
+        'label_rank_A': b_rA,
+        'label_rank_B': b_rB,
+        'prob_won_A':   b_mAWP,
+        'rank_counter': rank_counter,
+        'won_counter':  won_counter}
 
 # prepares tests batch
 def get_test_batch(
-        size :int,          # batch size
-        mcs :int,           # n montecarlo samples
-        with_ASC=    True): # with all seven cards (dict)
+        size :int,         # batch size
+        mcs :int,          # n montecarlo samples
+        use_ASC=    True,  # with all seven cards (dict)
+        logger=     None):
 
-    fn = '_cache/s%d_m%d.batch'%(size,mcs)
-    test_batch = lim.r_pickle(fn)
-    if test_batch: print('\nGot test batch from file: %s'%fn)
+    if not logger: logger = get_pylogger()
+
+    fn = f'_cache/s{size}_m{mcs}.batch'
+    test_batch = r_pickle(fn)
+    if test_batch:
+        logger.info(f'got test batch from file: {fn}')
     else:
-        print('\nPreparing test batch (%d,%d)...'%(size,mcs))
-        test_batch = prep2X7Batch(
-            bs=         size,
+        logger.info(f'preparing test batch ({size},{mcs})..')
+        test_batch = prep2X7batch(
+            deck=       PDeck(),
+            batch_size= size,
             n_monte=    mcs,
-            asc=        ASC('_cache/asc.dict') if with_ASC else None,
-            verb=       1)
-        lim.w_pickle(test_batch, fn)
+            asc=        ASC('_cache/asc.dict') if use_ASC else None,
+            verbosity=  1)
+        w_pickle(test_batch, fn)
     c_tuples = []
     for ix in range(size):
-        c_tuples.append(tuple(sorted(test_batch['cA'][ix])))
-        c_tuples.append(tuple(sorted(test_batch['cB'][ix])))
-    print('Got %d of hands in test_batch' % len(c_tuples))
-    c_tuples = dict.fromkeys(c_tuples, 1)
-    print('of which %d is unique' % len(c_tuples))
-
+        c_tuples.append(tuple(sorted(test_batch['cards_A'][ix])))
+        c_tuples.append(tuple(sorted(test_batch['cards_B'][ix])))
+    logger.info(f'got {len(c_tuples)} of hands in test_batch, of which {len(set(c_tuples))} is unique')
     return test_batch, c_tuples
 
 
 if __name__ == "__main__":
 
-    """
-    batch = prep2X7Batch(
-        bs=         10,
-        probNoMask= 0.5,
-        nMonte=     100)
-    crd7A = batch['crd7AB']
-    mcAC = batch['mcAChanceB']
-
-    for ix in range(len(crd7A)):
-        for c in crd7A[ix]:
-            if c!=52: print(PDeck.cts(c), end=' ')
-        print(mcAC[ix])
-    """
-    get_test_batch(2000,100000)
-    #get_test_batch(2000,10000000)
+    #get_test_batch(2000, 10000)
+     get_test_batch(2000, 100000)
+    #get_test_batch(2000, 10000000)

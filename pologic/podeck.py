@@ -1,22 +1,18 @@
-"""
-
- 2019 (c) piteren
-
-    cards may be represented in 3 forms:
-        int 0-52            # 52 is pad (no card) - this is default internal deck representation
-        tuple (0-13,0-3)
-        str AC
-"""
-
 import itertools
+from ompr.runner import RunningWorker, OMPRunner
+from pypaq.lipytools.files import r_pickle, w_pickle
 import random
 import time
+from typing import Any
 from tqdm import tqdm
 
-import ptools.lipytools.little_methods as lM
 
-#from ptools.mpython.qmp import QueMultiProcessor
-from ptools.mpython.qmp import DeQueMP
+"""
+cards may be represented with 3 types:
+    int 0-52            # 52 is pad (no card) - this is default internal deck representation
+    tuple (0-13,0-3)
+    str '9C'
+"""
 
 # card figures
 CRD_FIG = {
@@ -85,17 +81,17 @@ class PDeck:
 
         self.__full_init_deck = [PDeck.ctt(ci) for ci in range(52)]
         self.cards = None
-        self.reset_deck()
+        self.reset()
 
     # resets deck to initial state
-    def reset_deck(self):
+    def reset(self):
         self.cards = [] + self.__full_init_deck
         random.shuffle(self.cards)
 
     # returns one card from deck, returns int
     def get_card(self): return self.cards.pop()
 
-    # returns exact card from deck, id not present return None
+    # returns exact card from deck, if id not present >> return None
     def getex_card(self, card: tuple or int):
         if type(card) is int: card = PDeck.ctt(card)
         if card in self.cards:
@@ -109,22 +105,22 @@ class PDeck:
         seven = []
         if rank == 0:
             while True:
-                self.reset_deck()
+                self.reset()
                 seven = [self.get_card() for _ in range(7)]
                 if self.cards_rank(seven)[0] == 0: break
         if rank == 1:
             while True:
-                self.reset_deck()
+                self.reset()
                 seven = [self.get_card() for _ in range(7)]
                 if self.cards_rank(seven)[0] == 1: break
         if rank == 2:
             while True:
-                self.reset_deck()
+                self.reset()
                 seven = [self.get_card() for _ in range(7)]
                 if self.cards_rank(seven)[0] == 2: break
         if rank == 3:
             while True:
-                self.reset_deck()
+                self.reset()
                 fig = random.randrange(12)
                 col = [c for c in range(4)]
                 random.shuffle(col)
@@ -135,7 +131,7 @@ class PDeck:
                 if self.cards_rank(seven)[0] == 3: break
         if rank == 4:
             while True:
-                self.reset_deck()
+                self.reset()
                 fig = random.randrange(8)
                 seven = [(fig+ix,random.randrange(4)) for ix in range(5)]
                 for card in seven: self.cards.remove(card)
@@ -143,7 +139,7 @@ class PDeck:
                 if self.cards_rank(seven)[0] == 4: break
         if rank == 5:
             while True:
-                self.reset_deck()
+                self.reset()
                 col = random.randrange(4)
                 fig = [f for f in range(12)]
                 random.shuffle(fig)
@@ -154,7 +150,7 @@ class PDeck:
                 if self.cards_rank(seven)[0] == 5: break
         if rank == 6:
             while True:
-                self.reset_deck()
+                self.reset()
                 fig = [f for f in range(12)]
                 random.shuffle(fig)
                 fig = fig[:2]
@@ -171,7 +167,7 @@ class PDeck:
                 if self.cards_rank(seven)[0] == 6: break
         if rank == 7:
             while True:
-                self.reset_deck()
+                self.reset()
                 fig = random.randrange(12)
                 seven = [(fig,c) for c in range(4)]
                 for card in seven: self.cards.remove(card)
@@ -179,7 +175,7 @@ class PDeck:
                 if self.cards_rank(seven)[0] == 7: break
         if rank == 8:
             while True:
-                self.reset_deck()
+                self.reset()
                 fig = random.randrange(8)
                 col = random.randrange(4)
                 seven = [(fig + ix, col) for ix in range(5)]
@@ -242,59 +238,42 @@ class PDeck:
                 colour = cL[0][1]
                 break
 
-        sc_fig = c_fig[-1:] + c_fig # with aces at the beginning
-        in_row = []
-        pix = -2
-        for ix in range(14):
-            if len(sc_fig[ix]):
-                # select card
-                crd = sc_fig[ix][0]
-                if len(sc_fig[ix]) > 1 and colour:
-                    for c in sc_fig[ix]:
-                        if c[1] == colour:
-                            crd = c
-                            break
-                if pix + 1 == ix:
-                    in_row.append(crd)
+        sc_fig = c_fig[-1:] + c_fig # add Ace at the beginning for A to 5 ST
+
+        # straight case check; split sc_fig into continuous sequences
+        sequences = []
+        seq = []
+        prev_ix = -1
+        for ix,c in enumerate(sc_fig):
+            if c:
+                if prev_ix + 1 == ix: seq.append(c)
                 else:
-                    if len(in_row) in [3,4]: break # no chance anymore
-                    if len(in_row) in [0,1,2]: in_row = [crd] # still a chance
-                    else: break # got 5
-                pix = ix
+                    if seq: sequences.append(seq)
+                    seq = [c]
+                prev_ix = ix
+        if seq: sequences.append(seq)
+
+        in_row = max(sequences, key=lambda x:len(x)) if sequences else []
         possible_straight = len(in_row) > 4
 
         # straightFlush case check
-        col_in_row = []
         possible_straight_flush = False
+        sequences = []
+        seq = []
         if possible_straight and col_cards:
-
-            # remove from row cards out of colour
-            col_in_row = [] + in_row
-            to_delete = []
-            for c in col_in_row:
-                if c[1] != colour: to_delete.append(c)
-            for c in to_delete: col_in_row.remove(c) # after this col may be not in row (may be split)
-
-            if len(col_in_row) > 4:
-                possible_straight_flush = True # assume true
-
-                splitIX = [] # indexes of split from
-                for ix in range(1,len(col_in_row)):
-                    if col_in_row[ix-1][0]+1 != col_in_row[ix][0]: splitIX.append(ix)
-
-                if splitIX:
-                    if len(col_in_row)<6 or len(splitIX)>1: possible_straight_flush = False # any split gives possibility for SF only for 6 cards (7 with one removed from inside/notEdge/ gives 6 with split) with one split
-                    else:
-                        if splitIX[0] not in [1,5]: possible_straight_flush = False
-                        else:
-                            ixF = 0
-                            ixT = 5
-                            if splitIX[0]==1:
-                                ixF = 1
-                                ixT = 6
-                            col_in_row = col_in_row[ixF:ixT]
-
-                if len(col_in_row) > 5: col_in_row = col_in_row[len(col_in_row)-5:] # trim
+            for cs in in_row:
+                c = [c for c in cs if c[1]==colour] # leave only cards in colour
+                if c: seq.append(c)
+                else:
+                    if seq: sequences.append(seq)
+                    seq = []
+            if seq: sequences.append(seq)
+        col_in_row = max(sequences, key=lambda x:len(x)) if sequences else []
+        if len(col_in_row) > 4:
+            possible_straight_flush = True
+            col_in_row = [c[0] for c in col_in_row[-5:]]
+        elif possible_straight:
+            in_row = [c[0] for c in in_row[-5:]]
 
         if possible_straight_flush:                             top_rank = 8 # straight flush
         elif 4 in n_fig:                                        top_rank = 7 # four of
@@ -374,49 +353,45 @@ class ASC(dict):
         super().__init__()
 
         print('\nReading ASC dict cache...')
-        as_cards = lM.r_pickle(file_FP)
+        as_cards = r_pickle(file_FP)
         if as_cards: print(' > using cached ASC dict')
         else:
-            print(' > cache not found, building all seven cards rank dict...')
-            as_cards = {}
+            print(' > cache not found, building All Seven Cards rank dict..')
             comb_list = list(itertools.combinations([x for x in range(52)], 7))
+            print(f' > got {len(comb_list)} combinations')
 
             if use_QMP:
 
-                def iPF(task):
-                    tv = []
-                    for t in task: tv.append((t,PDeck.cards_rank(t)[1]))
-                    return tv
+                class CRW(RunningWorker):
+                    def process(self, **kwargs) -> Any:
+                        return [(t,PDeck.cards_rank(t)[1]) for t in kwargs['tasks']]
 
-                dqmp = DeQueMP(
-                    func=       iPF,
-                    user_tasks= True,
-                    verb=       1)
+                omp = OMPRunner(rw_class=CRW, verb=1)
 
-                np = 0
-                tcmb = []
-                for cmb in comb_list:
-                    tcmb.append(cmb)
-                    if len(tcmb) > 10000:
-                        dqmp.put_task({'task':tcmb})
-                        tcmb = []
-                        np += 1
-                if tcmb:
-                    dqmp.put_task({'task':tcmb})
-                    np += 1
-                for _ in tqdm(range(np)):
-                    res = dqmp.get_result()
-                    for r in res:
-                        as_cards[r[0]] = r[1]
-                dqmp.close()
+                print(f' > preparing tasks..')
+                tasks = []
+                task_bunch = []
+                for cmb in tqdm(comb_list):
+                    task_bunch.append(cmb)
+                    if len(task_bunch) > 10000:
+                        tasks.append({'tasks':task_bunch})
+                        task_bunch = []
+                if task_bunch: tasks.append({'tasks':task_bunch})
+
+                res = omp.process(tasks=tasks)
+                as_cards = {}
+                for r in res:
+                    for c,cr in r:
+                        as_cards[c] = [cr]
+                omp.exit()
 
             else: as_cards = {cmb: PDeck.cards_rank(cmb)[1] for cmb in tqdm(comb_list)}
 
-            lM.w_pickle(as_cards, file_FP)
+            w_pickle(as_cards, file_FP)
 
         self.update(as_cards)
 
-    # returns rank for 7 cards (sorted!)
+    # returns rank for 7 cards (cards have to be sorted!)
     def cards_rank(self, c :tuple): return self[c]
 
 # tests speed of ranking
@@ -424,10 +399,10 @@ def test_rank_speed(num_ask=123000):
 
     tdeck = PDeck()
     scL = []
-    print('\nPreparing cards...')
+    print('\nPreparing cards..')
     for _ in tqdm(range(num_ask)):
         scL.append([tdeck.get_card() for _ in range(7)])
-        tdeck.reset_deck()
+        tdeck.reset()
 
     x = int(num_ask/2)
     for c in scL[x:x+10]: print(c)
@@ -467,7 +442,7 @@ def test_deck():
 # compares speed of ASC and PDeck
 def compare_ranks(num_ask=1000000):
 
-    print('\nPreparing combinations of 7 from 52...',end='')
+    print('\nPreparing combinations of 7 from 52..',end='')
     comb_list = list(itertools.combinations([x for x in range(52)], 7))
     print(' done!, got %d'%len(comb_list))
     x = 1235143
@@ -488,7 +463,15 @@ def compare_ranks(num_ask=1000000):
 if __name__ == "__main__":
 
     #test_rank_speed(1234321)
+    #compare_ranks(1000000)
+    #cards = [(12, 3), (11, 0), (10, 3), (9, 3), (8, 0), (1, 1), (3, 2)]
+    #print(PDeck.cards_rank(cards)[-1])
+    #cards = [(12, 3), (11, 0), (10, 3), (9, 3), (8, 0), (1, 0), (0, 1)]
+    #print(PDeck.cards_rank(cards)[-1])
+    #cards = [(12, 3), (11, 0), (10, 3), (10, 0), (9, 3), (8, 0), (0, 1)]
+    #print(PDeck.cards_rank(cards)[-1])
 
-    compare_ranks(1000000)
+    asc = ASC('_cache/asc.dict')
+    print(len(asc))
 
 

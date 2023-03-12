@@ -1,19 +1,15 @@
-"""
-
- 2020 (c) piteren
-
-"""
-
 from functools import partial
-from multiprocessing import Queue
+from PIL import Image, ImageTk
+from pypaq.mpython.mptools import Que, QMessage
 import time
 from tkinter import Tk, Label, Button, Frame, IntVar
-from PIL import Image, ImageTk
+from typing import List, Optional
 
-from pologic.poenvy import TBL_MOV, N_TABLE_PLAYERS, TABLE_CASH_START, TABLE_SB, TABLE_BB, DEBUG_MODE
+from pypoks_envy import DEBUG_MODE, TABLE_CASH_START, TABLE_SB, TABLE_BB, TBL_MOV
 from pologic.podeck import CRD_FIG, CRD_COL
 
 GUI_DELAY = 0.1 # seconds of delay for every message
+
 
 # returns card graphic file name for given cards srt (e.g. 6D - six diamond)
 def get_card_FN(
@@ -41,11 +37,11 @@ class GUI_HDMK:
 
     def __init__(
             self,
-            n_players=  N_TABLE_PLAYERS,
+            players: List[str], # names of players
             imgs_FD=    'gui/imgs'):
 
-        self.tk_que = Queue()
-        self.out_que = Queue()
+        self.tk_que = Que()
+        self.out_que = Que()
 
         self.tk = Tk()
         self.tk.title('pypoks HDMK')
@@ -57,7 +53,7 @@ class GUI_HDMK:
         self.cards_imagesD = build_cards_img_dict(imgs_FD)
         self.tcards = [] # here hand table cards are stored
         self.tcsh_tc = 0 # will keep it to capture fold event
-        self.pl_won = [0 for _ in range(n_players)]
+        self.pl_won = [0 for _ in range(len(players))]
         self.n_hands = 0
         self.ops_cards = {1:[],2:[]}
 
@@ -74,7 +70,7 @@ class GUI_HDMK:
         self.nodealer_img = ImageTk.PhotoImage(Image.open(f'{imgs_FD}/no_dealer.png'))
         user_ico = ImageTk.PhotoImage(Image.open(f'{imgs_FD}/user.png'))
         ai_ico = ImageTk.PhotoImage(Image.open(f'{imgs_FD}/ai.png'))
-        for ix in range(n_players):
+        for ix in range(len(players)):
             plx_frm = Frame(pl_frm, padx=5, pady=5)
             plx_frm.grid(row=0, column=ix)
             plx_lblL = []
@@ -89,7 +85,7 @@ class GUI_HDMK:
             lbl.grid(row=2, column=0)
             plx_lblL.append(lbl)
             set_image(lbl, self.nodealer_img)
-            lbl = Label(plx_frm, text=f'pl{ix}', font=('Helvetica bold', 9), width=5, pady=2) # name
+            lbl = Label(plx_frm, text=f'{ix}:{players[ix]}', font=('Helvetica bold', 7), width=10, pady=1) # name
             lbl.grid(row=3, column=0)
             plx_lblL.append(lbl)
             lbl = Label(plx_frm, font=('Helvetica bold', 12), width=5)
@@ -188,31 +184,35 @@ class GUI_HDMK:
 
     # checks input que
     def __check_message_queue(self):
-        while not self.tk_que.empty():
-            message = self.tk_que.get()
-            if type(message) is list:
-                self.__proc_message(message)
-            if type(message) is dict:
-                cv = [message['moves_cash'][ix] if message['possible_moves'][ix] else '-' for ix in range(len(TBL_MOV))]
+        while True:
+            message = self.tk_que.get(block=False)
+            #print(message)
+            if not message: break
+            if message.type == 'possible_moves':
+                data = message.data
+                cv = [data['moves_cash'][ix] if data['possible_moves'][ix] else '-' for ix in range(len(TBL_MOV))]
                 self.__set_dec_lbl_val(cv)
-                self.__set_dec_btn_act(message['possible_moves'])
+                self.__set_dec_btn_act(data['possible_moves'])
+            if message.type == 'state':
+                self.__proc_message(message.data)
         self.__afterloop()
 
-    # processes incomming messages
-    def __proc_message(self, message):
+    # processes incomming states
+    def __proc_message(self, state: tuple):
         prn = True
 
-        if message[0] == 'HST':
+        if state[0] == 'HST':
             self.n_hands += 1
             self.nHlbl['text'] = self.n_hands
             prn = False
 
-        if message[0] in ['PSB', 'PBB']:
-            print(f'  pl{message[1][0]} {message[0][1:]} {message[1][1]}')
+        if state[0] in ['PSB', 'PBB']:
+            print(f'  pl{state[1][0]} {state[0][1:]} {state[1][1]}')
             prn = False
 
-        if message[0] == 'TST':
-            if message[1] == 'idle':
+        if state[0] == 'TST':
+            st = state[1][0]
+            if st == 'idle':
                 print('\n ***** hand starts')
                 self.__upd_myc()
                 self.__upd_tblc()
@@ -220,51 +220,51 @@ class GUI_HDMK:
                 for plix in self.plx_elD:
                     self.__upd_plcsh(plix, TABLE_CASH_START)
                     self.__set_pl_active(plix)
-            else: print(f' ** {message[1]}')
+            else: print(f' ** {st}')
             self.tcsh_tc = 0
-            if message[1] != 'preflop':
+            if st != 'preflop':
                 for plix in self.plx_elD:
                     self.__upd_plcsh(plix, True, None)
             prn = False
 
-        if message[0] == 'POS':
-            if message[1][1] == 'SB': self.__upd_plcsh(message[1][0], TABLE_CASH_START-TABLE_SB, TABLE_SB)
-            if message[1][1] == 'BB': self.__upd_plcsh(message[1][0], TABLE_CASH_START-TABLE_BB, TABLE_BB)
-            if message[1][1] == 'BTN': self.__set_button(message[1][0])
+        if state[0] == 'POS':
+            if state[1][1] == 'SB': self.__upd_plcsh(state[1][0], TABLE_CASH_START - TABLE_SB, TABLE_SB)
+            if state[1][1] == 'BB': self.__upd_plcsh(state[1][0], TABLE_CASH_START - TABLE_BB, TABLE_BB)
+            if state[1][1] == 'BTN': self.__set_button(state[1][0])
             prn = False
 
-        if message[0] == 'PLH':
-            if message[1][0] == 0:
-                self.__upd_myc(message[1][1], message[1][2])
-            else: self.ops_cards[message[1][0]] = message[1][1:]
+        if state[0] == 'PLH':
+            if state[1][0] == 0:
+                self.__upd_myc(state[1][1], state[1][2])
+            else: self.ops_cards[state[1][0]] = state[1][1:]
             prn = False
 
-        if message[0] == 'TCD':
-            self.__upd_tblc(message[1])
+        if state[0] == 'TCD':
+            self.__upd_tblc(state[1])
             prn = False
 
-        if message[0] == 'T$$':
-            self.__upd_tcsh(message[1][0]-message[1][1], message[1][1])
-            self.tcsh_tc = message[1][2]
+        if state[0] == 'T$$':
+            self.__upd_tcsh(state[1][0] - state[1][1], state[1][1])
+            self.tcsh_tc = state[1][2]
             prn = False
 
-        if message[0] == 'MOV':
+        if state[0] == 'MOV':
             # fold case
-            if message[1][1] == 'C/F' and message[1][2] < self.tcsh_tc - message[1][3][2]:
-                self.__upd_plcsh(message[1][0], message[1][3][0])
-                self.__set_pl_active(message[1][0], False)
+            if state[1][1] == 'C/F' and state[1][2] < self.tcsh_tc - state[1][3][2]:
+                self.__upd_plcsh(state[1][0], state[1][3][0])
+                self.__set_pl_active(state[1][0], False)
             else:
-                self.__upd_plcsh(message[1][0], message[1][3][0]-message[1][2], message[1][3][2]+message[1][2])
-            print(f'  pl{message[1][0]} {message[1][1]} {message[1][2]}')
+                self.__upd_plcsh(state[1][0], state[1][3][0] - state[1][2], state[1][3][2] + state[1][2])
+            print(f'  pl{state[1][0]} {state[1][1]} {state[1][2]}')
             prn = False
 
-        if message[0] == 'PRS':
-            r = message[1][2] if type(message[1][2]) is str else message[1][2][-1]
-            print(f' $$$: pl{message[1][0]} {message[1][1]} {r}')
-            self.__upd_pl_won(message[1][0], message[1][1])
+        if state[0] == 'PRS':
+            r = state[1][2] if type(state[1][2]) is str else state[1][2][-1]
+            print(f' $$$: pl{state[1][0]} {state[1][1]} {r}')
+            self.__upd_pl_won(state[1][0], state[1][1])
             prn = False
 
-        if message[0] == 'HFN':
+        if state[0] == 'HFN':
             if DEBUG_MODE:
                 if self.ops_cards[1]:
                     for ix in [1,2]:
@@ -275,13 +275,15 @@ class GUI_HDMK:
             self.next_btn['state'] = 'disabled'
             prn = False
 
+        #prn = True
         self.tk.update_idletasks()
-        if prn: print(f' >>> {message}')
+        if prn: print(f' >>> {state}')
         time.sleep(GUI_DELAY)
 
     # returns decision (decision button pressed)
-    def __put_decision(self, dec :int or None):
-        self.out_que.put(dec)
+    def __put_decision(self, dec:int):
+        message = QMessage(type='decision', data=dec)
+        self.out_que.put(message)
         self.__set_dec_lbl_val()
         self.__set_dec_btn_act()
 
@@ -290,7 +292,7 @@ class GUI_HDMK:
     # updates player tot won
     def __upd_pl_won(
             self,
-            plix :int,
+            plix: int,
             won):
         self.pl_won[plix] += int(won)
         self.plx_elD[plix]['lblL'][0]['text'] = self.pl_won[plix]
@@ -298,9 +300,9 @@ class GUI_HDMK:
     # updates player cash
     def __upd_plcsh(
             self,
-            plix :int,
-            csh :int=       None,   # True does not update
-            csh_cr :int=    None):  # True does not update
+            plix: int,
+            csh: int=       None,   # True does not update
+            csh_cr: int=    None):  # True does not update
         if csh is None: csh = '-'
         if csh_cr is None: csh_cr = '-'
         if csh is not True:     self.plx_elD[plix]['lblL'][4]['text'] = csh
@@ -349,13 +351,13 @@ class GUI_HDMK:
     # decision frame methods **************************************************************************** decision frame
 
     # sets $ values of labels
-    def __set_dec_lbl_val(self, val :list=None):
+    def __set_dec_lbl_val(self, val:Optional[List[int]]=None):
         if not val: val = ['-']*len(TBL_MOV)
         for ix in range(len(self.dec_lblL)):
             self.dec_lblL[ix]['text'] = val[ix]
 
     # sets state of buttons
-    def __set_dec_btn_act(self, act :list=None):
+    def __set_dec_btn_act(self, act:Optional[List[bool]]=None):
         if not act: act = [False]*len(TBL_MOV)
         for ix in range(len(self.dec_btnL)):
             self.dec_btnL[ix]['state'] = 'normal' if act[ix] else'disabled'

@@ -1,13 +1,5 @@
 .idea
 __pycache__
 _cache
-_log
 _models
-_models_arch
-_models_pretrained
-_nnSaves
-_nnTB
-flowcharts
 venv
-media
-saves

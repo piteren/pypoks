@@ -1,252 +1,754 @@
-"""
-
- 2020 (c) piteren
-
- GamesManager is responsible for:
- - starting / stopping games
- - making GX (and other general policy) decisions
-
-"""
-
-from multiprocessing import Queue
+import copy
+import math
+import os
+from pypaq.lipytools.files import prep_folder
+from pypaq.lipytools.printout import stamp, progress_
+from pypaq.lipytools.pylogger import get_pylogger, get_child
+from pypaq.lipytools.moving_average import MovAvg
+from pypaq.mpython.mptools import Que, QMessage
+from torchness.tbwr import TBwr
 import random
+import statistics
 import time
 from tqdm import tqdm
+from typing import Dict, List, Tuple, Optional, Union
 
-from ptools.lipytools.little_methods import prep_folder
-
-from pypoks_envy import MODELS_FD, DMK_MODELS_FD
-from pologic.poenvy import N_TABLE_PLAYERS
+from pypoks_base import PyPoksException
+from pypoks_envy import MODELS_FD, DMK_MODELS_FD, N_TABLE_PLAYERS
 from pologic.potable import QPTable
-from podecide.gx import xross
-from podecide.cardNet.put_cn_ckpt_to_models import put_cn_ckpts
+from podecide.dmk import FolDMK, HuDMK
+from gui.gui_hdmk import GUI_HDMK
+
+# keys managed by family settings and FSExc
+FAM_KEYS = [
+    'trainable',
+    'do_GX',
+    'pex_max',
+    'prob_zero',
+    'prob_max',
+    'step_min',
+    'step_max',
+    'iLR']
 
 
-# manages DMKs, tables, games
+# separated factor for two results
+def separated_factor(
+        a_wonH: float,
+        a_wonH_mean_stdev: float,
+        b_wonH: float,
+        b_wonH_mean_stdev: float,
+        n_stdev: float) -> float:
+    return abs(a_wonH - b_wonH) / (n_stdev * (a_wonH_mean_stdev + b_wonH_mean_stdev))
+
+# prepares separation report
+def separation_report(
+        dmk_results: Dict,
+        n_stdev: float,
+        sep_pairs: Optional[List[Tuple[str,str]]]=  None,
+) -> Dict:
+
+    n_dmk = len(dmk_results)
+
+    # add wonH_mean_stdev
+    for dn in dmk_results:
+        stdev = statistics.stdev(dmk_results[dn]['wonH_IV'])
+        dmk_results[dn]['wonH_mean_stdev'] = stdev / math.sqrt(len(dmk_results[dn]['wonH_IV']))
+
+    # compute separated normalized count & normalized factor
+    sep_nc = 0
+    sep_nf = 0
+    for dn_a in dmk_results:
+        dmk_results[dn_a]['separated'] = n_dmk - 1
+        for dn_b in dmk_results:
+            if dn_a != dn_b:
+                sf = separated_factor(
+                    a_wonH=             dmk_results[dn_a]['wonH_afterIV'][-1],
+                    a_wonH_mean_stdev=  dmk_results[dn_a]['wonH_mean_stdev'],
+                    b_wonH=             dmk_results[dn_b]['wonH_afterIV'][-1],
+                    b_wonH_mean_stdev=  dmk_results[dn_b]['wonH_mean_stdev'],
+                    n_stdev=            n_stdev)
+                if sf < 1:
+                    dmk_results[dn_a]['separated'] -= 1
+                sep_nf += min(sf,1.1)
+        sep_nc += dmk_results[dn_a]['separated']
+    n_max = (n_dmk - 1) * n_dmk
+    sep_nc /= n_max
+    sep_nf /= n_max
+
+    # same for given pairs
+    sep_pairs_nc = 0
+    sep_pairs_nf = 0
+    sep_pairs_stat = []
+    if sep_pairs:
+        for sp in sep_pairs:
+            sf = separated_factor(
+                a_wonH=             dmk_results[sp[0]]['wonH_afterIV'][-1],
+                a_wonH_mean_stdev=  dmk_results[sp[0]]['wonH_mean_stdev'],
+                b_wonH=             dmk_results[sp[1]]['wonH_afterIV'][-1],
+                b_wonH_mean_stdev=  dmk_results[sp[1]]['wonH_mean_stdev'],
+                n_stdev=            n_stdev)
+            sep_pairs_stat.append(0 if sf<1 else 1)
+            if sf>=1: sep_pairs_nc += 1
+            sep_pairs_nf += min(sf,1.1)
+        sep_pairs_nc /= len(sep_pairs)
+        sep_pairs_nf /= len(sep_pairs)
+
+    return {
+        'sep_nc':           sep_nc,         # <0.0;1.0> normalized count of separated
+        'sep_nf':           sep_nf,         # <0.0;1.1> normalized factor of separation
+        'sep_pairs_nc':     sep_pairs_nc,   # <0.0;1.0> normalized count of separated pairs
+        'sep_pairs_nf':     sep_pairs_nf,   # <0.0;1.1> normalized factor of pairs separation
+        'sep_pairs_stat':   sep_pairs_stat} # [0,1, ..] each par marked as separated or not
+
+
+# family settings exchange class
+class FSExc:
+
+    def __init__(
+            self,
+            famsets :dict,
+            exc_file :str):
+
+        self.exc_file = exc_file
+        self.famsets = famsets
+        if not os.path.isfile(self.exc_file): self.write_file()
+
+    # returns self(self.famsets) as string
+    def __to_str(self):
+        s = ''
+        for fm in sorted(list(self.famsets.keys())):
+            s += f'fm: {fm}\n'
+            fmd = self.famsets[fm]
+            for k in sorted(list(fmd.keys())):
+                s += f'\t{k}\t{fmd[k]}\n'
+        return s
+
+    def __load_file(self):
+        se = {}
+        with open(self.exc_file) as file:
+            lines = [l[:-1] for l in file][:-1]
+        fm = None
+        for li in lines:
+            lis = li.split()
+            if lis[0] == 'fm:':
+                fm = lis[1]
+                k = None
+                v = None
+            else:
+                k = lis[0]
+                tp = type(self.famsets[fm][k])
+                v = tp(lis[1]) if tp is not bool else lis[1]=='True'
+            if fm and k and v is not None:
+                if fm not in se: se[fm] = {}
+                se[fm][k] = v
+        return se
+
+    def __get_diff(self):
+        se = self.__load_file()
+        new_se = {}
+        for fm in se:
+            for k in se[fm]:
+                if se[fm][k] != self.famsets[fm][k]:
+                    if fm not in new_se: new_se[fm] = {}
+                    self.famsets[fm][k] = se[fm][k]
+                    new_se[fm][k] = se[fm][k]
+        return new_se
+
+    def write_file(self):
+        with open(self.exc_file, 'w') as file: file.write(self.__to_str())
+
+    def get_new_se(self):
+        new_se = self.__get_diff()
+        for fm in new_se: self.famsets[fm].update(new_se[fm])
+        return new_se
+
+# manages games of DMKs (at least QueDMKs)
 class GamesManager:
 
     def __init__(
             self,
-            dmk_dna :dict,
-            use_pretrained_cn=  True,
-            acc_won_iv=         (100000,200000),
-            verb=               1):
+            dmk_pointL: List[Dict],         # points with eventually added 'dmk_type'
+            name: Optional[str]=    None,
+            use_fsexc=              False,
+            fsexc_fd=               DMK_MODELS_FD,
+            logger=                 None,
+            loglevel=               20,
+            debug_dmks=             False,
+            debug_tables=           False):
 
-        self.verb = verb
-        if self.verb > 0: print('\n *** GamesManager *** stars...')
+        self.name = name or f'GM_{stamp()}'
 
-        prep_folder(MODELS_FD)
-        prep_folder(DMK_MODELS_FD)
+        if not logger:
+            logger = get_pylogger(
+                name=       self.name,
+                folder=     MODELS_FD,
+                level=      loglevel)
+        self.logger = logger
+        self.debug_tables = debug_tables
 
-        self.use_pretrained_cn = use_pretrained_cn
+        self.logger.info(f'*** GamesManager : {self.name} *** starts..')
 
-        self.in_que = Queue() # here receives data from DMKs and tables
+        self.que_to_gm = Que()  # here GM receives data from DMKs and Tables
 
-        self.gx_iv = acc_won_iv[-2]
+        dmk_pointL = copy.deepcopy(dmk_pointL) # copy not to modify original list
+        dmk_types = [point.pop('dmk_type',FolDMK) for point in dmk_pointL]
+        dmk_logger = get_child(self.logger, name='dmks_logger', change_level=-10 if debug_dmks else 10)
+        dmks = [dmk_type(logger=dmk_logger, **point) for dmk_type,point in zip(dmk_types, dmk_pointL)]
+        self.dmkD = {dmk.name: dmk for dmk in dmks} # Dict[str, dmk_type] INFO: we do not type it because DMK may have diff types
 
-        # create DMK dictionary
-        self.dmkD = {}
-        for name in dmk_dna:
-            dmk_type = dmk_dna[name].pop('dmk_type')
-            self.dmkD[name] = dmk_type(
-                gm_que=     self.in_que,
-                name=       name,
-                acc_won_iv= acc_won_iv,
-                **dmk_dna[name])
+        for dmk in self.dmkD.values(): dmk.que_to_gm = self.que_to_gm  # DMKs are build from folders, they need que to be updated then
+        self.families = set([dmk.family for dmk in self.dmkD.values()])
 
-        assert sum([self.dmkD[name].n_players for name in self.dmkD]) % N_TABLE_PLAYERS == 0
+        self.tbwr = TBwr(logdir=f'{DMK_MODELS_FD}/{self.name}')
 
-        self.families = set([self.dmkD[name].family for name in self.dmkD])
+        self.tables = None
 
-        self.tables = []  # list of tables
+        self.sexc = None
+        if use_fsexc:
 
-    # creates tables using (ques of) DMKs, method uses family information to mix players
-    def _create_tables(self):
+            prep_folder(fsexc_fd)
 
-        # build dict of lists of player ques tuples: {family: [(p_addr,in,out)]}
-        fam_ques = {fam: [] for fam in self.families}
+            # create famsets
+            famsets = {}
+            for dmk in self.dmkD.values():
+                fm = dmk.family
+                if fm not in famsets:
+                    famsets[fm] = {k: dmk.__dict__[k] for k in FAM_KEYS}
+
+            self.sexc = FSExc(
+                famsets=    famsets,
+                exc_file=   f'{fsexc_fd}/fs.exc')
+            # update from file
+            new_se = self.sexc.get_new_se()
+            if new_se:
+                self.logger.info(f'> from sexc file: {new_se}')
+                for dmk in self.dmkD.values():
+                    if dmk.family in new_se: dmk.__dict__.update(new_se[dmk.family])
+
+            self.sexc.write_file() # in case of new families in self.famsets
+
+    # starts DMKs (starts loops)
+    def _start_dmks(self):
+
+        self.logger.debug('> starts DMKs..')
+
+        idmk = tqdm(self.dmkD.values()) if self.logger.level<20 else self.dmkD.values()
+        for dmk in idmk: dmk.start()
+        self.logger.debug('> initializing..')
+        idmk = tqdm(self.dmkD) if self.logger.level < 20 else self.dmkD
+        for _ in idmk:
+            message = self.que_to_gm.get()
+            self.logger.debug(f'>> {message}')
+        self.logger.debug(f'> initialized {len(self.dmkD)} DMKs!')
+
+        message = QMessage(type='start_dmk_loop', data=None)
+        for dmk in self.dmkD.values(): dmk.que_from_gm.put(message) # synchronizes DMKs a bit..
+        for _ in self.dmkD:
+            message = self.que_to_gm.get()
+            self.logger.debug(f'>> {message}')
+        self.logger.debug(f'> started {len(self.dmkD)} DMKs!')
+
+    # stops DMKs (stops loops)
+    def _stop_dmks(self):
+
+        self.logger.debug('Stopping DMKs..')
+
+        message = QMessage(type='stop_dmk_loop', data=None)
+        for dmk in self.dmkD.values(): dmk.que_from_gm.put(message)
+        idmk = tqdm(self.dmkD) if self.logger.level < 20 else self.dmkD
+        for _ in idmk:
+            self.que_to_gm.get()
+        self.logger.debug('> all DMKs loops stopped!')
+
+        message = QMessage(type='stop_dmk_process', data=None)
+        for dmk in self.dmkD.values(): dmk.que_from_gm.put(message)
+        idmk = tqdm(self.dmkD) if self.logger.level < 20 else self.dmkD
+        for _ in idmk:
+            self.que_to_gm.get()
+        self.logger.debug('> all DMKs exited!')
+
+    # creates new tables & puts players with random policy
+    def _put_players_on_tables(self):
+
+        self.logger.info('> puts players on tables..')
+
+        # build dict of lists of players (per family): {family: [(pid, que_to_pl, que_from_pl)]}
+        fam_ques: Dict[str, List[Tuple[str,Que,Que]]] = {fam: [] for fam in self.families}
         for dmk in self.dmkD.values():
-            pl_iqD = dmk.pl_in_queD
-            for k in pl_iqD:
-                fam_ques[dmk.family].append((k, pl_iqD[k], dmk.dmk_in_que))
+            for k in dmk.queD_to_player: # {pid: que_to_pl}
+                fam_ques[dmk.family].append((k, dmk.queD_to_player[k], dmk.que_from_player))
 
-        for fam in fam_ques: random.shuffle(fam_ques[fam])
+        # shuffle players in families
+        for fam in fam_ques:
+            random.shuffle(fam_ques[fam])
+            random.shuffle(fam_ques[fam])
 
-        # base alg to put all ques into one list (...for mixed tables)
-        quesLL = [fam_ques[fam] for fam in fam_ques]    # list of lists
-        quesL = []                                      # target flat list
-        qLIX = 0
+        quesLL = [fam_ques[fam] for fam in fam_ques] # convert to list of lists
+
+        ### convert to flat list
+
+        # cut in equal pieces
+        min_len = min([len(l) for l in quesLL])
+        cut_quesLL = []
+        for l in quesLL:
+            while len(l) > 1.66*min_len:
+                cut_quesLL.append(l[:min_len])
+                l = l[min_len:]
+            cut_quesLL.append(l)
+        quesLL = cut_quesLL
+        random.shuffle(quesLL)
+        random.shuffle(quesLL)
+
+        quesL = []  # flat list
+        qLL_IXL = []
         while quesLL:
-            quesL.append(quesLL[qLIX].pop())
-            if not quesLL[qLIX]: quesLL.pop(qLIX)       # remove empty list
-            qLIX += 1                                   # increase
-            if qLIX >= len(quesLL): qLIX = 0            # reset
 
-        # create tables
-        tables = []
+            if not qLL_IXL:
+                qLL_IXL = list(range(len(quesLL)))      # fill indexes
+                random.shuffle(qLL_IXL)                 # shuffle them
+            qLL_IX = qLL_IXL.pop()                      # now take last index
+
+            quesL.append(quesLL[qLL_IX].pop())          # add last from list
+            if not quesLL[qLL_IX]:
+                quesLL.pop(qLL_IX)                      # remove empty list
+                qLL_IXL = list(range(len(quesLL)))      # new indexes then
+                random.shuffle(qLL_IXL)                 # shuffle them
+
+        num_players = len(quesL)
+        if num_players % N_TABLE_PLAYERS != 0:
+            raise PyPoksException(f'num_players ({num_players}) has to be a multiple of N_TABLE_PLAYERS ({N_TABLE_PLAYERS})')
+
+        # put on tables
+        self.tables = []
         table_ques = []
+        table_logger = get_child(self.logger, name='table_logger', change_level=-10) if self.debug_tables else None
         while quesL:
             table_ques.append(quesL.pop())
             if len(table_ques) == N_TABLE_PLAYERS:
-                table = QPTable(
-                    name=       f'tbl{len(tables)}',
-                    gm_que=     self.in_que,
-                    pl_ques=    {t[0]: (t[1],t[2]) for t in table_ques},
-                    verb=       self.verb-1)
-                tables.append(table)
+                self.tables.append(QPTable(
+                    name=       f'tbl{len(self.tables)}',
+                    que_to_gm=  self.que_to_gm,
+                    pl_ques=    {t[0]: (t[1], t[2]) for t in table_ques},
+                    logger=     table_logger))
                 table_ques = []
-        return tables
 
-    # starts tables
+    # starts all tables
     def _start_tables(self):
-        if self.verb > 0: print('Starting tables...')
-        for tbl in tqdm(self.tables): tbl.start()
-        if self.verb > 0: print(' > tables init...')
-        for _ in self.tables: self.in_que.get()
-        if self.verb > 0: print(f' > started {len(self.tables)} tables!')
+        self.logger.debug('> starts tables..')
+        itbl = tqdm(self.tables) if self.logger.level < 20 else self.tables
+        for tbl in itbl: tbl.start()
+        for _ in itbl:
+            self.que_to_gm.get()
+        self.logger.debug(f'> tables ({len(self.tables)}) processes started!')
 
     # stops tables
     def _stop_tables(self):
-        if self.verb > 0: print('Stopping tables...')
-        for table in self.tables: table.in_que.put('stop')
-        for _ in tqdm(self.tables): self.in_que.get()
-        if self.verb > 0: print(' > all tables exited!')
+        self.logger.debug('> stops tables loops..')
+        message = QMessage(type='stop_table', data=None)
+        for table in self.tables: table.que_from_gm.put(message)
+        itbl = tqdm(self.tables) if self.logger.level < 20 else self.tables
+        for _ in itbl:
+            self.que_to_gm.get()
+        self.logger.debug('> tables loops stopped!')
+        # INFO: tables now are just Process objects with target loop stopped
 
-    # starts DMKs
-    def _start_dmks(self):
-        if self.verb > 0: print('Starting DMKs...')
-        for dmk in tqdm(self.dmkD.values()): dmk.start()
-        if self.verb > 0: print(' > initializing...')
-        for _ in tqdm(self.dmkD): self.in_que.get()
-        if self.verb > 0: print(' > DMKs initialized!')
+    # runs game, returns DMK results dictionary
+    def run_game(
+            self,
+            game_size=                                  10000,  # number of hands for a game (per DMK)
+            sleep=                                      20,     # loop sleep (seconds)
+            progress_report=                            True,
+            publish_GM=                                 False,
+            sep_pairs: Optional[List[Tuple[str,str]]]=  None,   # pairs of DMK names for separation condition
+            sep_bvalue: float=                          0.7,    # separation break value
+            sep_n_stdev: float=                         2.0,
+    ) -> Dict:
+        """
+        By now, by design run_game() may be called only once,
+        cause DMK processes are started and then stopped and process cannot be started twice,
+        there is no real need to change this design.
+        """
 
-        if self.use_pretrained_cn:
-            num_done = 0
-            for name in self.dmkD:
-                print(f' >> putting pretrained cardNet for {name}', end='')
-                done = put_cn_ckpts(name)
-                if done:
-                    self.dmkD[name].in_que.put('reload_model')
-                    num_done += 1
-                    print(' ...done!')
-                else: print(' - cardNet not found!')
-            for _ in range(num_done):
-                rel = self.in_que.get()
-                print(f' >>> after cardNet {rel[0]} {rel[1]}')
+        dmk_focus_names = self._get_dmk_focus_names()
 
-        for dmk in self.dmkD.values(): dmk.in_que.put('start_game') # synchronizes DMKs a bit...
-        for _ in self.dmkD: self.in_que.get()
-        if self.verb > 0: print(f' > started {len(self.dmkD)} DMKs!')
+        # save of DMK results + additional DMK info
+        dmk_results = {
+            dn: {
+                'wonH_IV':      [],     # wonH of interval
+                'wonH_afterIV': [],     # wonH after interval
+                'family':       self.dmkD[dn].family,
+                'trainable':    self.dmkD[dn].trainable,
+            } for dn in dmk_focus_names}
+        ixs_IV = 0  # start index for IV reports (where we finished in last iteration)
 
-    # stops DMKs
-    def _stop_dmks(self):
-        if self.verb > 0: print('Stopping DMKs...')
+        # CXange in Rankings variables
+        dmk_rank = {dn: [] for dn in dmk_focus_names} # save of rankings for intervals
+        cxr = None
+        cxr_mavg = MovAvg(factor=0.1)
 
-        for dmk in self.dmkD.values(): dmk.in_que.put('stop_game')
-        for _ in tqdm(self.dmkD): self.in_que.get()
-        if self.verb > 0: print(' > all DMKs games stopped!')
+        sep_nc = None
+        sep_nf = None
+        sep_pairs_nc = None
+        sep_pairs_nf = None
+        sep_pairs_nf_mavg = MovAvg(factor=0.1)
+        sep_pairs_nf_mavg.upd(0) # to start low
 
-        for dmk in self.dmkD.values(): dmk.in_que.put('stop_dmk')
-        for _ in tqdm(self.dmkD): self.in_que.get()
-        if self.verb > 0: print(' > all DMKs exited!')
-
-
-    def start_games(self):
-        self.tables = self._create_tables()
+        # starts all subprocesses
+        self._put_players_on_tables()
         self._start_tables()
         self._start_dmks()
 
+        stime = time.time()
+        time_last_report = stime
+        n_hands_last_report = 0
 
-    def stop_games(self):
+        self.logger.info(f'{self.name} starts a game..')
+        while True:
+
+            time.sleep(sleep)
+
+            # loads family settings
+            if self.sexc:
+                new_se = self.sexc.get_new_se()
+                if new_se:
+                    for fm in new_se:
+                        for dmk in self.dmkD.values():
+                            if dmk.family == fm:
+                                message = QMessage(type='reload_dmk_settings', data=new_se[fm])
+                                dmk.que_from_gm.put(message)
+                                dmk_message = self.que_to_gm.get()
+                                print(dmk_message.data)
+
+            reports = self._get_reports(ixs_IV) # actual DMK reports
+
+            # calculate game factor
+            n_hands = sum([reports[dn]['n_hands'] for dn in reports])
+            game_factor = n_hands / len(reports) / game_size
+            if game_factor >= 1: game_factor = 1
+
+            n_iv = []
+            for dn in reports:
+                dmk_results[dn]['wonH_IV'] += reports[dn].pop('wonH_IV')
+                dmk_results[dn]['wonH_afterIV'] += reports[dn].pop('wonH_afterIV')
+                n_iv.append(len(dmk_results[dn]['wonH_IV']))
+            ixe_IV = min(n_iv) # compute end index for IV reports (where we will finish in this iteration)
+
+            # changes in ranking (CXR) & separation (SEP)
+            for eix in range(ixs_IV,ixe_IV):
+
+                won_order = [(dn,dmk_results[dn]['wonH_afterIV'][eix]) for dn in dmk_results]
+                won_order.sort(key=lambda x:x[1], reverse=True)
+                for ix,nw in enumerate(won_order):
+                    dmk_rank[nw[0]].append(ix)
+
+                #CXR & SEP needs variance, which is possible for at least 2 values
+                if len(dmk_rank[won_order[0][0]]) > 1:
+                    cxr = sum([abs(dmk_rank[n][-1]-dmk_rank[n][-2]) for n in dmk_rank])
+                    cxr_mavg.upd(cxr)
+                    if publish_GM:
+                        self.tbwr.add(value=cxr_mavg(), tag=f'GM/cxr', step=eix)
+
+                    sr = separation_report(
+                        dmk_results=    dmk_results,
+                        n_stdev=        sep_n_stdev,
+                        sep_pairs=      sep_pairs)
+                    sep_nc = sr['sep_nc']
+                    sep_nf = sr['sep_nf']
+                    sep_pairs_nc = sr['sep_pairs_nc']
+                    sep_pairs_nf = sr['sep_pairs_nf']
+                    sr['sep_pairs_nf_mavg'] = sep_pairs_nf_mavg.upd(sep_pairs_nf)
+                    if publish_GM:
+                        sr.pop('sep_pairs_stat')
+                        for k in sr:
+                            self.tbwr.add(value=sr[k], tag=f'GM/{k}', step=eix)
+
+            ixs_IV = ixe_IV
+
+            # INFO: progress relies on reports, and reports may be prepared in custom way (overridden) by diff GMs
+            if progress_report:
+
+                # progress
+                passed = (time.time()-stime)/60
+                left_nfo = ' - '
+                if game_factor > 0:
+                    full_time = passed / game_factor
+                    left = (1-game_factor) * full_time
+                    left_nfo = f'{left:.1f}'
+
+                # speed
+                hdiff = n_hands-n_hands_last_report
+                hd_pp = int(hdiff / len(reports))
+                spd_report = f'{int(hdiff / (time.time()-time_last_report))}H/s (+{hd_pp}Hpp)'
+                n_hands_last_report = n_hands
+                time_last_report = time.time()
+
+                cxr_report = f' CXR:{cxr}->{round(cxr_mavg(),1)}' if cxr is not None else ''
+
+                sep_report_all = f'{sep_nc:.1f}[{sep_nf:.2f}]' if sep_nc is not None else ''
+                sep_report_pairs = f'::{sep_pairs_nc:.1f}[{sep_pairs_nf:.2f}->{sep_pairs_nf_mavg():.2f}]' if sep_pairs and sep_pairs_nc is not None else ''
+                sep_report = f' SEP:{sep_report_all}{sep_report_pairs}' if sep_report_all else ''
+
+                progress_(
+                    current=    game_factor,
+                    total=      1.0,
+                    prefix=     f'GM: {passed:.1f}min left:{left_nfo}min',
+                    suffix=     f'{spd_report} --{cxr_report}{sep_report}',
+                    length=     20)
+
+            # games break - factor condition
+            if game_factor == 1:
+                self.logger.info('> finished game (game factor condition)')
+                break
+
+            # games break - separation breaking value condition
+            if sep_pairs and sep_pairs_nf_mavg() >= sep_bvalue:
+                self.logger.info(f'> finished game (separation condition: {sep_bvalue:.2f}, game factor: {game_factor:.2f})')
+                break
+
+            # games break - all pairs separated condition
+            if sep_pairs and sep_pairs_nc == 1:
+                self.logger.info(f'> finished game (pairs separated), game factor: {game_factor:.2f})')
+                break
+
+        self.tbwr.flush()
+
+        self.logger.debug('> saves DMKs')
+
+        n_saved = 0
+        message = QMessage(type='save_dmk', data=None)
+        for dmk in self.dmkD.values():
+            dmk.que_from_gm.put(message)
+            n_saved += 1
+        for _ in range(n_saved):
+            self.que_to_gm.get()
+
         self._stop_tables()
         self._stop_dmks()
 
+        taken_sec = time.time() - stime
+        taken_nfo = f'{taken_sec / 60:.1f}min' if taken_sec > 100 else f'{taken_sec:.1f}sec'
+        self.logger.info(f'{self.name} finished run_game, avg speed: {n_hands / taken_sec:.1f}H/s, time taken: {taken_nfo}')
+
+        return dmk_results
+
+    # prepares list of DMK names we are focused in the game
+    def _get_dmk_focus_names(self) -> List[str]:
+        return list(self.dmkD.keys())
+
+    # asks DMKs to prepare reports
+    def _get_reports(self, from_IV:int) -> Dict[str, Dict]: # {dn: {n_hands, wonH_IV, wonH_afterIV}}
+        dmk_names = self._get_dmk_focus_names()
+        reports: Dict[str, Dict] = {}
+        for dn in dmk_names:
+            message = QMessage(type='send_dmk_report', data=from_IV)
+            self.dmkD[dn].que_from_gm.put(message)
+        for _ in dmk_names:
+            message = self.que_to_gm.get()
+            report = message.data
+            dmk_name = message.data.pop('dmk_name')
+            reports[dmk_name] = report
+        return reports
+
+# GamesManager for Play & TRain concept for FolDMKs (some DMKs may play, some DMKs may train)
+class GamesManager_PTR(GamesManager):
+
+    def __init__(
+            self,
+            dmk_point_PLL: Optional[List[Dict]]=    None, # playable DMK list
+            dmk_point_TRL: Optional[List[Dict]]=    None, # trainable DMK list
+            dmk_n_players: int=                     60,
+            name: Optional[str]=                    None,
+            **kwargs):
+
+        """
+        there are 3 possible scenarios:
+        1.playable & trainable:
+            dmk_n_players - sets number of players per trainable DMK
+            number of players for each playable DMK is calculated
+            number of tables == dmk_n_players (each trainable has one table)
+        2.only trainable:
+            dmk_n_players - sets number of players per trainable DMK
+            number of tables = len(dmk)*dmk_n_players / N_TABLE_PLAYERS
+        3.only playable
+            dmk_n_players - sets number of players per playable DMK
+            number of tables = len(dmk)*dmk_n_players / N_TABLE_PLAYERS
+        """
+
+        if not dmk_point_PLL: dmk_point_PLL =  []
+        if not dmk_point_TRL: dmk_point_TRL = []
+
+        if not (dmk_point_PLL or dmk_point_TRL):
+            raise PyPoksException('playing OR training DMKs must be given')
+
+        n_tables = len(dmk_point_TRL) * dmk_n_players # default when there are both playable & trainable
+        if not dmk_point_PLL or not dmk_point_TRL:
+            dmk_dnaL = dmk_point_PLL or dmk_point_TRL
+            if (len(dmk_dnaL) * dmk_n_players) % N_TABLE_PLAYERS != 0:
+                raise PyPoksException('Please correct number of DMK players: n DMKs * n players must be multiplication of N_TABLE_PLAYERS')
+            n_tables = int((len(dmk_dnaL) * dmk_n_players) / N_TABLE_PLAYERS)
+
+        # override to train (each DMK by default is saved as a trainable - we set also trainable to have this info here for later usage, it needs n_players to be set)
+        for dmk in dmk_point_TRL:
+            dmk.update({
+                'n_players':    dmk_n_players,
+                'trainable':    True})
+
+        if dmk_point_PLL:
+
+            # both
+            if dmk_point_TRL:
+                n_rest_players = n_tables * (N_TABLE_PLAYERS-1)
+                rest_names = [dna['name'] for dna in dmk_point_PLL]
+                rest_names = random.choices(rest_names, k=n_rest_players)
+                for point in dmk_point_PLL:
+                    point.update({
+                        'n_players': len([nm for nm in rest_names if nm == point['name']]),
+                        'trainable': False})
+
+            # only playable
+            else:
+                play_dna = {
+                    'n_players': dmk_n_players,
+                    'trainable': False}
+                for dmk in dmk_point_PLL:
+                    dmk.update(play_dna)
+
+        self.dmk_name_PLL = [dna['name'] for dna in dmk_point_PLL]
+        self.dmk_name_TRL = [dna['name'] for dna in dmk_point_TRL]
+
+        nm = 'PL' if self.dmk_name_PLL else 'TR'
+        if self.dmk_name_PLL and self.dmk_name_TRL:
+            nm = 'TR+PL'
+        GamesManager.__init__(
+            self,
+            dmk_pointL= dmk_point_PLL + dmk_point_TRL,
+            name=       name or f'GM_{nm}_{stamp()}',
+            **kwargs)
+
+        self.logger.info(f'*** GamesManager_PTR started with (PL:{len(dmk_point_PLL)} TR:{len(dmk_point_TRL)}) DMKs on {n_tables} tables')
+        for dna in dmk_point_PLL + dmk_point_TRL:
+            self.logger.debug(f'> {dna["name"]} with {dna["n_players"]} players, trainable: {dna["trainable"]}')
+
+    # creates new tables & puts players with PTR policy
+    def _put_players_on_tables(self):
+
+        # use previous policy
+        if not (self.dmk_name_PLL and self.dmk_name_TRL):
+            return GamesManager._put_players_on_tables(self)
+
+        self.logger.info('> puts players on tables with PTR policy..')
+
+        ques_PL = []
+        ques_TR = []
+
+        for dmk in self.dmkD.values():
+            ques = ques_TR if dmk.trainable else ques_PL
+            for k in dmk.queD_to_player: # {pid: que_to_pl}
+                ques.append((k, dmk.queD_to_player[k], dmk.que_from_player))
+
+        # shuffle players
+        random.shuffle(ques_PL)
+        random.shuffle(ques_TR)
+
+        # put on tables
+        self.tables = []
+        table_ques =  []
+        table_logger = get_child(self.logger, name='table_logger', change_level=-10) if self.debug_tables else None
+        while ques_TR:
+            table_ques.append(ques_TR.pop())
+            while len(table_ques) < N_TABLE_PLAYERS: table_ques.append(ques_PL.pop())
+            random.shuffle(table_ques)
+            self.tables.append(QPTable(
+                name=       f'tbl{len(self.tables)}',
+                que_to_gm=  self.que_to_gm,
+                pl_ques=    {t[0]: (t[1], t[2]) for t in table_ques},
+                logger=     table_logger))
+            table_ques = []
+        assert not ques_PL and not ques_TR
+
+    # adds age update
+    def run_game(self, **kwargs) -> Dict:
+
+        # update trainable age - needs to be done before game, cause after game DMKs are saved
+        for dmk in self.dmkD.values():
+            if dmk.trainable: dmk.age += 1
+
+        dmk_results = GamesManager.run_game(self, **kwargs)
+
+        # put age into res_list
+        for dn in dmk_results:
+            dmk_results[dn]['age'] = self.dmkD[dn].age
+
+        return dmk_results
+
+    # prepares list of DMK names we are focused in the game (with focus on TRL)
+    def _get_dmk_focus_names(self) -> List[str]:
+        return self.dmk_name_TRL or self.dmk_name_PLL
+
+# manages DMKs for human games
+class HuGamesManager(GamesManager):
+
+    def __init__(
+            self,
+            dmk_names: Union[List[str],str],
+            logger=     None,
+            loglevel=   20):
+
+        if not logger:
+            logger = get_pylogger(level=loglevel)
+
+        if N_TABLE_PLAYERS != 3:
+            raise PyPoksException('HuGamesManage supports now only 3-handed tables')
+
+        logger.info(f'HuGamesManager starts with given dmk_names: {dmk_names}')
+
+        h_name = 'hm0'
+
+        hdna = {
+            'name':             h_name,
+            'family':           'h',
+            'trainable':        False,
+            'n_players':        1,
+            #'publish':          False,
+            'fwd_stats_step':   10}
+
+        if type(dmk_names) is str: dmk_names = [dmk_names]
+
+        self.tk_gui = GUI_HDMK(players=[h_name]+dmk_names, imgs_FD='gui/imgs')
+
+        hdmk = HuDMK(tk_gui=self.tk_gui, **hdna)
+
+        if len(dmk_names) not in [1,2]:
+            raise PyPoksException('Number of given DMK names must be equal 1 or 2')
+
+        ddL = [{
+            'name':             nm,
+            'trainable':        False,
+            'n_players':        N_TABLE_PLAYERS - len(dmk_names),
+            #'publish':          False,
+            'fwd_stats_step':   10} for nm in dmk_names]
+
+        GamesManager.__init__(
+            self,
+            dmk_pointL= ddL,
+            use_fsexc=  False,
+            logger=     logger)
+
+        # update/override with HuDMK
+        self.dmkD[hdna['name']] = hdmk
+        self.families.add(hdna['family'])
+        hdmk.que_to_gm = self.que_to_gm
+
+    # starts all subprocesses
+    def start_games(self):
+        self._put_players_on_tables()
+        self._start_tables()
+        self._start_dmks()
+
     # an alternative way of stopping all subprocesses (dmks & tables)
     def kill_games(self):
-        if self.verb > 0: print('Killing games...')
+        self.logger.info('HuGamesManager is killing games..')
         for dmk in self.dmkD.values(): dmk.kill()
         for table in self.tables: table.kill()
 
-    # runs processed games with gx
-    def run_gx_games(
-            self,
-            gx_loop_sh= (3,1),  # shape of GXA while loop
-            gx_exit_sh= (3,3),  # shape of GXA after loop exit
-            gx_limit=   10):    # number of GAX to perform, for None: no limit
-
-        self.start_games()
-
-        stime = time.time()
-        gx_time = stime
-
-        last_gx_hand = {}
-        gx_counter = 0
-        n_sec_iv = 30  # number of seconds between reporting
-        while True:
-
-            # first get reports
-            reports = {}
-            for dmk in self.dmkD.values(): dmk.in_que.put('send_report')
-            for _ in self.dmkD:
-                report = self.in_que.get()
-                reports[report[0]] = report[2]
-            # then build last_gx_hand (at first loop)
-            if not last_gx_hand:
-                last_gx_hand = {dmk_name: reports[dmk_name]['n_hands'] for dmk_name in reports}
-
-            if self.verb > 0:
-                nh = [r['n_hands'] for r in reports.values()]
-                print(f' GM:{(time.time()-gx_time)/60:4.1f}min, nH: {min(nh)}-{max(nh)}')
-
-            do_gx = True
-            for dmk_name in reports:
-                if reports[dmk_name]['n_hands'] < last_gx_hand[dmk_name] + self.gx_iv:
-                    do_gx = False
-                    break
-
-            if do_gx:
-
-                gx_counter += 1
-
-                if self.verb > 0:
-                    last_nhs = sum(last_gx_hand.values())
-                    now_nhs = sum([r['n_hands'] for r in reports.values()])
-                    print(f' GM: {int((now_nhs-last_nhs)/(time.time()-gx_time))}H/s, starting GX:{gx_counter}')
-
-                for dmk_name in reports: last_gx_hand[dmk_name] = reports[dmk_name]['n_hands']
-
-                # save all
-                for dmk in self.dmkD.values(): dmk.in_que.put('save_model')
-                for _ in self.dmkD: self.in_que.get()
-
-                # sort DMKs
-                gx_list = []
-                for dmk_name in reports:
-                    gx_list.append((
-                        dmk_name,
-                        reports[dmk_name]['acc_won'][self.gx_iv],
-                        self.dmkD[dmk_name].family))
-                gx_list = sorted(gx_list, key= lambda x: x[1], reverse=True)
-
-                if gx_limit and gx_counter == gx_limit:
-                    gx_last_list = gx_list  # save last list for return
-                    break
-
-                if gx_loop_sh:
-                    xres = xross(gx_list, shape=gx_loop_sh, verb=self.verb+1)
-
-                    for f in xres['mixed']:
-                        for dmk_name in xres['mixed'][f]: self.dmkD[dmk_name].in_que.put('reload_model')
-                        for _ in xres['mixed'][f]:
-                            rel = self.in_que.get()
-                            print(f'{rel[0]} {rel[1]} (family {f})')
-
-                gx_time = time.time()
-
-            time.sleep(n_sec_iv)
-
-        self.stop_games()
-
-        if gx_exit_sh: xross(gx_last_list, shape=gx_exit_sh, verb=2)
-
-        return gx_last_list
+    def run_tk(self): self.tk_gui.run_tk()

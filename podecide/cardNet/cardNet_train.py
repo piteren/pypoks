@@ -1,141 +1,104 @@
-"""
-
- 2019 (c) piteren
-
-    cardNet running script (training, infer)
-
-        there are 2,598,960 hands not considering different suits, it is (52/5) - combination
-
-        stats of poks hands, for 5 (not 7) randomly taken:
-        0 (highCard)       - 50.1177%
-        1 (pair)           - 42.2569%
-        2 (2pairs)         -  4.7539%
-        3 (threeOf)        -  2.1128%
-        4 (straight)       -  0.3925%
-        5 (flush)          -  0.1965%
-        6 (FH)             -  0.1441%
-        7 (fourOf)         -  0.0240%
-        8 (straightFlush)  -  0.001544%
-
-        for seven cards (from 0 to 8):
-        0.17740 0.44400 0.23040 0.04785 0.04150 0.03060 0.02660 0.00145 0.00020 (fraction)
-        0.17740 0.62140 0.85180 0.89965 0.94115 0.97175 0.99835 0.99980 1.00000 (cumulative fraction)
-
-        for seven cards, when try_to_balance it (first attempt) (from 0 to 8):
-        0.11485 0.22095 0.16230 0.10895 0.08660 0.09515 0.08695 0.06490 0.05935
-        0.11485 0.33580 0.49810 0.60705 0.69365 0.78880 0.87575 0.94065 1.00000
-
-"""
-
-import os
-import sys
-workingFolder = os.getcwd()
-sys.path.insert(0, workingFolder) # working folder
-
-from functools import partial
-import tensorflow as tf
+from ompr.runner import RunningWorker, OMPRunner
+from pypaq.mpython.mpdecor import proc
+import torch
+from torchness.comoneural.zeroes_processor import ZeroesProcessor
 import time
 
-from ptools.lipytools.little_methods import prep_folder
-from ptools.neuralmess.dev_manager import nestarter
-from ptools.neuralmess.nemodel import NEModel
-from ptools.neuralmess.base_elements import ZeroesProcessor
-from ptools.mpython.qmp import DeQueMP
+from podecide.cardNet.cardNet_module import CardNet_MOTorch #, get_cardNet
 
-from pypoks_envy import MODELS_FD, CN_MODELS_FD, get_cardNet_name
 from pologic.podeck import PDeck
-from podecide.cardNet.cardNet_batcher import prep2X7Batch, get_test_batch
-from podecide.cardNet.cardNet_graph import card_net
+from podecide.cardNet.cardNet_batcher import prep2X7batch, get_test_batch
+
+
+class Batch2X7_RW(RunningWorker):
+
+    def __init__(
+            self,
+            batch_size: int,
+            n_monte: int):
+        self.deck = PDeck()
+        self.batch_size = batch_size
+        self.n_monte = n_monte
+
+    def process(self, **kwargs):
+        batch = prep2X7batch(
+            deck=       self.deck,
+            batch_size= self.batch_size,
+            n_monte=    self.n_monte)
+        batch.pop('rank_counter')
+        batch.pop('won_counter')
+        return {k: torch.tensor(batch[k]) for k in batch}
 
 
 # training function
-def train_cn(
-        cn_dict :dict,
-        device=     -1,
-        n_batches=  50000,
-        tr_SM=      (1000,10),      # train (size,montecarlo samples)
-        ts_SM=      (2000,100000),  # test  (size,montecarlo samples)
-        do_test=    True,
-        rq_trg=     200,
-        rep_freq=   100,
-        his_freq=   500,
-        verb=       0):
+def train_cardNet(
+        cards_emb_width: int,
+        device=             -1,
+        n_batches=          50000,
+        tr_SM=              (1000,10),      # train (batch_size, montecarlo samples)
+        ts_SM=              (2000,100000),  # test  (batch_size, montecarlo samples)
+        do_test=            True,
+        target_ready_tasks= 200,
+        rep_freq=           100,
+        loglevel=           20):
 
-    prep_folder(MODELS_FD)
-    prep_folder(CN_MODELS_FD)
+    cnet = CardNet_MOTorch(
+        cards_emb_width=    cards_emb_width,
+        device=             device,
+        use_huber=          True,
+        read_only=          False,
+        loglevel=           loglevel)
+    #print(cnet)
+    logger = cnet.logger
 
-    test_batch, c_tuples = None, None
-    if do_test: test_batch, c_tuples = get_test_batch(ts_SM[0], ts_SM[1])
+    test_batch = None
+    if do_test:
+        test_batch, _ = get_test_batch(*ts_SM)
+        test_batch.pop('rank_counter')
+        test_batch.pop('won_counter')
+        test_batch = {k: cnet.convert(data=test_batch[k]) for k in test_batch}
 
-    iPF = partial(prep2X7Batch, bs=tr_SM[0], n_monte=tr_SM[1])
-    iPF.__name__ = 'prep2X7Batch'
-    dqmp = DeQueMP(
-        func=           iPF,
-        rq_trg=         rq_trg,
-        verb=           verb)
+    ompr = OMPRunner(
+        rw_class=           Batch2X7_RW,
+        rw_init_kwargs=     {'batch_size':tr_SM[0], 'n_monte':tr_SM[1]},
+        devices=            0.9,
+        ordered_results=    False,
+        logger=             logger)
+    task_pack = [{}] * (target_ready_tasks // 10) # tasks we add to OMP at once
 
-    cnet = NEModel( # model
-        fwd_func=       card_net,
-        mdict=          cn_dict,
-        devices=        device,
-        save_TFD=       CN_MODELS_FD,
-        verb=           verb)
+    # assert len(cnet.gFWD) <= rq_trg, 'ERR: needs to increase rq_trg!'
 
     ze_pro = ZeroesProcessor(
-        intervals=      (50,500,5000),
-        tag_pfx=        '7_zeroes',
-        summ_writer=    cnet.summ_writer)
+        intervals=  (50,500,5000),
+        tag_pfx=    '7_zeroes',
+        tbwr=       cnet.tbwr)
 
     nHighAcc = 0
     sTime = time.time()
     for b in range(1, n_batches):
 
-        # feed loop for towers
-        batches = [dqmp.get_result() for _ in cnet.gFWD]
-        feed = {}
-        for ix in range(len(cnet.gFWD)):
-            batch = batches[ix]
-            tNet = cnet.gFWD[ix]
-            feed.update({
-                tNet['train_PH']:   True,
-                tNet['inA_PH']:     batch['cA'],
-                tNet['inB_PH']:     batch['cB'],
-                tNet['won_PH']:     batch['wins'],
-                tNet['rnkA_PH']:    batch['rA'],
-                tNet['rnkB_PH']:    batch['rB'],
-                tNet['mcA_PH']:     batch['mAWP']})
-        batch = batches[0]
+        task_st = ompr.get_tasks_stats()
+        if task_st['n_tasks_received'] - task_st['n_results_returned'] < target_ready_tasks:
+            ompr.process(tasks=task_pack)
 
-        fetches = [
-            cnet['optimizer'],
-            cnet['loss'],
-            cnet['loss_W'],
-            cnet['loss_R'],
-            cnet['loss_AWP'],
-            cnet['acc_W'],
-            cnet['acc_WC'],
-            cnet['predictions_W'],
-            cnet['oh_notcorrect_W'],
-            cnet['acc_R'],
-            cnet['acc_RC'],
-            cnet['predictions_R'],
-            cnet['oh_notcorrect_R'],
-            cnet['gg_norm'],
-            cnet['avt_gg_norm'],
-            cnet['scaled_LR'],
-            cnet['zeroes']]
-        lenNH = len(fetches)
-        if his_freq and b % his_freq == 0: fetches.append(cnet['hist_summ'])
+        batch = ompr.get_result()
+        out = cnet.backward(**batch)
 
-        out = cnet.session.run(fetches, feed_dict=feed)
-        if len(out)==lenNH: out.append(None)
-        _, loss, loss_W, loss_R, loss_AWP, acc_W, acc_WC, pred_W, ohnc_W, acc_R, acc_RC, pred_R, ohnc_R, gn, agn, lRs, zs, hist_summ = out
-
-        if hist_summ: cnet.summ_writer.add_summary(hist_summ, b)
-
-        ze_pro.process(zs, b)
+        ze_pro.process(out['zsL'])
 
         if b % rep_freq == 0:
+
+            loss =          out['loss']
+            loss_W =        out['loss_winner']
+            loss_R =        out['loss_rank']
+            loss_AWP =      out['loss_won_A']
+            acc_W =         out['accuracy_winner']
+            acc_R =         out['accuracy_rank']
+            gn =            out['gg_norm']
+            gnc =           out['gg_norm_clip']
+            lRs =           out['currentLR']
+            speed = int(rep_freq * tr_SM[0] / (time.time() - sTime))
+            sTime = time.time()
 
             """ prints stats of rank @batch
             if verbLev > 2:
@@ -159,42 +122,32 @@ def train_cn(
                 print()
             #"""
 
-            print('%6d, loss: %.6f, accW: %.6f, gn: %.6f, (%d/s)' % (b, loss, acc_W, gn, rep_freq * tr_SM[0] / (time.time() - sTime)))
-            sTime = time.time()
+            logger.info(f'{b:6}, loss: {loss:.6f}, accW: {acc_W:.6f}, gn: {gn:.6f}, {speed} H/s')
 
-            accsum = tf.Summary(value=[tf.Summary.Value(tag='1_crdN/0_iacW', simple_value=1-acc_W)])
-            accRsum = tf.Summary(value=[tf.Summary.Value(tag='1_crdN/1_iacR', simple_value=1-acc_R)])
-            losssum = tf.Summary(value=[tf.Summary.Value(tag='1_crdN/2_loss', simple_value=loss)])
-            lossWsum = tf.Summary(value=[tf.Summary.Value(tag='1_crdN/3_lossW', simple_value=loss_W)])
-            lossRsum = tf.Summary(value=[tf.Summary.Value(tag='1_crdN/4_lossR', simple_value=loss_R)])
-            lossAWPsum = tf.Summary(value=[tf.Summary.Value(tag='1_crdN/5_lossAWP', simple_value=loss_AWP)])
-            gNsum = tf.Summary(value=[tf.Summary.Value(tag='1_crdN/6_gn', simple_value=gn)])
-            agNsum = tf.Summary(value=[tf.Summary.Value(tag='1_crdN/7_agn', simple_value=agn)])
-            lRssum = tf.Summary(value=[tf.Summary.Value(tag='1_crdN/8_lRs', simple_value=lRs)])
-            cnet.summ_writer.add_summary(accsum, b)
-            cnet.summ_writer.add_summary(accRsum, b)
-            cnet.summ_writer.add_summary(losssum, b)
-            cnet.summ_writer.add_summary(lossWsum, b)
-            cnet.summ_writer.add_summary(lossRsum, b)
-            cnet.summ_writer.add_summary(lossAWPsum, b)
-            cnet.summ_writer.add_summary(gNsum, b)
-            cnet.summ_writer.add_summary(agNsum, b)
-            cnet.summ_writer.add_summary(lRssum, b)
+            cnet.log_TB(value=1-acc_W,  tag='1_crdN/0_iacW',    step=b)
+            cnet.log_TB(value=1-acc_R,  tag='1_crdN/1_iacR',    step=b)
+            cnet.log_TB(value=loss,     tag='1_crdN/2_loss',    step=b)
+            cnet.log_TB(value=loss_W,   tag='1_crdN/3_lossW',   step=b)
+            cnet.log_TB(value=loss_R,   tag='1_crdN/3_lossR',   step=b)
+            cnet.log_TB(value=loss_AWP, tag='1_crdN/5_lossAWP', step=b)
+            cnet.log_TB(value=gn,       tag='1_crdN/6_gn',      step=b)
+            cnet.log_TB(value=gnc,      tag='1_crdN/7_gnc',     step=b)
+            cnet.log_TB(value=lRs,      tag='1_crdN/8_lRs',     step=b)
+            cnet.log_TB(value=speed,    tag='1_crdN/9_speed',   step=b)
 
+            """
             acc_RC = acc_RC.tolist()
             for cx in range(len(acc_RC)):
-                csum = tf.Summary(value=[tf.Summary.Value(tag=f'3_Rcia/{cx}ica', simple_value=1-acc_RC[cx])])
-                cnet.summ_writer.add_summary(csum, b)
+                cnet.log_TB(value=1-acc_RC[cx], tag=f'3_Rcia/{cx}ica', step=b)
 
             acc_WC = acc_WC.tolist()
             accC01 = (acc_WC[0]+acc_WC[1])/2
             accC2 = acc_WC[2]
-            c01sum = tf.Summary(value=[tf.Summary.Value(tag='5_Wcia/01cia', simple_value=1-accC01)])
-            c2sum = tf.Summary(value=[tf.Summary.Value(tag='5_Wcia/2cia', simple_value=1-accC2)])
-            cnet.summ_writer.add_summary(c01sum, b)
-            cnet.summ_writer.add_summary(c2sum, b)
+            cnet.log_TB(value=1-accC01, tag='5_Wcia/01cia', step=b)
+            cnet.log_TB(value=1-accC2,  tag='5_Wcia/2cia',  step=b)
+            """
 
-            #""" reporting of almost correct cases in late training
+            """ reporting of almost correct cases in late training
             if acc_W > 0.99: nHighAcc += 1
             if nHighAcc > 10 and acc_W < 1:
                 nS = pred_R.shape[0] # batch size (num samples)
@@ -234,15 +187,9 @@ def train_cn(
         # test
         if b%1000 == 0 and test_batch is not None:
 
-            batch = test_batch
-            feed = {
-                cnet['inA_PH']:     batch['cA'],
-                cnet['inB_PH']:     batch['cB'],
-                cnet['won_PH']:     batch['wins'],
-                cnet['rnkA_PH']:    batch['rA'],
-                cnet['rnkB_PH']:    batch['rB'],
-                cnet['mcA_PH']:     batch['mAWP']}
+            out = cnet.backward(**test_batch)
 
+            """
             fetches = [
                 cnet['loss'],
                 cnet['loss_W'],
@@ -258,75 +205,54 @@ def train_cn(
                 cnet['acc_RC'],
                 cnet['predictions_R'],
                 cnet['oh_notcorrect_R']]
-
             out = cnet.session.run(fetches, feed_dict=feed)
             if len(out)==lenNH: out.append(None)
             loss, loss_W, loss_R, loss_AWP, dAWPmn, dAWPmx, acc_W, acc_WC, pred_W, ohnc_W, acc_R, acc_RC, pred_R, ohnc_R = out
+            """
+            loss =          out['loss']
+            loss_W =        out['loss_winner']
+            loss_R =        out['loss_rank']
+            loss_AWP =      out['loss_won_A']
+            acc_W =         out['accuracy_winner']
+            acc_R =         out['accuracy_rank']
+            dAWPmn =        out['diff_won_prob_mean']
+            dAWPmx =        out['diff_won_prob_max']
 
-            print('%6dT loss: %.7f accW: %.7f' % (b, loss, acc_W))
+            logger.info('%6dT loss: %.7f accW: %.7f' % (b, loss, acc_W))
 
-            accsum = tf.Summary(value=[tf.Summary.Value(tag='2_crdNT/0_iacW', simple_value=1-acc_W)])
-            accRsum = tf.Summary(value=[tf.Summary.Value(tag='2_crdNT/1_iacR', simple_value=1-acc_R)])
-            losssum = tf.Summary(value=[tf.Summary.Value(tag='2_crdNT/2_loss', simple_value=loss)])
-            lossWsum = tf.Summary(value=[tf.Summary.Value(tag='2_crdNT/3_lossW', simple_value=loss_W)])
-            lossRsum = tf.Summary(value=[tf.Summary.Value(tag='2_crdNT/4_lossR', simple_value=loss_R)])
-            lossAWPsum = tf.Summary(value=[tf.Summary.Value(tag='2_crdNT/5_lossAWP', simple_value=loss_AWP)])
-            dAWPmnsum = tf.Summary(value=[tf.Summary.Value(tag='2_crdNT/6_dAWPmn', simple_value=dAWPmn)])
-            dAWPmxsum = tf.Summary(value=[tf.Summary.Value(tag='2_crdNT/7_dAWPmx', simple_value=dAWPmx)])
-            cnet.summ_writer.add_summary(accsum, b)
-            cnet.summ_writer.add_summary(accRsum, b)
-            cnet.summ_writer.add_summary(losssum, b)
-            cnet.summ_writer.add_summary(lossWsum, b)
-            cnet.summ_writer.add_summary(lossRsum, b)
-            cnet.summ_writer.add_summary(lossAWPsum, b)
-            cnet.summ_writer.add_summary(dAWPmnsum, b)
-            cnet.summ_writer.add_summary(dAWPmxsum, b)
+            cnet.log_TB(value=1-acc_W,  tag='2_crdNT/0_iacW',    step=b)
+            cnet.log_TB(value=1-acc_R,  tag='2_crdNT/1_iacR',    step=b)
+            cnet.log_TB(value=loss,     tag='2_crdNT/2_loss',    step=b)
+            cnet.log_TB(value=loss_W,   tag='2_crdNT/3_lossW',   step=b)
+            cnet.log_TB(value=loss_R,   tag='2_crdNT/3_lossR',   step=b)
+            cnet.log_TB(value=loss_AWP, tag='2_crdNT/5_lossAWP', step=b)
+            cnet.log_TB(value=dAWPmn,   tag='2_crdNT/6_dAWPmn',  step=b)
+            cnet.log_TB(value=dAWPmx,   tag='2_crdNT/7_dAWPmx',  step=b)
 
+            """
             acc_RC = acc_RC.tolist()
             for cx in range(len(acc_RC)):
-                csum = tf.Summary(value=[tf.Summary.Value(tag=f'4_RciaT/{cx}ca', simple_value=1-acc_RC[cx])]) # cia stands for "classification inverted accuracy"
-                cnet.summ_writer.add_summary(csum, b)
+                cnet.log_TB(value=1-acc_RC[cx], tag=f'4_RciaT/{cx}ca', step=b) # cia stands for "classification inverted accuracy"
 
             acc_WC = acc_WC.tolist()
             accC01 = (acc_WC[0]+acc_WC[1])/2
             accC2 = acc_WC[2]
-            c01sum = tf.Summary(value=[tf.Summary.Value(tag='6_WciaT/01cia', simple_value=1-accC01)])
-            c2sum = tf.Summary(value=[tf.Summary.Value(tag='6_WciaT/2cia', simple_value=1-accC2)])
-            cnet.summ_writer.add_summary(c01sum, b)
-            cnet.summ_writer.add_summary(c2sum, b)
+            cnet.log_TB(value=1-accC01, tag='6_WciaT/01cia', step=b)
+            cnet.log_TB(value=1-accC2,  tag='6_WciaT/2cia',  step=b)
+            """
 
-    cnet.saver.save(step=cnet['g_step'])
-    dqmp.close()
-    if verb > 0: print('%s done' % cnet['name'])
+    cnet.save()
+    ompr.exit()
+    logger.info(f'{cnet["name"]} training done!')
 
-# inference on given batch
-def infer(cn, batch):
-
-    feed = {
-        cn['inA_PH']: batch['cA'],
-        cn['inB_PH']: batch['cB']}
-
-    fetches = [cn['predictions_W']]
-    return cn.session.run(fetches, feed_dict=feed)
+@proc
+def train_wrap(cards_emb_width, device, **kwargs):
+    train_cardNet(
+        cards_emb_width=    cards_emb_width,
+        device=             device,
+        **kwargs)
 
 
 if __name__ == "__main__":
-
-    device = -1
-    c_embW = 12
-
-    name = get_cardNet_name(c_embW)
-
-    nestarter(custom_name=name, devices=False)
-
-    cn_dict = {
-        'name':         name,
-        'emb_width':    c_embW,
-        'verb':         1}
-
-    train_cn(
-        cn_dict=        cn_dict,
-        device=         device,
-        #n_batches=      5000,
-        #his_freq=       0,
-        verb=           1)
+    #train_wrap(cards_emb_width=12, device=0)
+    train_wrap(cards_emb_width=24, device=1)
