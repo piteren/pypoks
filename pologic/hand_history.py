@@ -56,7 +56,7 @@ class HHistory:
                 sd = list(state[1])
                 sd[0] = pls.index(sd[0])
 
-                # remove not 0 (I'am 0) cards
+                # remove not 0 (I am 0) cards
                 if state[0] == 'PLH' and not DEBUG_MODE:
                     if sd[0] != 0:
                         sd[1], sd[2] = None, None

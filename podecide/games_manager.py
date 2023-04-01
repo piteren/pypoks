@@ -531,7 +531,7 @@ class GamesManager:
 
         return dmk_results
 
-    # prepares list of DMK names we are focused in the game
+    # prepares list of DMK names GM is focused on
     def _get_dmk_focus_names(self) -> List[str]:
         return list(self.dmkD.keys())
 

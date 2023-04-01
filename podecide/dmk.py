@@ -74,7 +74,7 @@ import statistics
 from torchness.motorch import MOTorch
 from torchness.tbwr import TBwr
 from torchness.comoneural.zeroes_processor import ZeroesProcessor
-from typing import List, Tuple, Optional, Dict
+from typing import List, Tuple, Optional, Dict, Any
 
 from pypoks_envy import DMK_MODELS_FD, DMK_POINT_PFX, N_TABLE_PLAYERS, TABLE_CASH_START, TBL_MOV_R, POS_NMS_R, DMK_STATS_IV
 from pologic.podeck import PDeck
@@ -118,9 +118,18 @@ class DMK(ABC):
         self._logger.debug(f'> {self.n_moves} supported moves')
         self._logger.debug(f'> {len(self._player_ids)} players')
 
-    # makes decisions [(pid,move)..] for one/some/all players (players with possible moves)
+    # takes & stores player states
     @abstractmethod
-    def make_decisions(self) -> List[Tuple[str,int]]: pass
+    def collect_states(
+            self,
+            player_id: str,
+            player_states: List[Any]):
+        pass
+
+    # makes decisions [(player_id,move)..] for one/some/all players with possible moves
+    @abstractmethod
+    def make_decisions(self) -> List[Tuple[str,int]]:
+        pass
 
 # Methods DMK extends DMK baseline with methods and data structures
 class MethDMK(DMK, ABC):
@@ -147,21 +156,21 @@ class MethDMK(DMK, ABC):
     def collect_states(
             self,
             player_id: str,
-            player_states: List[list]):
+            player_states: List[Tuple]):
 
-        encoded_states = self._encode_states(player_id, player_states) # encode
+        encoded_states = self._encode_states(player_id, player_states)
 
         # save into data structures
         if encoded_states:
             self._states_new[player_id] += encoded_states
             self._n_states_new += len(encoded_states)
 
-    # encodes player states into form appropriate for DMK to make decisions
+    # encodes player states into type appropriate for DMK to make decisions
     @abstractmethod
     def _encode_states(
             self,
             player_id: str,
-            player_stateL: List[list]) -> List[GameState]:
+            player_stateL: List[Tuple]) -> List[GameState]:
         return [GameState(state_orig_data=value) for value in player_stateL] # wraps into list of GameState
 
     # takes possible_moves (and their cash) from poker player

@@ -12,14 +12,12 @@
 """
 
 import numpy as np
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 
 class GameState:
 
-    def __init__(
-            self,
-            state_orig_data):
+    def __init__(self, state_orig_data:Tuple):
         self.state_orig_data = state_orig_data              # value of state (any object)
         self.possible_moves: Optional[List[bool]]=  None    # list of player possible moves
         self.moves_cash: Optional[List[int]]=       None    # list of player cash amount for possible moves
