@@ -1,17 +1,17 @@
 import torch
 from torchness.types import TNS, DTNS
-from torchness.motorch import Module, MOTorch
+from torchness.motorch import Module
 from torchness.base_elements import my_initializer
 from torchness.layers import LayDense
 from torchness.encoders import EncCNN, EncDRT
 from typing import Optional
 
-from pypoks_envy import N_TABLE_PLAYERS, TBL_MOV, DMK_MODELS_FD
+from pypoks_envy import N_TABLE_PLAYERS, TBL_MOV
 from podecide.cardNet.cardNet_module import CardNet_MOTorch
 
 
-# CNN + RES + CE/move Module, added DRT after CNN
-class ProCNN_DMK(Module):
+# CNN + RES + CE/move Module, added DRT after CNN, Policy Gradient based
+class ProCNN_DMK_A2C(Module):
 
     def __init__(
             self,
@@ -89,6 +89,13 @@ class ProCNN_DMK(Module):
             activation=     activation,
             initializer=    my_initializer) if n_lay_drt else None
 
+        self.value = LayDense(
+            in_features=    new_width,
+            out_features=   1,
+            activation=     None,
+            bias=           False,
+            initializer=    my_initializer)
+
         self.logits = LayDense(
             in_features=    new_width,
             out_features=   len(TBL_MOV),
@@ -96,12 +103,13 @@ class ProCNN_DMK(Module):
             bias=           False,
             initializer=    my_initializer)
 
+
     def forward(
             self,
-            cards: TNS,     # 7 cards ids tensor
-            event: TNS,     # event id tensor
-            switch: TNS,    # 1 for cads 0 for event
-            enc_cnn_state: Optional[TNS]=   None,
+            cards: TNS,                             # 7 cards ids tensor
+            event: TNS,                             # event id tensor
+            switch: TNS,                            # 1 for cads 0 for event
+            enc_cnn_state: Optional[TNS]=   None,   # state tensor
     ) -> DTNS:
 
         card_enc_module = self.card_net.module.card_enc # just alias
@@ -133,9 +141,12 @@ class ProCNN_DMK(Module):
             output = enc_drt_out['out']
             zsL_drt = enc_drt_out['zsL']
 
+        value = self.value(output) # baseline architecture, where value comes from common A+C tower
+        value = torch.reshape(value, (value.shape[:-1]))  # remove last dim
         logits = self.logits(output)
 
         return {
+            'value':        value,
             'logits':       logits,
             'probs':        torch.nn.functional.softmax(input=logits, dim=-1),
             'fin_state':    fin_state,
@@ -148,8 +159,8 @@ class ProCNN_DMK(Module):
             cards: TNS,
             event: TNS,
             switch: TNS,
-            move: TNS,
-            reward: TNS,
+            move: TNS,                              # move (action) taken
+            reward: TNS,                            # (dreturns)
             enc_cnn_state: Optional[TNS]=   None,
     ) -> DTNS:
 
@@ -158,78 +169,36 @@ class ProCNN_DMK(Module):
             event=          event,
             switch=         switch,
             enc_cnn_state=  enc_cnn_state)
-        logits = out['logits']
-        probs = out['probs']
 
+        value = out['value']
+        logits = out['logits']
+
+        advantage = reward - value
+        advantage_nograd = advantage.detach()  # to prevent flow of Actor loss gradients to Critic network
+
+        # INFO: loss for reshaped tensors since torch does not support higher dim here
+        orig_shape = list(logits.shape)
+        loss_actor = torch.nn.functional.cross_entropy(
+            input=      logits.view(-1,orig_shape[-1]),
+            target=     move.view(-1),
+            reduction=  'none')
+        loss_actor = loss_actor.view(orig_shape[:-1])
+        loss_actor = loss_actor * advantage_nograd
+        loss_actor = torch.mean(loss_actor)
+
+        loss_critic = torch.nn.functional.huber_loss(value, advantage, reduction='none')
+        loss_critic = torch.mean(loss_critic)
+
+        probs = out['probs']
         max_probs = torch.max(probs, dim=-1)[0] # max probs
         min_probs = torch.min(probs, dim=-1)[0] # min probs
         max_probs_mean = torch.mean(max_probs)  # mean of max probs
         min_probs_mean = torch.mean(min_probs)  # mean of min probs
 
-        orig_shape = list(logits.shape)
-        # INFO: loss for reshaped tensors since torch does not support higher dim here
-        loss = torch.nn.functional.cross_entropy(
-            input=      logits.view(-1,orig_shape[-1]),
-            target=     move.view(-1),
-            reduction=  'none')
-        loss = loss.view(orig_shape[:-1])
-        loss = loss * reward
-
-        # TODO: consider implementing, ..BUT never was used till now
-        """
-        # empower exploration loss
-        # INFO: experimental
-        if empower_exp > 1:
-            argmax = tf.cast(tf.argmax(probs, axis=-1), dtype=tf.int32)
-            loss = tf.where( # empower loss for wrong prediction
-                condition=  tf.math.equal(argmax, move_PH),
-                x=          loss,
-                y=          empower_exp*loss)
-
-        # limit certainty
-        # INFO: experimental
-        if limit_cert:
-            max_probs_mm = tf.where( # reduce max_probs to 0 where loss<0
-                condition=  tf.math.less(loss, 0),
-                x=          tf.zeros_like(max_probs),
-                y=          max_probs)
-            loss = tf.where( # reduce loss to 0 where max_probs_mm above limit
-                condition=  tf.greater(max_probs_mm, limit_cert),
-                x=          tf.zeros_like(loss),
-                y=          loss)
-            loss = tf.reduce_mean(loss)
-        """
-
-        loss = torch.mean(loss)
-
         out.update({
-            'loss':             loss,
-            'probs':            probs,
+            'loss':             loss_actor + loss_critic,
+            'loss_actor':       loss_actor,
+            'loss_critic':      loss_critic,
             'max_probs_mean':   max_probs_mean,
             'min_probs_mean':   min_probs_mean})
         return out
-
-
-# adds possibility to load cardNet ckpt while init
-class DMK_MOTorch(MOTorch):
-
-    def __init__(
-            self,
-            module_type=                ProCNN_DMK,
-            save_topdir=                DMK_MODELS_FD,
-            load_cardnet_pretrained=    False,
-            **kwargs):
-
-        # INFO: load_cardnet_pretrained will not be saved with POINT of MOTorch, but it is intended
-        MOTorch.__init__(
-            self,
-            module_type=    module_type,
-            save_topdir=    save_topdir,
-            **kwargs)
-
-        if load_cardnet_pretrained:
-            self.load_cardnet_pretrained()
-
-    def load_cardnet_pretrained(self):
-        self.module.card_net.load_ckpt()
-        self._log.info(f'{self.name} loaded card_net pretrained checkpoint')

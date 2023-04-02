@@ -9,6 +9,8 @@ from typing import List, Optional, Dict, Tuple
 from pypoks_base import PyPoksException
 from pypoks_envy import DMK_MODELS_FD
 from podecide.dmk import FolDMK
+from podecide.dmk_module_pg import ProCNN_DMK_PG
+from podecide.dmk_module_a2c import ProCNN_DMK_A2C
 from podecide.games_manager import GamesManager_PTR
 
 
@@ -25,6 +27,7 @@ def get_fresh_dna(name:str, family:str) -> Dict[str,POINT]:
 
     motorch_point_common: POINT = {
         'name':                     name,
+        'module_type':              ProCNN_DMK_PG,
         'save_topdir':              DMK_MODELS_FD,
         'cards_emb_width':          12,
         'load_cardnet_pretrained':  True,
@@ -51,12 +54,9 @@ def get_fresh_dna(name:str, family:str) -> Dict[str,POINT]:
         'trainable':    True,
         'psdd':         foldmk_psdd}
 
-    # TODO: by now disabled
-    """
-    # wider network
     if family == 'b':
-        motorch_point_common['cards_emb_width'] = 24
-    """
+        motorch_point_common['module_type'] = ProCNN_DMK_A2C    # A2C
+        #motorch_point_common['cards_emb_width'] = 24            # wider network
 
     # no sampling from prob
     if family == 'c':

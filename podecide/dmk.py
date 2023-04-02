@@ -79,7 +79,7 @@ from typing import List, Tuple, Optional, Dict, Any
 from pypoks_envy import DMK_MODELS_FD, DMK_POINT_PFX, N_TABLE_PLAYERS, TABLE_CASH_START, TBL_MOV_R, POS_NMS_R, DMK_STATS_IV
 from pologic.podeck import PDeck
 from podecide.game_state import GameState
-from podecide.dmk_module import DMK_MOTorch
+from podecide.dmk_motorch import DMK_MOTorch
 from podecide.dmk_stats_manager import StatsManager
 from gui.gui_hdmk import GUI_HDMK
 
@@ -579,7 +579,7 @@ class StaMaDMK(QueDMK, ABC):
     def _encode_states(
             self,
             player_id,
-            player_stateL: List[list]) -> List[GameState]:
+            player_stateL: List[tuple]) -> List[GameState]:
 
         statsD = self._sm.process_states(player_id, player_stateL) # send states to SM
 
@@ -760,9 +760,9 @@ class NeurDMK(ExaDMK):
     # prepares state data into form accepted by NN input
     #  - encodes only selection of states: [POS,PLH,TCD,MOV,PRS] ..does not use: HST,TST,PSB,PBB,T$$
     #  - each event has values (ids):
-    #       0                                                           : pad (..for cards factually)
-    #       1,2,3..N_TABLE_PLAYERS                                      : my positions SB,BB,BTN..
-    #       1+N_TABLE_PLAYERS.. len(TBL_MOV)*(N_TABLE_PLAYERS-1)-1     : n_opponents * n_moves
+    #       0                                                       : pad (..for cards factually)
+    #       1,2,3..N_TABLE_PLAYERS                                  : my positions SB,BB,BTN..
+    #       1+N_TABLE_PLAYERS.. len(TBL_MOV)*(N_TABLE_PLAYERS-1)-1  : n_opponents * n_moves
     def _encode_states(
             self,
             player_id,
@@ -1305,7 +1305,7 @@ class HuDMK(StaMaDMK):
     def _encode_states(
             self,
             player_id,
-            player_stateL: List[list]) -> List[GameState]:
+            player_stateL: List[tuple]) -> List[GameState]:
         for state in player_stateL:
             message = QMessage(type='state', data=state)
             self.tk_IQ.put(message)
