@@ -17,7 +17,7 @@ from run.after_run.ranks import get_ranks
 CONFIG_INIT = {
     'exit':                 False,      # exits loop (after train)
     'pause':                False,      # pauses loop after test till Enter pressed
-    'families':             'abc',      # active families
+    'families':             'ab',       # active families
     'n_dmk_total':          10,         # total number of trainable DMKs (population size)  // 12x cN12 playing / GPU 6x cN12 training
     'n_dmk_master':         5,          # number of 'masters' DMKs (trainable are trained against them)
     'n_dmk_TR_group':       5,          # DMKs are trained with masters in groups of that size (group is build of n_dmk_TR_group + n_dmk_master)
@@ -314,7 +314,7 @@ if __name__ == "__main__":
         dmk_masters = dmk_ranked[:n_dmk_master]
         dmk_poor = dmk_ranked[n_dmk_master:]
 
-        ranks_smooth = get_ranks()['ranks_smooth']
+        ranks_smooth = get_ranks(dmk_TR=dmk_TR, all_results=all_results)['ranks_smooth']
         rank_candidates = [dn for dn in dmk_poor if ranks_smooth[dn][-1] > n_dmk_total*0.6]
         logger.info(f'rank_candidates: {rank_candidates}')
 

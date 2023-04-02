@@ -446,7 +446,7 @@ class GamesManager:
                     cxr = sum([abs(dmk_rank[n][-1]-dmk_rank[n][-2]) for n in dmk_rank])
                     cxr_mavg.upd(cxr)
                     if publish_GM:
-                        self.tbwr.add(value=cxr_mavg(), tag=f'GM/cxr', step=eix)
+                        self.tbwr.add(value=cxr_mavg(), tag=f'GM/cxr_mavg', step=eix)
 
                     sr = separation_report(
                         dmk_results=    dmk_results,

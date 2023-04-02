@@ -1,19 +1,27 @@
 from pypaq.lipytools.files import r_json
 from pypaq.lipytools.plots import two_dim_multi
 from pypaq.lipytools.moving_average import MovAvg
-from run.functions import get_saved_dmks_names
+from typing import List, Dict, Optional
 
 from pypoks_envy import RESULTS_FP
+from run.functions import get_saved_dmks_names
 
 
+def get_ranks(
+        dmk_TR: Optional[List[str]]=    None,
+        all_results: Optional[Dict]=    None,
+        mavg_factor=                    0.2,
+) -> Dict:
 
-def get_ranks(mavg_factor=0.2):
+    if dmk_TR is None:
+        names_saved = get_saved_dmks_names()  # get all saved names
+        dmk_TR = [dn for dn in names_saved if '_old' not in dn]  # get names of TR
 
-    names_saved = get_saved_dmks_names()  # get all saved names
-    dmk_TR = [dn for dn in names_saved if '_old' not in dn]  # get names of TR
     low_rank = len(dmk_TR)
 
-    all_results = r_json(RESULTS_FP)
+    if all_results is None:
+        all_results = r_json(RESULTS_FP)
+
     ranks = {dn: [low_rank] * int(dn[3:6]) + all_results[dn]['rank'] for dn in dmk_TR}
     ranks_smooth = {}
     for dn in ranks:
