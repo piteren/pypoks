@@ -27,7 +27,7 @@ CONFIG_INIT = {
     # test
     'game_size_TS':         300000,
     'dmk_n_players_TS':     150,        # number of players per DMK while TS // 300 is ok, but loads a lot of RAM
-    'sep_bvalue':           1.2,
+    'sep_bvalue':           1.2,        # is changed to 0.9 after first loop
     'n_stdev':              2.0,
     # children
     'remove_key':           [5,1],      # [A,B] remove DMK if in last A+B life marks there are A minuses
