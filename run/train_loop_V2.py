@@ -75,7 +75,8 @@ if __name__ == "__main__":
 
         logger.info(f'Building {config["n_dmk_total"]} DMKs..')
         initial_names = [f'dmk000_{ix}' for ix in range(config['n_dmk_total'])]
-        families = [random.choice(config['families']) for _ in initial_names]
+        families = config['families'] * config['n_dmk_total']
+        families = families[:config['n_dmk_total']]
         build_from_names(
             names=      initial_names,
             families=   families,

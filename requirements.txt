@@ -1,3 +1,4 @@
 ompr
 pypaq
+torch
 torchness

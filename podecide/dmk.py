@@ -1045,8 +1045,6 @@ class NeurDMK(ExaDMK):
             if self.publish_update:
                 self._ze_pro_enc.process(out['zsL_enc'], self.upd_step)
                 self._ze_pro_cnn.process(out['zsL_cnn'], self.upd_step)
-                if self._ze_pro_drt:
-                    self._ze_pro_cnn.process(out['zsL_drt'], self.upd_step)
                 for ix,k in enumerate([
                     'loss',
                     'currentLR',
@@ -1099,11 +1097,6 @@ class NeurDMK(ExaDMK):
             intervals=      (5,20),
             tag_pfx=        'nane_cnn',
             tbwr=           self._tbwr) if self.publish_update else None
-        self._ze_pro_drt = ZeroesProcessor(
-            intervals=      (5,20),
-            tag_pfx=        'nane_drt',
-            tbwr=           self._tbwr) if self.publish_update and self._mdl.module.enc_drt else None
-
 
     def _do_what_GM_says(self, message: QMessage):
 
