@@ -17,7 +17,7 @@ from podecide.games_manager import GamesManager_PTR
 
 def get_fresh_dna(name:str, family:str) -> Dict[str,POINT]:
 
-    if family not in 'abcgh':
+    if family not in 'abcd':
         raise PyPoksException(f'unknown family: {family}')
 
     motorch_psdd: PSDD = {
@@ -54,17 +54,20 @@ def get_fresh_dna(name:str, family:str) -> Dict[str,POINT]:
         'trainable':    True,
         'psdd':         foldmk_psdd}
 
-    if family == 'b':
-        motorch_point_common['module_type'] = ProCNN_DMK_A2C    # A2C
-        #motorch_point_common['cards_emb_width'] = 24            # wider network
+    # A2C
+    if family in 'cd':
+        motorch_point_common['module_type'] = ProCNN_DMK_A2C
 
+    # wider network
+    if family in 'bd':
+        motorch_point_common['cards_emb_width'] = 24
+
+    """
     # no sampling from prob
-    if family == 'c':
+    if family == '...':
         foldmk_psdd.pop('argmax_prob')
         foldmk_point_common['argmax_prob'] = 1
-
-    if family == 'g': motorch_point_common['device'] = 0
-    if family == 'h': motorch_point_common['device'] = 1
+    """
 
     foldmk_point = {}
     foldmk_point.update(foldmk_point_common)

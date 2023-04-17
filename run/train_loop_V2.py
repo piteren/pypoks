@@ -17,10 +17,10 @@ from run.after_run.ranks import get_ranks
 CONFIG_INIT = {
     'exit':                 False,      # exits loop (after train)
     'pause':                False,      # pauses loop after test till Enter pressed
-    'families':             'ab',       # active families
-    'n_dmk_total':          10,         # total number of trainable DMKs (population size)  // 12x cN12 playing / GPU 6x cN12 training
-    'n_dmk_master':         5,          # number of 'masters' DMKs (trainable are trained against them)
-    'n_dmk_TR_group':       5,          # DMKs are trained with masters in groups of that size (group is build of n_dmk_TR_group + n_dmk_master)
+    'families':             'abcd',     # active families
+    'n_dmk_total':          12,         # total number of trainable DMKs (population size)  // 12x cN12 playing / GPU 6x cN12 training
+    'n_dmk_master':         6,          # number of 'masters' DMKs (trainable are trained against them)
+    'n_dmk_TR_group':       6,          # DMKs are trained with masters in groups of that size (group is build of n_dmk_TR_group + n_dmk_master)
     # train
     'game_size_TR':         200000,
     'dmk_n_players_TR':     150,
@@ -197,8 +197,10 @@ if __name__ == "__main__":
 
         sep_pairs = [(dn, f'{dn}_old') for dn in dmk_ranked]
 
+        dmks_PLL = dmk_ranked + dmk_old
+        random.shuffle(dmks_PLL) # shuffle to randomly distribute among GPUs
         dmk_results = run_GM(
-            dmk_point_PLL=  [{'name':dn, 'motorch_point':{'device': n % 2}, **pub} for n,dn in enumerate(dmk_ranked + dmk_old)],
+            dmk_point_PLL=  [{'name':dn, 'motorch_point':{'device': n % 2}, **pub} for n,dn in enumerate(dmks_PLL)],
             game_size=      game_size_TS,
             dmk_n_players=  dmk_n_players_TS,
             sep_pairs=      sep_pairs,

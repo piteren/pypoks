@@ -1029,12 +1029,13 @@ class NeurDMK(ExaDMK):
             move = self._mdl.convert(move_batch)
             reward = self._mdl.convert(reward_batch)
             out = self._mdl.backward(
-                cards=          cards,
-                event=          event,
-                switch=         switch,
-                move=           move,
-                reward=         reward,
-                enc_cnn_state=  state)
+                cards=              cards,
+                event=              event,
+                switch=             switch,
+                move=               move,
+                reward=             reward,
+                enc_cnn_state=      state,
+                empty_cuda_cache=   True) # INFO: allows to train bigger models on limited GPU mem
             fin_states = out['fin_state']
 
             # save upd states
