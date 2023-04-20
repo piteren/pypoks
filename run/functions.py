@@ -4,7 +4,7 @@ from pypaq.mpython.mpdecor import proc_return, proc_wait
 from pypaq.pms.base import POINT, PSDD
 from pypaq.pms.paspa import PaSpa
 import shutil
-from typing import List, Optional, Dict, Tuple
+from typing import List, Optional, Dict, Tuple, Union
 
 from pypoks_base import PyPoksException
 from pypoks_envy import DMK_MODELS_FD
@@ -97,7 +97,7 @@ def build_single_foldmk(name:str, family:str, logger=None):
 # builds dmks, checks folder for present ones
 def build_from_names(
         names: List[str],
-        families: List[str],
+        families: Union[str,List[str]],
         logger=     None,
         loglevel=   20):
 

@@ -17,12 +17,10 @@ def get_ranks(
         names_saved = get_saved_dmks_names()  # get all saved names
         dmk_TR = [dn for dn in names_saved if '_old' not in dn]  # get names of TR
 
-    low_rank = len(dmk_TR)
-
     if all_results is None:
         all_results = r_json(RESULTS_FP)
 
-    ranks = {dn: [low_rank] * int(dn[3:6]) + all_results[dn]['rank'] for dn in dmk_TR}
+    ranks = {dn: all_results[dn]['rank'] for dn in dmk_TR}
     ranks_smooth = {}
     for dn in ranks:
         ma = MovAvg(mavg_factor)
@@ -48,6 +46,7 @@ def get_ranks(
 if __name__ == "__main__":
 
     rd = get_ranks()
+    #print(rd)
 
     two_dim_multi(
         ys=     list(rd['ranks'].values()),

@@ -11,27 +11,29 @@ import sys
 from pypoks_envy import DMK_MODELS_FD, AGE_FD, PMT_FD, CONFIG_FP, RESULTS_FP
 from podecide.dmk import FolDMK
 from podecide.games_manager import separation_report
-from run.functions import get_saved_dmks_names, build_from_names, run_GM, copy_dmks, build_single_foldmk
+from run.pretrain_for_loop import pretrain
+from run.functions import get_saved_dmks_names, run_GM, copy_dmks, build_single_foldmk
 from run.after_run.ranks import get_ranks
 
 CONFIG_INIT = {
     'exit':                 False,      # exits loop (after train)
     'pause':                False,      # pauses loop after test till Enter pressed
-    'families':             'abcd',     # active families
+    'families':             'abcd',     # active families, at least one representative should be present
     'n_dmk_total':          12,         # total number of trainable DMKs (population size)  // 12x cN12 playing / GPU 6x cN12 training
     'n_dmk_master':         6,          # number of 'masters' DMKs (trainable are trained against them)
     'n_dmk_TR_group':       6,          # DMKs are trained with masters in groups of that size (group is build of n_dmk_TR_group + n_dmk_master)
+    'game_size_upd':        100000,     # how much increase game size of TR or TS when needed
     # train
-    'game_size_TR':         200000,
+    'game_size_TR':         100000,
     'dmk_n_players_TR':     150,
     # test
-    'game_size_TS':         300000,
+    'game_size_TS':         100000,
     'dmk_n_players_TS':     150,        # number of players per DMK while TS // 300 is ok, but loads a lot of RAM
-    'sep_bvalue':           1.2,        # is changed to 0.9 after first loop
+    'sep_bvalue':           1.0,        # pairs separation break value
     'n_stdev':              2.0,
     # children
-    'remove_key':           [5,1],      # [A,B] remove DMK if in last A+B life marks there are A minuses
-    'prob_fresh':           0.5,        # probability of fresh child (GX of point only, without GX of ckpt)
+    'remove_key':           [3,0],      # [A,B] remove DMK if in last A+B life marks there are A -|
+    'prob_fresh':           0.5,        # probability of fresh checkpoint (child from GX of point only, without GX of ckpt)
     # PMT (Periodical Masters Test)
     'n_loops_PMT':          10,         # do PMT every N loops
     'n_dmk_PMT':            20,         # max number of DMKs (masters) in PMT
@@ -74,19 +76,19 @@ if __name__ == "__main__":
     if not _continue:
 
         logger.info(f'Building {config["n_dmk_total"]} DMKs..')
-        initial_names = [f'dmk000_{ix}' for ix in range(config['n_dmk_total'])]
-        families = config['families'] * config['n_dmk_total']
-        families = families[:config['n_dmk_total']]
-        build_from_names(
-            names=      initial_names,
-            families=   families,
-            logger=     logger)
+
+        pretrain(
+            n_fam_dmk=      config['n_dmk_total'] // len(config['families']),
+            families=       config['families'],
+            game_size=      config['game_size_TR'],
+            dmk_n_players=  config['dmk_n_players_TR'],
+            logger=         logger)
 
         all_results = {dn: {
-            'family':   f,
+            'family':   FolDMK.load_point(name=dn)['family'],
             'rank':     [],
             'lifemark': '',
-        } for dn,f in zip(initial_names,families)}
+        } for dn in get_saved_dmks_names()}
         all_results['n_loops'] = 0
 
     """
@@ -106,18 +108,12 @@ if __name__ == "__main__":
     6. do PMT every N loop
     7. eventually replace poor with a new
     """
-    # TODO: automatically increase TR/TS game_size by 50K when condition meet:
-    #  - TR when not enough DMKs is learning
-    #  - TS when not separated enough
     while True:
 
         logger.info(f'\n ************** starts loop {loop_ix} **************')
 
         ### 1. manage config changes
 
-        if loop_ix == 2:
-            if config['sep_bvalue'] > 1:
-                config = cm.update(sep_bvalue=0.9)
         config = cm.load() # eventually load new config
 
         # it is much clear to use variables in the code than the dict
@@ -127,6 +123,7 @@ if __name__ == "__main__":
         n_dmk_total =           config['n_dmk_total']
         n_dmk_master =          config['n_dmk_master']
         n_dmk_TR_group =        config['n_dmk_TR_group']
+        game_size_upd =         config['game_size_upd']
         # train
         game_size_TR =          config['game_size_TR']
         dmk_n_players_TR =      config['dmk_n_players_TR']
@@ -200,7 +197,7 @@ if __name__ == "__main__":
         dmks_PLL = dmk_ranked + dmk_old
         random.shuffle(dmks_PLL) # shuffle to randomly distribute among GPUs
         dmk_results = run_GM(
-            dmk_point_PLL=  [{'name':dn, 'motorch_point':{'device': n % 2}, **pub} for n,dn in enumerate(dmks_PLL)],
+            dmk_point_PLL=  [{'name':dn, 'motorch_point':{'device':n%2}, **pub} for n,dn in enumerate(dmks_PLL)],
             game_size=      game_size_TS,
             dmk_n_players=  dmk_n_players_TS,
             sep_pairs=      sep_pairs,
@@ -223,24 +220,37 @@ if __name__ == "__main__":
         logger.info(f'separation ALL normalized count:   {sr["sep_nc"]:.3f}')
         logger.info(f'separation pairs normalized count: {sr["sep_pairs_nc"]:.3f}')
         # update dmk_results
+        session_lifemarks = ''
         for ix,dn in enumerate(dmk_ranked):
             dmk_results[dn]['separated_old'] = sr['sep_pairs_stat'][ix]
             dmk_results[dn]['wonH_old_diff'] = dmk_results[dn]['wonH_afterIV'][-1] - dmk_results[f'{dn}_old']['wonH_afterIV'][-1]
-            lifemark_upd = '+' if dmk_results[dn]['separated_old'] and dmk_results[dn]['wonH_old_diff'] > 0 else '-'
+            lifemark_upd = '|'
+            if dmk_results[dn]['separated_old']:
+                lifemark_upd = '+' if dmk_results[dn]['wonH_old_diff'] > 0 else '-'
             dmk_results[dn]['lifemark'] = all_results[dn]['lifemark'] + lifemark_upd
+            session_lifemarks += lifemark_upd
+
+        # eventually increase game_size
+        count_notsep = session_lifemarks.count('|')
+        count_pls = session_lifemarks.count('+')
+        if count_notsep >= n_dmk_total/2 or count_pls < n_dmk_total/3:
+            cm.update(game_size_TS=game_size_TS + game_size_upd)
+            cm.update(game_size_TR=game_size_TR + game_size_upd)
 
         # log results
         res_nfo = f'DMKs train results:\n'
         dmk_ranked_TR = [(dn, dmk_results[dn]['wonH_afterIV'][-1]) for dn in dmk_ranked]
         dmk_ranked_TR = [e[0] for e in sorted(dmk_ranked_TR, key=lambda x:x[1], reverse=True)]
-        pos = 1
+        ranks_smooth = get_ranks(dmk_TR=dmk_TR, all_results=all_results)['ranks_smooth']
+        pos = 0
         for dn in dmk_ranked_TR:
+            rank = f'{ranks_smooth[dn][-1]:4.1f}' if ranks_smooth[dn] else '----'
             nm_aged = f'{dn}({dmk_results[dn]["age"]}){dmk_results[dn]["family"]}'
             wonH = dmk_results[dn]['wonH_afterIV'][-1]
             wonH_old_diff = dmk_results[dn]['wonH_old_diff']
             sep_nfo = ' s' if dmk_results[dn]['separated_old'] else '  '
             lifemark_nfo = f' {dmk_results[dn]["lifemark"]}'
-            res_nfo += f' > {pos:>2} {nm_aged:15s} : {wonH:6.2f} :: {wonH_old_diff:6.2f}{sep_nfo}{lifemark_nfo}\n'
+            res_nfo += f' > {pos:>2}({rank}) {nm_aged:15s} : {wonH:6.2f} :: {wonH_old_diff:6.2f}{sep_nfo}{lifemark_nfo}\n'
             pos += 1
         logger.info(res_nfo)
 
@@ -290,7 +300,7 @@ if __name__ == "__main__":
                     'publish_update':       False,
                     'publish_more':         False}
                 pmt_results = run_GM(
-                    dmk_point_PLL=  [{'name':dn, 'motorch_point':{'device': n % 2}, 'save_topdir':PMT_FD, **pub} for n,dn in enumerate(all_pmt)],
+                    dmk_point_PLL=  [{'name':dn, 'motorch_point':{'device':n%2}, 'save_topdir':PMT_FD, **pub} for n,dn in enumerate(all_pmt)],
                     game_size=      game_size_TS,
                     dmk_n_players=  dmk_n_players_TS,
                     logger=         logger)
@@ -324,7 +334,7 @@ if __name__ == "__main__":
         lifemark_candidates = []
         for dn in dmk_poor:
             lifemark_ending = all_results[dn]["lifemark"][-sum(remove_key):]
-            if lifemark_ending.count('-') >= remove_key[0]:
+            if lifemark_ending.count('-') +  lifemark_ending.count('|') >= remove_key[0]:
                 lifemark_candidates.append(dn)
         logger.info(f'lifemark_candidates: {lifemark_candidates}')
 
@@ -337,21 +347,20 @@ if __name__ == "__main__":
                 shutil.rmtree(f'{DMK_MODELS_FD}/{dn}_old', ignore_errors=True)
                 dmk_results.pop(dn)
 
-            # check forced family
+            # look for forced families
             families_count = {fm: 0 for fm in families}
             for dn in dmk_results:
                 families_count[dmk_results[dn]['family']] += 1
             families_count = [(fm, families_count[fm]) for fm in families_count]
-            families_count.sort(key=lambda x: x[1])
-            min_count = n_dmk_total / len(families) / 2
-            family = families_count[0][0] if families_count[0][1] < min_count else None
+            families_forced = [fc[0] for fc in families_count if fc[1] < 1]
 
             for cix in range(len(remove)):
 
                 name_child = f'dmk{loop_ix:03}_{cix}'
 
-                # build new one
-                if family is not None:
+                # build new one from forced
+                if families_forced:
+                    family = families_forced.pop()
                     logger.info(f'> {name_child} forced from family {family}')
                     build_single_foldmk(
                         name=   name_child,
@@ -375,7 +384,6 @@ if __name__ == "__main__":
                         logger=             get_child(logger, change_level=10))
 
                 all_results[name_child] = {'family':family, 'rank': [], 'lifemark':''}
-                family = None # reset family for next child loop
 
         w_json(all_results, RESULTS_FP)
 

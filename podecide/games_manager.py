@@ -484,8 +484,8 @@ class GamesManager:
 
                 cxr_report = f' CXR:{cxr}->{round(cxr_mavg(),1)}' if cxr is not None else ''
 
-                sep_report_all = f'{sep_nc:.1f}[{sep_nf:.2f}]' if sep_nc is not None else ''
-                sep_report_pairs = f'::{sep_pairs_nc:.1f}[{sep_pairs_nf:.2f}->{sep_pairs_nf_mavg():.2f}]' if sep_pairs and sep_pairs_nc is not None else ''
+                sep_report_all = f'{sep_nc:.2f}[{sep_nf:.2f}]' if sep_nc is not None else ''
+                sep_report_pairs = f'::{sep_pairs_nc:.2f}[{sep_pairs_nf:.2f}->{sep_pairs_nf_mavg():.2f}]' if sep_pairs and sep_pairs_nc is not None else ''
                 sep_report = f' SEP:{sep_report_all}{sep_report_pairs}' if sep_report_all else ''
 
                 progress_(
