@@ -28,9 +28,13 @@ def pretrain(
         'publish_update':       False,
         'publish_more':         False}
 
-    for n,f in enumerate(families):
+    ix = 0
+    for f in families:
 
-        initial_names = [f'dmk00{n}_{ix}' for ix in range(n_fam*n_fam_dmk)]
+        initial_names = []
+        for _ in range(n_fam*n_fam_dmk):
+            initial_names.append(f'dmk000_{ix}')
+            ix += 1
 
         build_from_names(
             names=      initial_names,

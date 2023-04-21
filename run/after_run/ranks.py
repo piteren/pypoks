@@ -10,7 +10,7 @@ from run.functions import get_saved_dmks_names
 def get_ranks(
         dmk_TR: Optional[List[str]]=    None,
         all_results: Optional[Dict]=    None,
-        mavg_factor=                    0.2,
+        mavg_factor=                    0.3,
 ) -> Dict:
 
     if dmk_TR is None:
@@ -48,6 +48,8 @@ if __name__ == "__main__":
     rd = get_ranks()
     #print(rd)
 
+
+    """
     two_dim_multi(
         ys=     list(rd['ranks'].values()),
         names=  list(rd['ranks'].keys()))
@@ -59,3 +61,4 @@ if __name__ == "__main__":
     two_dim_multi(
         ys=     list(rd['ranks_fam'].values()),
         names=  list(rd['ranks_fam'].keys()))
+    """

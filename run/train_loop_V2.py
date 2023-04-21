@@ -32,12 +32,12 @@ CONFIG_INIT = {
     'sep_bvalue':           1.0,        # pairs separation break value
     'n_stdev':              2.0,
     # children
-    'remove_key':           [3,0],      # [A,B] remove DMK if in last A+B life marks there are A -|
+    'remove_key':           [3,1],      # [A,B] remove DMK if in last A+B life marks there are A -|
     'prob_fresh':           0.5,        # probability of fresh checkpoint (child from GX of point only, without GX of ckpt)
     # PMT (Periodical Masters Test)
     'n_loops_PMT':          10,         # do PMT every N loops
-    'n_dmk_PMT':            20,         # max number of DMKs (masters) in PMT
-}
+    'n_dmk_PMT':            20}         # max number of DMKs (masters) in PMT
+
 
 
 if __name__ == "__main__":
@@ -233,7 +233,7 @@ if __name__ == "__main__":
         # eventually increase game_size
         count_notsep = session_lifemarks.count('|')
         count_pls = session_lifemarks.count('+')
-        if count_notsep >= n_dmk_total/2 or count_pls < n_dmk_total/3:
+        if count_notsep > n_dmk_total/2 or count_pls < n_dmk_total/3:
             cm.update(game_size_TS=game_size_TS + game_size_upd)
             cm.update(game_size_TR=game_size_TR + game_size_upd)
 
@@ -328,13 +328,13 @@ if __name__ == "__main__":
         dmk_poor = dmk_ranked[n_dmk_master:]
 
         ranks_smooth = get_ranks(dmk_TR=dmk_TR, all_results=all_results)['ranks_smooth']
-        rank_candidates = [dn for dn in dmk_poor if ranks_smooth[dn][-1] > n_dmk_total*0.6]
+        rank_candidates = [dn for dn in dmk_poor if ranks_smooth[dn][-1] > n_dmk_total * 0.6]
         logger.info(f'rank_candidates: {rank_candidates}')
 
         lifemark_candidates = []
         for dn in dmk_poor:
             lifemark_ending = all_results[dn]["lifemark"][-sum(remove_key):]
-            if lifemark_ending.count('-') +  lifemark_ending.count('|') >= remove_key[0]:
+            if lifemark_ending.count('-') + lifemark_ending.count('|') >= remove_key[0]:
                 lifemark_candidates.append(dn)
         logger.info(f'lifemark_candidates: {lifemark_candidates}')
 
@@ -377,11 +377,12 @@ if __name__ == "__main__":
                     ckpt_fresh_info = ' (fresh ckpt)' if ckpt_fresh else ''
                     logger.info(f'> {name_child} = {pa} + {pb}{ckpt_fresh_info}')
                     FolDMK.gx_saved(
-                        name_parent_main=   pa,
-                        name_parent_scnd=   pb,
-                        name_child=         name_child,
-                        do_gx_ckpt=         not ckpt_fresh,
-                        logger=             get_child(logger, change_level=10))
+                        name_parent_main=           pa,
+                        name_parent_scnd=           pb,
+                        name_child=                 name_child,
+                        save_topdir_parent_main=    DMK_MODELS_FD,
+                        do_gx_ckpt=                 not ckpt_fresh,
+                        logger=                     get_child(logger, change_level=10))
 
                 all_results[name_child] = {'family':family, 'rank': [], 'lifemark':''}
 
