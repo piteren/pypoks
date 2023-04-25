@@ -17,20 +17,20 @@ from run.after_run.ranks import get_ranks
 
 CONFIG_INIT = {
         # general
-    'pretrain_game_size':       10000,#0,     # TODO: try to make it big enough to pass warmup
+    'pretrain_game_size':       100000,     # TODO: try to make it big enough to pass warmup
     'exit':                     False,      # exits loop (after train)
     'pause':                    False,      # pauses loop after test till Enter pressed
     'families':                 'abcd',     # active families, at least one representative should be present
     'n_dmk_total':              12,         # total number of trainable DMKs (population size)  // 12x cN12 playing / GPU 6x cN12 training
     'n_dmk_master':             6,          # number of 'masters' DMKs (trainable are trained against them)
     'n_dmk_TR_group':           6,          # DMKs are trained with masters in groups of that size (group is build of n_dmk_TR_group + n_dmk_master)
-    'game_size_upd':            10000,#0,     # how much increase game size of TR or TS when needed
+    'game_size_upd':            100000,     # how much increase game size of TR or TS when needed
         # TODO: add update parameters
         # train
-    'game_size_TR':             10000,#0,
+    'game_size_TR':             100000,
     'dmk_n_players_TR':         150,
         # test
-    'game_size_TS':             10000,#0,
+    'game_size_TS':             100000,
     'dmk_n_players_TS':         150,        # number of players per DMK while TS // 300 is ok, but loads a lot of RAM
     'sep_bvalue':               0.9,        # pairs separation break value
     'n_stdev':                  2.0,
@@ -63,8 +63,8 @@ CONFIG_INIT = {
         'dmka00_00': {                                      # _old do not have all keys and are removed later
             'wonH_IV':          [float,..]                  <- wonH of interval
             'wonH_afterIV':     [float,..]                  <- wonH after interval
-            'family':           self.dmkD[dn].family,
-            'trainable':        self.dmkD[dn].trainable,
+            'family':           dmk.family,
+            'trainable':        dmk.trainable,
             'age':              dmk.age
             'separated_old':    0 or 1
             'wonH_old_diff':    float
