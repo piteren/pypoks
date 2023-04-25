@@ -35,7 +35,7 @@ ARCHIVE_FD =        f'{DMK_MODELS_FD}/_archive'     # here are stored DMKs remov
 AGE_FD =            f'{DMK_MODELS_FD}/_age'         # two dim graphs of age of TR for each loop
 PMT_FD =            f'{DMK_MODELS_FD}/_pmt'         # here are stored PMT
 CONFIG_FP =         f'{DMK_MODELS_FD}/pypoks.cfg'
-RESULTS_FP =        f'{DMK_MODELS_FD}/results.json'
+RESULTS_FP =        f'{DMK_MODELS_FD}/all_results.json'
 
 DMK_STATS_IV = 1000 # DMK (player) stats interval size, it is quite important constant for DMK, StatsManager & GamesManager
 
