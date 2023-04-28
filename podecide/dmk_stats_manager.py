@@ -1,9 +1,8 @@
 """
 
- 2020 (c) piteren
-
  StatsManager
-    is an essential component of aware DMK / GamesManager since prepares data useful to make higher level decisions
+    is an essential component of aware DMK / GamesManager
+    prepares data / stats useful to make higher level decisions
     - supports DMK:
         - collects/builds DMK stats using given player states
             - all players stats
@@ -35,21 +34,19 @@ class StatsManager:
 
         self.name = name
 
-        self.hand_cg = 0            # hand clock global
-        self.hand_ci = 0            # hand clock interval
-
         self.stats_iv = stats_iv
 
-        # DMK poker stats for interval - accumulated (average for all players of one DMK)
+        # DMK poker stats (interval,global) - accumulated (average for all players of one DMK)
         self.stats = {
-            'won':      0,  # won $
+            'n_hands':  [0,0],  # n hands (clock)
+            'won':      [0,0],  # won $
 
-            'nVPIP':    0,  # n hands VPIP
-            'nPFR':     0,  # n hands PFR
-            'nHF':      0,  # n hands folded
+            'nVPIP':    [0,0],  # n hands VPIP
+            'nPFR':     [0,0],  # n hands PFR
+            'nHF':      [0,0],  # n hands folded
 
-            'nPM':      0,  # n moves postflop
-            'nAGG':     0}  # n aggressive moves postflop
+            'nPM':      [0,0],  # n moves postflop
+            'nAGG':     [0,0]}  # n aggressive moves postflop
 
         self.chsd =         {pid: None  for pid in pids} # current hand stats data (per player)
         self.is_BB =        {pid: False for pid in pids} # BB position of player at table {pid: True/False}
@@ -81,6 +78,14 @@ class StatsManager:
             self.chsd[pid]['nPM'] += 1
             if 'BR' in move: self.chsd[pid]['nAGG'] += 1
 
+    def __push_interval_to_global(self):
+        for k in self.stats:
+            self.stats[k][1] += self.stats[k][0]
+
+    def __reset_interval(self):
+        for k in self.stats:
+            self.stats[k][0] = 0
+
     # builds stats from player states, returns dictionary with stats to publish (once every self.stats_iv)
     def process_states(self, pid: str, states :List[list]) -> Optional[Dict]:
 
@@ -93,39 +98,47 @@ class StatsManager:
             if s[0] == 'MOV' and s[1][0] == 0:  self.__upd_chsd(pid, s[1][1])       # move received
             if s[0] == 'PRS' and s[1][0] == 0:                                      # final hand results
 
-                my_reward = s[1][1]
-                self.hand_cg += 1
-                self.hand_ci += 1
-
-                self.stats['won'] += my_reward
+                self.stats['n_hands'][0] += 1
+                self.stats['won'][0] += s[1][1]
 
                 # update self.stats with self.chsd
-                if self.chsd[pid]['VPIP']:  self.stats['nVPIP'] += 1
-                if self.chsd[pid]['PFR']:   self.stats['nPFR'] += 1
-                if self.chsd[pid]['HF']:    self.stats['nHF'] += 1
-                self.stats['nPM'] +=    self.chsd[pid]['nPM']
-                self.stats['nAGG'] +=   self.chsd[pid]['nAGG']
+                if self.chsd[pid]['VPIP']:  self.stats['nVPIP'][0] += 1
+                if self.chsd[pid]['PFR']:   self.stats['nPFR'][0] += 1
+                if self.chsd[pid]['HF']:    self.stats['nHF'][0] += 1
+                self.stats['nPM'][0] +=  self.chsd[pid]['nPM']
+                self.stats['nAGG'][0] += self.chsd[pid]['nAGG']
 
                 self.__reset_chsd(pid)
 
                 # update some stats after interval
-                if self.hand_ci == self.stats_iv:
+                if self.stats['n_hands'][0] == self.stats_iv:
 
                     self.speed = self.stats_iv/(time.time()-self.stime)
                     self.stime = time.time()
 
                     # prepare stats dict
                     statsD = {
-                        '0.VPIP':       self.stats['nVPIP'] / self.hand_ci * 100,
-                        '1.PFR':        self.stats['nPFR'] / self.hand_ci * 100,
-                        '2.AGG':        self.stats['nAGG'] / self.stats['nPM'] * 100 if self.stats['nPM'] else 0,
-                        '3.HF':         self.stats['nHF'] / self.hand_ci * 100,
+                        '0.VPIP':       self.stats['nVPIP'][0] / self.stats['n_hands'][0] * 100 if self.stats['n_hands'][0] else 0,
+                        '1.PFR':        self.stats['nPFR'][0]  / self.stats['n_hands'][0] * 100 if self.stats['n_hands'][0] else 0,
+                        '2.AGG':        self.stats['nAGG'][0]  / self.stats['nPM'][0] * 100     if self.stats['nPM'][0]     else 0,
+                        '3.HF':         self.stats['nHF'][0]   / self.stats['n_hands'][0] * 100 if self.stats['n_hands'][0] else 0,
                         'speed(H/s)':   self.speed,
                         'won':          self.stats['won']}
 
                     # reset interval values
-                    self.hand_ci = 0
-                    for key in self.stats.keys():
-                        self.stats[key] = 0
+                    self.__push_interval_to_global()
+                    self.__reset_interval()
 
         return statsD
+
+    def get_global_nhands(self) -> int:
+        return sum(self.stats['n_hands'])
+
+    def get_global_stats(self) -> Dict:
+        total_n_hands = self.get_global_nhands()
+        total_nPM = sum(self.stats['nPM'])
+        return {
+            'VPIP': sum(self.stats['nVPIP']) / total_n_hands * 100 if total_n_hands else 0,
+            'PFR':  sum(self.stats['nPFR'])  / total_n_hands * 100 if total_n_hands else 0,
+            'AGG':  sum(self.stats['nAGG'])  / total_nPM * 100     if total_nPM     else 0,
+            'HF':   sum(self.stats['nHF'])   / total_n_hands * 100 if total_n_hands else 0}

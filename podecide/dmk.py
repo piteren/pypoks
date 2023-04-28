@@ -641,21 +641,17 @@ class StaMaDMK(QueDMK, ABC):
                 type=   'dmk_report',
                 data=   {
                     'dmk_name':     self.name,
-                    'n_hands':      self._sm.hand_cg,                   # current number of hands (since init ..of SM)
+                    'n_hands':      self._sm.get_global_nhands(),       # current number of hands (since init ..of SM)
                     'wonH_IV':      self._wonH_IV[message.data:],       # wonH of intervals GM is asking for
                     'wonH_afterIV': self._wonH_afterIV[message.data:],  # wonH AFTER intervals GM is asking for
                 }))
 
-        # INFO: currently GM does not send any data for publish to DMK
-        """
-        if message.type == 'publish_GM':
-            step = message.data.pop('step')
-            for k in message.data:
-                self.tb_add(
-                    value=  message.data[k],
-                    tag=    k,
-                    step=   step)
-        """
+        if message.type == 'send_global_stats':
+            self.que_to_gm.put(QMessage(
+                type=   'global_stats',
+                data=   {
+                    'dmk_name':     self.name,
+                    'global_stats': self._sm.get_global_stats()}))
 
 # Exploring Advanced DMK implements probability of exploring (pex) while making a decision
 class ExaDMK(StaMaDMK, ABC):
