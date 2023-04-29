@@ -123,7 +123,7 @@ class StatsManager:
                         '2.AGG':        self.stats['nAGG'][0]  / self.stats['nPM'][0] * 100     if self.stats['nPM'][0]     else 0,
                         '3.HF':         self.stats['nHF'][0]   / self.stats['n_hands'][0] * 100 if self.stats['n_hands'][0] else 0,
                         'speed(H/s)':   self.speed,
-                        'won':          self.stats['won']}
+                        'won':          self.stats['won'][0]}
 
                     # reset interval values
                     self.__push_interval_to_global()

@@ -9,9 +9,9 @@ if __name__ == "__main__":
 
     saved_names = get_saved_dmks_names()
     all_results = r_json(RESULTS_FP)
-    best_dmk = [(dn, all_results[dn]['rank'][-1]) for dn in saved_names if '_old' not in dn]
-    best_dmk = sorted(best_dmk, key=lambda x:x[1])
-    best_dmk = [e[0] for e in best_dmk[:2]]
+    last_loop = max(all_results['loops'].keys())
+    dmk_ranked = all_results['loops'][last_loop]
+    best_dmk = dmk_ranked[:2]
 
     gm = HuGamesManager(dmk_names=best_dmk)
     gm.start_games()

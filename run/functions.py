@@ -145,41 +145,28 @@ def set_all_to_family(family='a'):
     for nm in get_saved_dmks_names():
         FolDMK.oversave_point(name=nm, family=family)
 
-
+@proc_return # processes <- to clear mem
 def run_GM(
         logger,
         dmk_point_PLL: Optional[List[Dict]]=        None,
         dmk_point_TRL: Optional[List[Dict]]=        None,
-        num_loops: int=                             1,      # each loop starts new GM
         game_size: int=                             100000,
         dmk_n_players: int=                         60,
+        sep_all_break: bool=                        False,
         sep_pairs: Optional[List[Tuple[str,str]]]=  None,
-        sep_bvalue=                                 0.7,
+        sep_pairs_factor: float=                    0.9,
+        sep_n_stdev: float=                         2.0,
 ) -> Dict:
 
-    @proc_return # processes <- to clear mem
-    def single_loop():
-        gm = GamesManager_PTR(
-            dmk_point_PLL=  dmk_point_PLL,
-            dmk_point_TRL=  dmk_point_TRL,
-            dmk_n_players=  dmk_n_players,
-            use_fsexc=      False,
-            logger=         logger)
-        return gm.run_game(
-            game_size=      game_size,
-            publish_GM=     not dmk_point_TRL,
-            sep_pairs=      sep_pairs,
-            sep_bvalue=     sep_bvalue)
-
-    dmk_results = None
-    for _ in range(num_loops):
-        loop_dmk_results = single_loop()
-
-        # accumulate
-        if dmk_results is None: dmk_results = loop_dmk_results
-        else:
-            for dn in dmk_results:
-                dmk_results[dn]['wonH_IV'] += loop_dmk_results[dn]['wonH_IV']
-                dmk_results[dn]['wonH'] += loop_dmk_results[dn]['wonH']
-
-    return dmk_results
+    gm = GamesManager_PTR(
+        dmk_point_PLL=  dmk_point_PLL,
+        dmk_point_TRL=  dmk_point_TRL,
+        dmk_n_players=  dmk_n_players,
+        logger=         logger)
+    return gm.run_game(
+        game_size=          game_size,
+        publish_GM=         not dmk_point_TRL,
+        sep_all_break=      sep_all_break,
+        sep_pairs=          sep_pairs,
+        sep_pairs_factor=   sep_pairs_factor,
+        sep_n_stdev=        sep_n_stdev)

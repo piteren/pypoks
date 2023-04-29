@@ -30,7 +30,7 @@ def pretrain(
 
     for f in families:
 
-        initial_names = [f'dmk{f}00_{ix:02}' for ix in range(n_fam*n_fam_dmk)]
+        initial_names = [f'dmk00{f}{ix:02}' for ix in range(n_fam*n_fam_dmk)]
 
         build_from_names(
             names=      initial_names,
@@ -43,11 +43,7 @@ def pretrain(
             dmk_n_players=  dmk_n_players,
             logger=         logger)
 
-        #print(dmk_results)
         dmk_ranked = [(dn, dmk_results[dn]['wonH_afterIV'][-1]) for dn in initial_names]
-        #print(dmk_ranked)
         dmk_ranked = [e[0] for e in sorted(dmk_ranked, key=lambda x: x[1], reverse=True)]
-        #print(dmk_ranked)
-
         for dn in dmk_ranked[n_fam_dmk:]:
             shutil.rmtree(f'{DMK_MODELS_FD}/{dn}', ignore_errors=True)

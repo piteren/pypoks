@@ -435,13 +435,6 @@ class QueDMK(MeTrainDMK, ABC):
                         moves_cash=     data['moves_cash'])
                     n_waiting += 1
 
-            # INFO: after some tests it has been noticed that there are NO empty loops
-            """
-            # a little sleep not to turn without a job
-            if not pmL and not n_waiting:
-                time.sleep(0.01)
-            """
-
             # if got any waiting >> make decisions and put them to players
             if n_waiting:
                 self._processFWD_stats['1.waiting'].append(n_waiting / n_players)
