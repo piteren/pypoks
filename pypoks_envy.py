@@ -32,7 +32,6 @@ CN_MODELS_FD =      f'{MODELS_FD}/cardNet'
 DMK_POINT_PFX =      'dmk_dna'
 
 ARCHIVE_FD =        f'{DMK_MODELS_FD}/_archive'     # here are stored DMKs removed from the loop (because of poor performance)
-AGE_FD =            f'{DMK_MODELS_FD}/_age'         # two dim graphs of age of TR for each loop
 PMT_FD =            f'{DMK_MODELS_FD}/_pmt'         # here are stored PMT
 CONFIG_FP =         f'{DMK_MODELS_FD}/pypoks.cfg'
 RESULTS_FP =        f'{DMK_MODELS_FD}/all_results.json'
