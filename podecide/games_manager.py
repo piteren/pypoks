@@ -1,10 +1,7 @@
 import copy
 import math
-import os
-from pypaq.lipytools.files import prep_folder
 from pypaq.lipytools.printout import stamp, progress_
 from pypaq.lipytools.pylogger import get_pylogger, get_child
-from pypaq.lipytools.moving_average import MovAvg
 from pypaq.mpython.mptools import Que, QMessage
 from torchness.tbwr import TBwr
 import random
@@ -19,25 +16,24 @@ from pologic.potable import QPTable
 from podecide.dmk import FolDMK, HuDMK
 from gui.gui_hdmk import GUI_HDMK
 
-# keys managed by family settings and FSExc
-FAM_KEYS = [
-    'trainable',
-    'do_GX',
-    'pex_max',
-    'prob_zero',
-    'prob_max',
-    'step_min',
-    'step_max',
-    'iLR']
 
+
+def stdev_with_none(values) -> Optional[float]:
+    if len(values) < 2:
+        return None
+    return statistics.stdev(values)
 
 # separated factor for two results
 def separated_factor(
-        a_wonH: float,
-        a_wonH_mean_stdev: float,
-        b_wonH: float,
-        b_wonH_mean_stdev: float,
+        a_wonH: Optional[float],
+        a_wonH_mean_stdev: Optional[float],
+        b_wonH: Optional[float],
+        b_wonH_mean_stdev: Optional[float],
         n_stdev: float) -> float:
+    if a_wonH_mean_stdev is None or b_wonH_mean_stdev is None:
+        return 0.0
+    if a_wonH_mean_stdev + b_wonH_mean_stdev == 0:
+        return 1000
     return abs(a_wonH - b_wonH) / (n_stdev * (a_wonH_mean_stdev + b_wonH_mean_stdev))
 
 # prepares separation report
@@ -45,51 +41,57 @@ def separation_report(
         dmk_results: Dict,
         n_stdev: float,
         sep_pairs: Optional[List[Tuple[str,str]]]=  None,
+        max_nf: float=                              1.1,
 ) -> Dict:
+
+    sep_nc = 0.0
+    sep_nf = 0.0
+    sep_pairs_nc = 0.0
+    sep_pairs_nf = 0.0
+    sep_pairs_stat = []
 
     n_dmk = len(dmk_results)
 
-    # add wonH_mean_stdev
+    # prepare separation data
+    dmk_sep = {}
     for dn in dmk_results:
-        stdev = statistics.stdev(dmk_results[dn]['wonH_IV'])
-        dmk_results[dn]['wonH_mean_stdev'] = stdev / math.sqrt(len(dmk_results[dn]['wonH_IV']))
+        wonH_IV_stdev = stdev_with_none(dmk_results[dn]['wonH_IV'])
+        dmk_sep[dn] = {
+            'wonH_IV_stdev':        wonH_IV_stdev,
+            'wonH_IV_mean_stdev':   wonH_IV_stdev / math.sqrt(len(dmk_results[dn]['wonH_IV'])) if wonH_IV_stdev is not None else None,
+            'last_wonH_afterIV':    dmk_results[dn]['wonH_afterIV'][-1] if dmk_results[dn]['wonH_afterIV'] else None}
 
     # compute separated normalized count & normalized factor
-    sep_nc = 0
-    sep_nf = 0
-    for dn_a in dmk_results:
-        dmk_results[dn_a]['separated'] = n_dmk - 1
-        for dn_b in dmk_results:
+    for dn_a in dmk_sep:
+        dmk_sep[dn_a]['separated'] = n_dmk - 1
+        for dn_b in dmk_sep:
             if dn_a != dn_b:
                 sf = separated_factor(
-                    a_wonH=             dmk_results[dn_a]['wonH_afterIV'][-1],
-                    a_wonH_mean_stdev=  dmk_results[dn_a]['wonH_mean_stdev'],
-                    b_wonH=             dmk_results[dn_b]['wonH_afterIV'][-1],
-                    b_wonH_mean_stdev=  dmk_results[dn_b]['wonH_mean_stdev'],
+                    a_wonH=             dmk_sep[dn_a]['last_wonH_afterIV'],
+                    a_wonH_mean_stdev=  dmk_sep[dn_a]['wonH_IV_mean_stdev'],
+                    b_wonH=             dmk_sep[dn_b]['last_wonH_afterIV'],
+                    b_wonH_mean_stdev=  dmk_sep[dn_b]['wonH_IV_mean_stdev'],
                     n_stdev=            n_stdev)
                 if sf < 1:
-                    dmk_results[dn_a]['separated'] -= 1
-                sep_nf += min(sf,1.1)
-        sep_nc += dmk_results[dn_a]['separated']
+                    dmk_sep[dn_a]['separated'] -= 1
+                sep_nf += min(sf, max_nf)
+        sep_nc += dmk_sep[dn_a]['separated']
     n_max = (n_dmk - 1) * n_dmk
     sep_nc /= n_max
     sep_nf /= n_max
 
     # same for given pairs
-    sep_pairs_nc = 0
-    sep_pairs_nf = 0
-    sep_pairs_stat = []
     if sep_pairs:
         for sp in sep_pairs:
             sf = separated_factor(
-                a_wonH=             dmk_results[sp[0]]['wonH_afterIV'][-1],
-                a_wonH_mean_stdev=  dmk_results[sp[0]]['wonH_mean_stdev'],
-                b_wonH=             dmk_results[sp[1]]['wonH_afterIV'][-1],
-                b_wonH_mean_stdev=  dmk_results[sp[1]]['wonH_mean_stdev'],
+                a_wonH=             dmk_sep[sp[0]]['last_wonH_afterIV'],
+                a_wonH_mean_stdev=  dmk_sep[sp[0]]['wonH_IV_mean_stdev'],
+                b_wonH=             dmk_sep[sp[1]]['last_wonH_afterIV'],
+                b_wonH_mean_stdev=  dmk_sep[sp[1]]['wonH_IV_mean_stdev'],
                 n_stdev=            n_stdev)
             sep_pairs_stat.append(0 if sf<1 else 1)
             if sf>=1: sep_pairs_nc += 1
-            sep_pairs_nf += min(sf,1.1)
+            sep_pairs_nf += min(sf, max_nf)
         sep_pairs_nc /= len(sep_pairs)
         sep_pairs_nf /= len(sep_pairs)
 
@@ -283,7 +285,7 @@ class GamesManager:
     def run_game(
             self,
             game_size=                                  10000,  # number of hands for a game (per DMK)
-            sleep=                                      20,     # loop sleep (seconds)
+            sleep=                                      10,     # loop sleep (seconds)
             progress_report=                            True,
             publish_GM=                                 False,
             sep_all_break: bool=                        False,  # breaks game when all DMKs are separated
@@ -297,8 +299,6 @@ class GamesManager:
         there is no real need to change this design.
         """
 
-        dmk_focus_names = self._get_dmk_focus_names()
-
         # save of DMK results + additional DMK info
         dmk_results = {
             dn: {
@@ -307,18 +307,7 @@ class GamesManager:
                 'family':       self.dmkD[dn].family,
                 'trainable':    self.dmkD[dn].trainable,
                 'global_stats': None,
-            } for dn in dmk_focus_names}
-        ixs_IV = 0  # start index for IV reports (where we finished in last iteration)
-
-        # CXange in Rankings variables
-        dmk_rank = {dn: [] for dn in dmk_focus_names} # save of rankings for intervals
-        cxr = None
-        cxr_mavg = MovAvg(factor=0.1)
-
-        sep_nc = None
-        sep_nf = None
-        sep_pairs_nc = None
-        sep_pairs_nf = None
+            } for dn in self._get_dmk_focus_names()}
 
         # starts all subprocesses
         self._put_players_on_tables()
@@ -330,53 +319,33 @@ class GamesManager:
         n_hands_last_report = 0
 
         self.logger.info(f'{self.name} starts a game..')
+        loop_ix = 0
         while True:
 
             time.sleep(sleep)
 
-            reports = self._get_reports(ixs_IV) # actual DMK reports
+            reports = self._get_reports({dn: len(dmk_results[dn]['wonH_IV']) for dn in dmk_results}) # actual DMK reports
+            for dn in reports:
+                dmk_results[dn]['wonH_IV'] += reports[dn]['wonH_IV']
+                dmk_results[dn]['wonH_afterIV'] += reports[dn]['wonH_afterIV']
 
             # calculate game factor
             n_hands = sum([reports[dn]['n_hands'] for dn in reports])
             game_factor = n_hands / len(reports) / game_size
             if game_factor >= 1: game_factor = 1
 
-            n_iv = []
-            for dn in reports:
-                dmk_results[dn]['wonH_IV'] += reports[dn].pop('wonH_IV')
-                dmk_results[dn]['wonH_afterIV'] += reports[dn].pop('wonH_afterIV')
-                n_iv.append(len(dmk_results[dn]['wonH_IV']))
-            ixe_IV = min(n_iv) # compute end index for IV reports (where we will finish in this iteration)
-
-            # changes in ranking (CXR) & separation (SEP)
-            for eix in range(ixs_IV,ixe_IV):
-
-                won_order = [(dn,dmk_results[dn]['wonH_afterIV'][eix]) for dn in dmk_results]
-                won_order.sort(key=lambda x:x[1], reverse=True)
-                for ix,nw in enumerate(won_order):
-                    dmk_rank[nw[0]].append(ix)
-
-                #CXR & SEP needs variance, which is possible for at least 2 values
-                if len(dmk_rank[won_order[0][0]]) > 1:
-                    cxr = sum([abs(dmk_rank[n][-1]-dmk_rank[n][-2]) for n in dmk_rank])
-                    cxr_mavg.upd(cxr)
-                    if publish_GM:
-                        self.tbwr.add(value=cxr_mavg(), tag=f'GM/cxr_mavg', step=eix)
-
-                    sr = separation_report(
-                        dmk_results=    dmk_results,
-                        n_stdev=        sep_n_stdev,
-                        sep_pairs=      sep_pairs)
-                    sep_nc = sr['sep_nc']
-                    sep_nf = sr['sep_nf']
-                    sep_pairs_nc = sr['sep_pairs_nc']
-                    sep_pairs_nf = sr['sep_pairs_nf']
-                    if publish_GM:
-                        sr.pop('sep_pairs_stat')
-                        for k in sr:
-                            self.tbwr.add(value=sr[k], tag=f'GM/{k}', step=eix)
-
-            ixs_IV = ixe_IV
+            sr = separation_report(
+                dmk_results=    dmk_results,
+                n_stdev=        sep_n_stdev,
+                sep_pairs=      sep_pairs)
+            sep_nc = sr['sep_nc']
+            sep_nf = sr['sep_nf']
+            sep_pairs_nc = sr['sep_pairs_nc']
+            sep_pairs_nf = sr['sep_pairs_nf']
+            if publish_GM:
+                for k in sr:
+                    if k != 'sep_pairs_stat':
+                        self.tbwr.add(value=sr[k], tag=f'GM/{k}', step=loop_ix)
 
             # INFO: progress relies on reports, and reports may be prepared in custom way (overridden) by diff GMs
             if progress_report:
@@ -396,17 +365,13 @@ class GamesManager:
                 n_hands_last_report = n_hands
                 time_last_report = time.time()
 
-                cxr_report = f' CXR:{cxr}->{round(cxr_mavg(),1)}' if cxr is not None else ''
-
-                sep_report_all = f'{sep_nc:.2f}[{sep_nf:.2f}]' if sep_nc is not None else ''
-                sep_report_pairs = f'::{sep_pairs_nc:.2f}[{sep_pairs_nf:.2f}]' if sep_pairs and sep_pairs_nc is not None else ''
-                sep_report = f' SEP:{sep_report_all}{sep_report_pairs}' if sep_report_all else ''
+                sep_report_pairs = f'::{sep_pairs_nc:.2f}[{sep_pairs_nf:.2f}]' if sep_pairs else ''
 
                 progress_(
                     current=    game_factor,
                     total=      1.0,
                     prefix=     f'GM: {passed:.1f}min left:{left_nfo}min',
-                    suffix=     f'{spd_report} --{cxr_report}{sep_report}',
+                    suffix=     f'{spd_report} -- SEP:{sep_nc:.2f}[{sep_nf:.2f}]{sep_report_pairs}',
                     length=     20)
 
             # games break - factor condition
@@ -415,7 +380,7 @@ class GamesManager:
                 break
 
             # games break - all DMKs separation condition
-            if sep_all_break and sep_nc == 1:
+            if sep_all_break and sep_nc == 1.0:
                 self.logger.info(f'> finished game (all DMKs separation condition), game factor: {game_factor:.2f})')
                 break
 
@@ -424,15 +389,17 @@ class GamesManager:
                 self.logger.info(f'> finished game (pairs separation factor: {sep_pairs_factor::.2f}, game factor: {game_factor:.2f})')
                 break
 
+            loop_ix += 1
+
         self.tbwr.flush()
 
         self._stop_tables()
         self._stop_dmks_loops()
 
         message = QMessage(type='send_global_stats', data=None)
-        for dn in dmk_focus_names:
+        for dn in dmk_results:
             self.dmkD[dn].que_from_gm.put(message)
-        for _ in dmk_focus_names:
+        for _ in dmk_results:
             message = self.que_to_gm.get()
             data = message.data
             dmk_name = data.pop('dmk_name')
@@ -452,13 +419,12 @@ class GamesManager:
         return list(self.dmkD.keys())
 
     # asks DMKs to prepare reports
-    def _get_reports(self, from_IV:int) -> Dict[str, Dict]: # {dn: {n_hands, wonH_IV, wonH_afterIV}}
-        dmk_names = self._get_dmk_focus_names()
+    def _get_reports(self, dmk_report_IV:Dict[str,int]) -> Dict[str, Dict]: # {dn: {n_hands, wonH_IV, wonH_afterIV}}
         reports: Dict[str, Dict] = {}
-        for dn in dmk_names:
+        for dn,from_IV in dmk_report_IV.items():
             message = QMessage(type='send_dmk_report', data=from_IV)
             self.dmkD[dn].que_from_gm.put(message)
-        for _ in dmk_names:
+        for _ in dmk_report_IV:
             message = self.que_to_gm.get()
             report = message.data
             dmk_name = report.pop('dmk_name')

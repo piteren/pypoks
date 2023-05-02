@@ -1,7 +1,5 @@
-from pypaq.lipytools.files import prep_folder, r_json, w_json
-from pypaq.lipytools.plots import two_dim
+from pypaq.lipytools.files import r_json, w_json
 from pypaq.lipytools.pylogger import get_pylogger, get_child
-from pypaq.lipytools.stats import mam
 from pypaq.lipytools.printout import stamp
 from pypaq.pms.config_manager import ConfigManager
 from torchness.tbwr import TBwr
@@ -10,10 +8,9 @@ import select
 import shutil
 import sys
 
-from pypoks_envy import DMK_MODELS_FD, AGE_FD, PMT_FD, CONFIG_FP, RESULTS_FP
+from pypoks_envy import DMK_MODELS_FD, PMT_FD, CONFIG_FP, RESULTS_FP
 from podecide.dmk import FolDMK
 from podecide.games_manager import separation_report
-from run.pretrain_for_loop import pretrain
 from run.functions import get_saved_dmks_names, run_GM, copy_dmks, build_single_foldmk
 from run.after_run.ranks import get_ranks
 
@@ -28,18 +25,19 @@ CONFIG_INIT = {
     'n_dmk_TR_group':           6,          # DMKs are trained with masters in groups of that size (group is build of n_dmk_TR_group + n_dmk_master)
     'game_size_upd':            100000,     # how much increase game size of TR or TS when needed
     'max_notsep':               0.3,        # max factor of DMKs not separated, if higher TS game is increased
+    'factor_TS_TR':             3,          # max TS_game_size : TR_game_size factor, if higher TR is increased
         # train
     'game_size_TR':             100000,
     'dmk_n_players_TR':         150,
         # test
-    'game_size_TS':             100000,
+    'game_size_TS':             200000,
     'dmk_n_players_TS':         150,        # number of players per DMK while TS // 300 is ok, but loads a lot of RAM
     'sep_pairs_factor':         1.0,        # pairs separation break value
     'sep_n_stdev':              2.0,
         # replace / new
     'rank_mavg_factor':         0.3,        # mavg_factor of rank_smooth calculation
     'safe_rank':                0.5,        # <0.0;1.0> factor fo rank_smooth that is safe (not considered to be replaced, 0.6 means that top 60% of rank is safe)
-    'remove_key':               [2,0],      # -> [3,0]  [A,B] remove DMK if in last A+B life marks there are A -|
+    'remove_key':               [3,1],      # [A,B] remove DMK if in last A+B life marks there are A -|
     'prob_fresh':               0.7,        # probability of fresh checkpoint (child from GX of point only, without GX of ckpt)
         # PMT (Periodical Masters Test)
     'n_loops_PMT':              10,         # do PMT every N loops
@@ -94,13 +92,8 @@ if __name__ == "__main__":
         else:
             loop_ix = saved_n_loops + 1
             _continue = True
-
-    # eventually flush folder
-    if not _continue:
-        prep_folder(
-            path=               DMK_MODELS_FD,
-            #flush_non_empty=    True
-        )
+    else:
+        all_results = {'loops': {}, 'lifemarks': {}}
 
     tl_name = f'train_loop_V2_{stamp()}'
 
@@ -111,27 +104,11 @@ if __name__ == "__main__":
         level=      20)
 
     logger.info(f'train_loop_V2 starts..')
-    if _continue: logger.info(f'> continuing with saved {saved_n_loops} loops')
-    else:         logger.info(f'> flushing DMK_MODELS_FD: {DMK_MODELS_FD}')
+    if _continue:
+        logger.info(f'> continuing with saved {saved_n_loops} loops')
 
     cm = ConfigManager(file_FP=CONFIG_FP, config_init=CONFIG_INIT, logger=logger)
 
-    if not _continue:
-
-        logger.info(f'Building {cm.n_dmk_total} DMKs..')
-
-        """
-        pretrain(
-            n_fam_dmk=      cm.n_dmk_total // len(cm.families),
-            families=       cm.families,
-            game_size=      cm.pretrain_game_size,
-            dmk_n_players=  cm.dmk_n_players_TR,
-            logger=         logger)
-        """
-
-        all_results = {'loops':{}, 'lifemarks':{}}
-
-    # TODO: prep folder?
     tbwr = TBwr(logdir=f'{DMK_MODELS_FD}/{tl_name}')
 
     """
@@ -163,7 +140,7 @@ if __name__ == "__main__":
 
         ### 1. prepare dmk_ranked, duplicate them to _old
 
-        dmk_ranked = all_results['loops'][loop_ix-1] if loop_ix>1 else get_saved_dmks_names()
+        dmk_ranked = all_results['loops'][loop_ix-1] if loop_ix>1 else [dn for dn in get_saved_dmks_names() if '_old' not in dn]
         logger.info(f'got DMKs ranked: {dmk_ranked}, duplicating them to _old..')
         dmk_old = [f'{nm}_old' for nm in dmk_ranked]
         copy_dmks(
@@ -241,11 +218,11 @@ if __name__ == "__main__":
             session_lifemarks += lifemark_upd
 
         # eventually increase game_size
-        if loop_ix in [10,20]:
-            cm.game_size_TR = cm.game_size_TR + cm.game_size_upd
         count_notsep = session_lifemarks.count('|')
         if count_notsep > cm.n_dmk_total * cm.max_notsep:
             cm.game_size_TS = cm.game_size_TS + cm.game_size_upd
+        if cm.game_size_TS > cm.game_size_TR * cm.factor_TS_TR:
+            cm.game_size_TR = cm.game_size_TR + cm.game_size_upd
 
         # log results
         res_nfo = f'DMKs train results:\n'
@@ -370,13 +347,17 @@ if __name__ == "__main__":
 
                 # GX from parents
                 else:
+
                     pa = random.choice(dmk_masters)
                     family = dmk_results[pa]['family']
-                    name_child = f'dmk{loop_ix:02}{family}{cix:02}'
-                    pb = random.choice([dn for dn in dmk_masters if dmk_results[dn]['family'] == family])
+                    other_fam = [dn for dn in dmk_masters if dmk_results[dn]['family'] == family]
+                    if len(other_fam) > 1:
+                        other_fam.remove(pa)
+                    pb = random.choice(other_fam)
 
                     ckpt_fresh = random.random() < cm.prob_fresh
                     ckpt_fresh_info = ' (fresh ckpt)' if ckpt_fresh else ''
+                    name_child = f'dmk{loop_ix:02}{family}{cix:02}'
                     logger.info(f'> {name_child} = {pa} + {pb}{ckpt_fresh_info}')
                     FolDMK.gx_saved(
                         name_parent_main=           pa,

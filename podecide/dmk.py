@@ -636,8 +636,7 @@ class StaMaDMK(QueDMK, ABC):
                     'dmk_name':     self.name,
                     'n_hands':      self._sm.get_global_nhands(),       # current number of hands (since init ..of SM)
                     'wonH_IV':      self._wonH_IV[message.data:],       # wonH of intervals GM is asking for
-                    'wonH_afterIV': self._wonH_afterIV[message.data:],  # wonH AFTER intervals GM is asking for
-                }))
+                    'wonH_afterIV': self._wonH_afterIV[message.data:]}))# wonH AFTER intervals GM is asking for
 
         if message.type == 'send_global_stats':
             self.que_to_gm.put(QMessage(
@@ -1232,6 +1231,8 @@ class FolDMK(ParaSave, NeurDMK):
     ) -> None:
 
         if not save_topdir_parent_main: save_topdir_parent_main = cls.SAVE_TOPDIR
+        if not save_topdir_parent_scnd: save_topdir_parent_scnd = save_topdir_parent_main
+        if not save_topdir_child: save_topdir_child = save_topdir_parent_main
         if not save_fn_pfx: save_fn_pfx = cls.SAVE_FN_PFX
 
         cls.gx_saved_point(
@@ -1244,6 +1245,24 @@ class FolDMK(ParaSave, NeurDMK):
             save_fn_pfx=                save_fn_pfx,
             logger=                     logger,
             loglevel=                   loglevel)
+
+        # set proper age
+        child_age = 0
+        if do_gx_ckpt:
+            age_pm = cls.load_point(
+                name=           name_parent_main,
+                save_topdir=    save_topdir_parent_main,
+                save_fn_pfx=    save_fn_pfx)['age']
+            age_ps = cls.load_point(
+                name=           name_parent_scnd,
+                save_topdir=    save_topdir_parent_scnd,
+                save_fn_pfx=    save_fn_pfx)['age']
+            child_age = max(age_pm,age_ps)
+        cls.oversave_point(
+            name=                       name_child,
+            save_topdir=                save_topdir_child,
+            save_fn_pfx=                save_fn_pfx,
+            age=                        child_age)
 
         MOTorch.gx_saved(
             name_parent_main=           name_parent_main,

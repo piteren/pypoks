@@ -3,6 +3,7 @@ import shutil
 
 from pypoks_envy import DMK_MODELS_FD
 from run.functions import build_from_names, run_GM
+from run_train_loop_V2 import CONFIG_INIT
 
 
 def pretrain(
@@ -14,7 +15,7 @@ def pretrain(
 
     if not logger:
         logger = get_pylogger(
-            name=   'pretrain_loop',
+            name=   'pretrain',
             folder= DMK_MODELS_FD,
             level=  20)
 
@@ -47,3 +48,12 @@ def pretrain(
         dmk_ranked = [e[0] for e in sorted(dmk_ranked, key=lambda x: x[1], reverse=True)]
         for dn in dmk_ranked[n_fam_dmk:]:
             shutil.rmtree(f'{DMK_MODELS_FD}/{dn}', ignore_errors=True)
+
+
+if __name__ == "__main__":
+
+    pretrain(
+        n_fam_dmk=      CONFIG_INIT['n_dmk_total'] // len(CONFIG_INIT['families']),
+        families=       CONFIG_INIT['families'],
+        game_size=      CONFIG_INIT['pretrain_game_size'],
+        dmk_n_players=  CONFIG_INIT['dmk_n_players_TR'])
