@@ -21,6 +21,8 @@ tech scope:
 
 To run training scripts you will need about 50 CPU cores, 120GB RAM and 2x GPU system.<br>
 You may just play `run_human_game.py` with pretrained agents downloaded from here:<br>
+
+TODO: needs to be updated:
 https://drive.google.com/file/d/1QPW_wA-hX0YQUy4PNNFak1vu1jQ0k_cC/view?usp=share_link - extract in project main folder.<br>
 To play human game with agents you will also `tkinter` for GUI, please install it.
 

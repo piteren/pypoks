@@ -79,7 +79,7 @@ from typing import List, Tuple, Optional, Dict, Any
 from pypoks_envy import DMK_MODELS_FD, DMK_POINT_PFX, N_TABLE_PLAYERS, TABLE_CASH_START, TBL_MOV_R, POS_NMS_R, DMK_STATS_IV
 from pologic.podeck import PDeck
 from podecide.game_state import GameState
-from podecide.dmk_module import DMK_MOTorch
+from podecide.dmk_motorch import DMK_MOTorch
 from podecide.dmk_stats_manager import StatsManager
 from gui.gui_hdmk import GUI_HDMK
 
@@ -435,13 +435,6 @@ class QueDMK(MeTrainDMK, ABC):
                         moves_cash=     data['moves_cash'])
                     n_waiting += 1
 
-            # INFO: after some tests it has been noticed that there are NO empty loops
-            """
-            # a little sleep not to turn without a job
-            if not pmL and not n_waiting:
-                time.sleep(0.01)
-            """
-
             # if got any waiting >> make decisions and put them to players
             if n_waiting:
                 self._processFWD_stats['1.waiting'].append(n_waiting / n_players)
@@ -579,7 +572,7 @@ class StaMaDMK(QueDMK, ABC):
     def _encode_states(
             self,
             player_id,
-            player_stateL: List[list]) -> List[GameState]:
+            player_stateL: List[tuple]) -> List[GameState]:
 
         statsD = self._sm.process_states(player_id, player_stateL) # send states to SM
 
@@ -641,21 +634,16 @@ class StaMaDMK(QueDMK, ABC):
                 type=   'dmk_report',
                 data=   {
                     'dmk_name':     self.name,
-                    'n_hands':      self._sm.hand_cg,                   # current number of hands (since init ..of SM)
+                    'n_hands':      self._sm.get_global_nhands(),       # current number of hands (since init ..of SM)
                     'wonH_IV':      self._wonH_IV[message.data:],       # wonH of intervals GM is asking for
-                    'wonH_afterIV': self._wonH_afterIV[message.data:],  # wonH AFTER intervals GM is asking for
-                }))
+                    'wonH_afterIV': self._wonH_afterIV[message.data:]}))# wonH AFTER intervals GM is asking for
 
-        # INFO: currently GM does not send any data for publish to DMK
-        """
-        if message.type == 'publish_GM':
-            step = message.data.pop('step')
-            for k in message.data:
-                self.tb_add(
-                    value=  message.data[k],
-                    tag=    k,
-                    step=   step)
-        """
+        if message.type == 'send_global_stats':
+            self.que_to_gm.put(QMessage(
+                type=   'global_stats',
+                data=   {
+                    'dmk_name':     self.name,
+                    'global_stats': self._sm.get_global_stats()}))
 
 # Exploring Advanced DMK implements probability of exploring (pex) while making a decision
 class ExaDMK(StaMaDMK, ABC):
@@ -760,9 +748,9 @@ class NeurDMK(ExaDMK):
     # prepares state data into form accepted by NN input
     #  - encodes only selection of states: [POS,PLH,TCD,MOV,PRS] ..does not use: HST,TST,PSB,PBB,T$$
     #  - each event has values (ids):
-    #       0                                                           : pad (..for cards factually)
-    #       1,2,3..N_TABLE_PLAYERS                                      : my positions SB,BB,BTN..
-    #       1+N_TABLE_PLAYERS.. len(TBL_MOV)*(N_TABLE_PLAYERS-1)-1     : n_opponents * n_moves
+    #       0                                                       : pad (..for cards factually)
+    #       1,2,3..N_TABLE_PLAYERS                                  : my positions SB,BB,BTN..
+    #       1+N_TABLE_PLAYERS.. len(TBL_MOV)*(N_TABLE_PLAYERS-1)-1  : n_opponents * n_moves
     def _encode_states(
             self,
             player_id,
@@ -1029,12 +1017,13 @@ class NeurDMK(ExaDMK):
             move = self._mdl.convert(move_batch)
             reward = self._mdl.convert(reward_batch)
             out = self._mdl.backward(
-                cards=          cards,
-                event=          event,
-                switch=         switch,
-                move=           move,
-                reward=         reward,
-                enc_cnn_state=  state)
+                cards=              cards,
+                event=              event,
+                switch=             switch,
+                move=               move,
+                reward=             reward,
+                enc_cnn_state=      state,
+                empty_cuda_cache=   True) # INFO: allows to train bigger models on limited GPU mem
             fin_states = out['fin_state']
 
             # save upd states
@@ -1045,8 +1034,6 @@ class NeurDMK(ExaDMK):
             if self.publish_update:
                 self._ze_pro_enc.process(out['zsL_enc'], self.upd_step)
                 self._ze_pro_cnn.process(out['zsL_cnn'], self.upd_step)
-                if self._ze_pro_drt:
-                    self._ze_pro_cnn.process(out['zsL_drt'], self.upd_step)
                 for ix,k in enumerate([
                     'loss',
                     'currentLR',
@@ -1099,11 +1086,6 @@ class NeurDMK(ExaDMK):
             intervals=      (5,20),
             tag_pfx=        'nane_cnn',
             tbwr=           self._tbwr) if self.publish_update else None
-        self._ze_pro_drt = ZeroesProcessor(
-            intervals=      (5,20),
-            tag_pfx=        'nane_drt',
-            tbwr=           self._tbwr) if self.publish_update and self._mdl.module.enc_drt else None
-
 
     def _do_what_GM_says(self, message: QMessage):
 
@@ -1249,6 +1231,8 @@ class FolDMK(ParaSave, NeurDMK):
     ) -> None:
 
         if not save_topdir_parent_main: save_topdir_parent_main = cls.SAVE_TOPDIR
+        if not save_topdir_parent_scnd: save_topdir_parent_scnd = save_topdir_parent_main
+        if not save_topdir_child: save_topdir_child = save_topdir_parent_main
         if not save_fn_pfx: save_fn_pfx = cls.SAVE_FN_PFX
 
         cls.gx_saved_point(
@@ -1261,6 +1245,24 @@ class FolDMK(ParaSave, NeurDMK):
             save_fn_pfx=                save_fn_pfx,
             logger=                     logger,
             loglevel=                   loglevel)
+
+        # set proper age
+        child_age = 0
+        if do_gx_ckpt:
+            age_pm = cls.load_point(
+                name=           name_parent_main,
+                save_topdir=    save_topdir_parent_main,
+                save_fn_pfx=    save_fn_pfx)['age']
+            age_ps = cls.load_point(
+                name=           name_parent_scnd,
+                save_topdir=    save_topdir_parent_scnd,
+                save_fn_pfx=    save_fn_pfx)['age']
+            child_age = max(age_pm,age_ps)
+        cls.oversave_point(
+            name=                       name_child,
+            save_topdir=                save_topdir_child,
+            save_fn_pfx=                save_fn_pfx,
+            age=                        child_age)
 
         MOTorch.gx_saved(
             name_parent_main=           name_parent_main,
@@ -1305,7 +1307,7 @@ class HuDMK(StaMaDMK):
     def _encode_states(
             self,
             player_id,
-            player_stateL: List[list]) -> List[GameState]:
+            player_stateL: List[tuple]) -> List[GameState]:
         for state in player_stateL:
             message = QMessage(type='state', data=state)
             self.tk_IQ.put(message)

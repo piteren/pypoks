@@ -1,15 +1,14 @@
 import torch
+from torchness.motorch import MOTorch
 import unittest
 
-from pypaq.torchness.motorch import MOTorch
-
-from podecide.dmk_module import ProCNN_DMK
+from podecide.dmk_module_pg import ProCNN_DMK_PG
 
 
 class TestProCNN_DMK(unittest.TestCase):
 
     def test_init_module(self):
-        dmk_net = ProCNN_DMK()
+        dmk_net = ProCNN_DMK_PG()
         dmk_net.card_net.load_ckpt() # load pretrained cardNet
         dmk_net = dmk_net.cpu()
         #print(dmk_net)
@@ -22,7 +21,7 @@ class TestProCNN_DMK(unittest.TestCase):
 
     def test_init_motorch(self):
         dmk_motorch = MOTorch(
-            module_type=    ProCNN_DMK,
+            module_type=    ProCNN_DMK_PG,
             device=         None)
         out = dmk_motorch(
             cards=  [[1,2,3,4,5,6,7]],
