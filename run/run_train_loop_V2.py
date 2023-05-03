@@ -23,21 +23,21 @@ CONFIG_INIT = {
     'n_dmk_total':              12,         # total number of trainable DMKs (population size)  // 12x cN12 playing / GPU 6x cN12 training
     'n_dmk_master':             6,          # number of 'masters' DMKs (trainable are trained against them)
     'n_dmk_TR_group':           6,          # DMKs are trained with masters in groups of that size (group is build of n_dmk_TR_group + n_dmk_master)
-    'game_size_upd':            100000,     # how much increase game size of TR or TS when needed
-    'max_notsep':               0.3,        # max factor of DMKs not separated, if higher TS game is increased
+    'game_size_upd':            100000,     # how much increase TR or TS game size when needed
+    'max_notsep':               0.6,        # -> 0.3    max factor of DMKs not separated, if higher TS game is increased
     'factor_TS_TR':             3,          # max TS_game_size : TR_game_size factor, if higher TR is increased
         # train
     'game_size_TR':             100000,
-    'dmk_n_players_TR':         150,
+    'dmk_n_players_TR':         150,        # number of players per DMK while TR
         # test
-    'game_size_TS':             200000,
-    'dmk_n_players_TS':         150,        # number of players per DMK while TS // 300 is ok, but loads a lot of RAM
-    'sep_pairs_factor':         1.0,        # pairs separation break value
-    'sep_n_stdev':              2.0,
+    'game_size_TS':             100000,
+    'dmk_n_players_TS':         150,        # number of players per DMK while TS
+    'sep_pairs_factor':         0.75,       # -> 1.0    pairs separation break value
+    'sep_n_stdev':              2.0,        # separation won IV mean stdev factor
         # replace / new
     'rank_mavg_factor':         0.3,        # mavg_factor of rank_smooth calculation
-    'safe_rank':                0.5,        # <0.0;1.0> factor fo rank_smooth that is safe (not considered to be replaced, 0.6 means that top 60% of rank is safe)
-    'remove_key':               [3,1],      # [A,B] remove DMK if in last A+B life marks there are A -|
+    'safe_rank':                0.5,        # <0.0;1.0> factor of rank_smooth that is safe (not considered to be replaced, 0.6 means that top 60% of rank is safe)
+    'remove_key':               [2,0],      # -> [3,1]  [A,B] remove DMK if in last A+B life marks there are A -|
     'prob_fresh':               0.7,        # probability of fresh checkpoint (child from GX of point only, without GX of ckpt)
         # PMT (Periodical Masters Test)
     'n_loops_PMT':              10,         # do PMT every N loops
@@ -198,13 +198,11 @@ if __name__ == "__main__":
 
         ### 4. analyse results
 
-        # separation
         sr = separation_report(
             dmk_results=    dmk_results,
             n_stdev=        cm.sep_n_stdev,
             sep_pairs=      sep_pairs)
-        logger.info(f'separation ALL normalized count:   {sr["sep_nc"]:.3f}')
-        logger.info(f'separation pairs normalized count: {sr["sep_pairs_nc"]:.3f}')
+
         # update dmk_results
         session_lifemarks = ''
         for ix,dn in enumerate(dmk_ranked):
@@ -217,12 +215,7 @@ if __name__ == "__main__":
             dmk_results[dn]['lifemark'] = lifemark_prev + lifemark_upd
             session_lifemarks += lifemark_upd
 
-        # eventually increase game_size
-        count_notsep = session_lifemarks.count('|')
-        if count_notsep > cm.n_dmk_total * cm.max_notsep:
-            cm.game_size_TS = cm.game_size_TS + cm.game_size_upd
-        if cm.game_size_TS > cm.game_size_TR * cm.factor_TS_TR:
-            cm.game_size_TR = cm.game_size_TR + cm.game_size_upd
+        notsep_factor = session_lifemarks.count('|') / cm.n_dmk_total
 
         # log results
         res_nfo = f'DMKs train results:\n'
@@ -242,7 +235,8 @@ if __name__ == "__main__":
             pos += 1
         logger.info(res_nfo)
 
-        # log global_stats to TB
+        ### TB log
+
         dmk_sets = {
             'best':         [dmk_ranked[0]],
             'masters_avg':  dmk_ranked[:cm.n_dmk_master]}
@@ -258,6 +252,16 @@ if __name__ == "__main__":
                     value=  gsa_avg[k],
                     tag=    f'global_stats/{dsn}_{k}',
                     step=   loop_ix)
+
+        tbwr.add(value=cm.game_size_TS, tag=f'loop/game_size_TS',  step=loop_ix)
+        tbwr.add(value=cm.game_size_TR, tag=f'loop/game_size_TR',  step=loop_ix)
+        tbwr.add(value=notsep_factor,   tag=f'loop/notsep_factor', step=loop_ix)
+
+        # eventually increase game_size
+        if notsep_factor > cm.max_notsep:
+            cm.game_size_TS = cm.game_size_TS + cm.game_size_upd
+        if cm.game_size_TS > cm.game_size_TR * cm.factor_TS_TR:
+            cm.game_size_TR = cm.game_size_TR + cm.game_size_upd
 
         # search for significantly_learned, remove their _old
         significantly_learned = [dn for dn in dmk_ranked if dmk_results[dn]['lifemark'][-1] == '+']
