@@ -3,8 +3,8 @@
 ### Deep Reinforcement Learning (DRL) with neural network (NN) agent @poker game environment with Python & PyTorch
 
 Machine Learning areas:
-- DRL + NN to make good decisions (building the strategy)
-- limited observation data and noisy input
+- DRL (NN Agent) to make good decisions (building the strategy)
+- limited observation data, noisy input
 - efficient environment (data) representation for NN & RL 
 - backpropagation & high poker variance
 - genetic algorithms (GA) implementation  
@@ -21,10 +21,8 @@ tech scope:
 
 To run training scripts you will need about 50 CPU cores, 120GB RAM and 2x GPU system.<br>
 You may just play `run_human_game.py` with pretrained agents downloaded from here:<br>
-
-TODO: needs to be updated:
-https://drive.google.com/file/d/1QPW_wA-hX0YQUy4PNNFak1vu1jQ0k_cC/view?usp=share_link - extract in project main folder.<br>
-To play human game with agents you will also `tkinter` for GUI, please install it.
+https://drive.google.com/file/d/1QPW_wA-hX0YQUy4PNNFak1vu1jQ0k_cC/view?usp=share_link - to be extracted in project main folder.<br>
+To play human game with agents you will also need `tkinter` for GUI, please install it.
 
 
 ### Training
@@ -40,10 +38,15 @@ You can also skip training of cardNet, **pypoks** reinforcement learning will ru
 To train poker agents from a scratch run:
 
 ```
-$ python run/train_loop_V2.py
+$ python run/run_pretrain.py
 ```
-This script is preconfigured with many options that will fit for system with 2x GPUs (11GB).
-Pretrained agents ypu may download, took about 30 hours to train.<br>
+and next:
+```
+$ python run/run_train_loop_V2.py
+```
+
+Those scripts are preconfigured with many options that will fit for system with 2x GPUs (11GB).
+Pretrained agents (available to download with a link above) took about 30 hours to train.<br>
 
 While training, you may check the progress with TensorBoard (run `run_TB.sh`)
 
