@@ -139,8 +139,8 @@ if __name__ == "__main__":
             break
 
         ### 1. prepare dmk_ranked, duplicate them to _old
-
-        dmk_ranked = all_results['loops'][loop_ix-1] if loop_ix>1 else [dn for dn in get_saved_dmks_names() if '_old' not in dn]
+        #TODO: check why loops are saved as str in json
+        dmk_ranked = all_results['loops'][str(loop_ix-1)] if loop_ix>1 else [dn for dn in get_saved_dmks_names() if '_old' not in dn]
         logger.info(f'got DMKs ranked: {dmk_ranked}, duplicating them to _old..')
         dmk_old = [f'{nm}_old' for nm in dmk_ranked]
         copy_dmks(
