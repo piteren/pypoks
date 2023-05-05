@@ -386,7 +386,7 @@ class GamesManager:
 
             # games break - pairs separation breaking value condition
             if sep_pairs and sep_pairs_nc >= sep_pairs_factor:
-                self.logger.info(f'> finished game (pairs separation factor: {sep_pairs_factor::.2f}, game factor: {game_factor:.2f})')
+                self.logger.info(f'> finished game (pairs separation factor: {sep_pairs_factor:.2f}, game factor: {game_factor:.2f})')
                 break
 
             loop_ix += 1
