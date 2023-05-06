@@ -1,7 +1,5 @@
 """
 
-    2019 (c) piteren
-
     DMK (Decision MaKer) - Decision MaKer defines basic interface to make decision for poker players (PPlayer on PTable)
 
        DMK makes decisions for poker players (PPlayer on PTable) with MSOD (many states one decision) concept.
@@ -558,11 +556,13 @@ class StaMaDMK(QueDMK, ABC):
     def __init__(
             self,
             fwd_stats_step=         0,      # FWD stats step
+            fwd_stats_iv=           DMK_STATS_IV,
             publish_player_stats=   True,
             **kwargs):
         QueDMK.__init__(self, **kwargs)
         self._sm = None
         self.fwd_stats_step = fwd_stats_step
+        self.fwd_stats_iv = fwd_stats_iv
         self.publish_player_stats = publish_player_stats
 
         self._wonH_IV = []      # wonH of interval (received from SM)
@@ -621,7 +621,7 @@ class StaMaDMK(QueDMK, ABC):
         self._sm = StatsManager(
             name=       self.name,
             pids=       self._player_ids,
-            stats_iv=   DMK_STATS_IV)
+            stats_iv=   self.fwd_stats_iv)
         super()._pre_process()
 
 

@@ -7,17 +7,21 @@ from run.functions import run_GM, build_from_names
 
 if __name__ == "__main__":
 
-    n_gpus = 2
-    n_dmk = 10
+    # This script runs simple training of 2 DMKs on CPU
+
+    on_gpu = False
+    n_dmk = 2
     game_size = 100000
 
     logger = get_pylogger(
-        name=   'train_little',
+        name=   'simple_train',
         folder= MODELS_FD,
         level=  20)
 
+    names = [f'dmk000_{ix}' for ix in range(n_dmk)]
+
     build_from_names(
-        names=      [f'dmk000_{ix}' for ix in range(n_dmk)],
+        names=      names,
         families=   ['a']*n_dmk,
         logger=     logger)
 
@@ -28,7 +32,7 @@ if __name__ == "__main__":
         'publish_more':         False}
 
     run_GM(
-        dmk_point_TRL=  [{'name':dn, 'motorch_point':{'device':n%n_gpus}, 'fwd_stats_iv':1000, **pub_TR} for n,dn in enumerate(names)],
+        dmk_point_TRL=  [{'name':dn, 'motorch_point':{'device':0 if on_gpu else None}, 'fwd_stats_iv':1000, **pub_TR} for n,dn in enumerate(names)],
         game_size=      game_size,
         dmk_n_players=  150,
         logger=         logger)
