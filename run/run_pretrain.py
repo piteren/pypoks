@@ -42,7 +42,7 @@ def pretrain(
             dmk_point_TRL=  [{'name':dn, 'motorch_point':{'device':n%2}, **pub_TR} for n,dn in enumerate(initial_names)],
             game_size=      game_size,
             dmk_n_players=  dmk_n_players,
-            logger=         logger)
+            logger=         logger)['dmk_results']
 
         dmk_ranked = [(dn, dmk_results[dn]['wonH_afterIV'][-1]) for dn in initial_names]
         dmk_ranked = [e[0] for e in sorted(dmk_ranked, key=lambda x: x[1], reverse=True)]

@@ -10,7 +10,7 @@ import sys
 
 from pypoks_envy import DMK_MODELS_FD, PMT_FD, CONFIG_FP, RESULTS_FP
 from podecide.dmk import FolDMK
-from podecide.games_manager import separation_report
+from podecide.games_manager import stdev_with_none, separation_report
 from run.functions import get_saved_dmks_names, run_GM, copy_dmks, build_single_foldmk
 from run.after_run.ranks import get_ranks
 
@@ -187,7 +187,7 @@ if __name__ == "__main__":
 
         dmks_PLL = dmk_ranked + dmk_old
         random.shuffle(dmks_PLL) # shuffle to randomly distribute among GPUs
-        dmk_results = run_GM(
+        rgd = run_GM(
             dmk_point_PLL=      [{'name':dn, 'motorch_point':{'device':n%2}, **pub} for n,dn in enumerate(dmks_PLL)],
             game_size=          cm.game_size_TS,
             dmk_n_players=      cm.dmk_n_players_TS,
@@ -195,6 +195,8 @@ if __name__ == "__main__":
             sep_pairs_factor=   cm.sep_pairs_factor,
             sep_n_stdev=        cm.sep_n_stdev,
             logger=             logger)
+        dmk_results = rgd['dmk_results']
+        loop_stats = rgd['loop_stats']
 
         ### 4. analyse results
 
@@ -237,6 +239,19 @@ if __name__ == "__main__":
 
         ### TB log
 
+        masters = dmk_ranked[:cm.n_dmk_master]
+        masters_gain = sum([dmk_results[dn]['wonH_old_diff'] for dn in masters if dmk_results[dn]['separated_old']])
+        masters_wonH_avg = sum([dmk_results[dn]['wonH_afterIV'][-1] for dn in masters]) / len(masters)
+        masters_wonH_std_avg = sum([stdev_with_none(dmk_results[dn]['wonH_IV']) for dn in masters]) / len(masters)
+
+        tbwr.add(value=masters_gain,            tag=f'loop/masters_gain',           step=loop_ix)
+        tbwr.add(value=masters_wonH_avg,        tag=f'loop/masters_wonH_avg',       step=loop_ix)
+        tbwr.add(value=masters_wonH_std_avg,    tag=f'loop/masters_wonH_std_avg',   step=loop_ix)
+        tbwr.add(value=loop_stats['speed'],     tag=f'loop/speed_Hs',               step=loop_ix)
+        tbwr.add(value=cm.game_size_TS,         tag=f'loop/game_size_TS',           step=loop_ix)
+        tbwr.add(value=cm.game_size_TR,         tag=f'loop/game_size_TR',           step=loop_ix)
+        tbwr.add(value=notsep_factor,           tag=f'loop/notsep_factor',          step=loop_ix)
+
         dmk_sets = {
             'best':         [dmk_ranked[0]],
             'masters_avg':  dmk_ranked[:cm.n_dmk_master]}
@@ -250,12 +265,8 @@ if __name__ == "__main__":
                 gsa_avg[k] = sum(gsa_avg[k]) / len(gsa_avg[k])
                 tbwr.add(
                     value=  gsa_avg[k],
-                    tag=    f'global_stats/{dsn}_{k}',
+                    tag=    f'loop_poker_stats_{dsn}/{k}',
                     step=   loop_ix)
-
-        tbwr.add(value=cm.game_size_TS, tag=f'loop/game_size_TS',  step=loop_ix)
-        tbwr.add(value=cm.game_size_TR, tag=f'loop/game_size_TR',  step=loop_ix)
-        tbwr.add(value=notsep_factor,   tag=f'loop/notsep_factor', step=loop_ix)
 
         # eventually increase game_size
         if notsep_factor > cm.max_notsep:
@@ -404,7 +415,7 @@ if __name__ == "__main__":
                     game_size=      cm.game_size_TS,
                     dmk_n_players=  cm.dmk_n_players_TS,
                     sep_all_break=  True,
-                    logger=         logger)
+                    logger=         logger)['dmk_results']
 
                 pmt_ranked = [(dn, pmt_results[dn]['wonH_afterIV'][-1]) for dn in pmt_results]
                 pmt_ranked = [e[0] for e in sorted(pmt_ranked, key=lambda x: x[1], reverse=True)]

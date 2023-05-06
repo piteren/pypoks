@@ -156,7 +156,7 @@ def run_GM(
         sep_pairs: Optional[List[Tuple[str,str]]]=  None,
         sep_pairs_factor: float=                    0.9,
         sep_n_stdev: float=                         2.0,
-) -> Dict:
+) -> Dict[str, Dict]:
 
     gm = GamesManager_PTR(
         dmk_point_PLL=  dmk_point_PLL,

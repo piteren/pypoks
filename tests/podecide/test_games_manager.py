@@ -15,10 +15,9 @@ class TestGamesManager(unittest.TestCase):
                 'publish_pex':          False,
                 'publish_more':         False,
             } for n in range(3)],
-            game_size=  100000,
             loglevel=   20,
         )
-        res_list = gm.run_game(sleep=1)
+        res_list = gm.run_game(game_size=100000, sleep=1)['dmk_results']
         for r in res_list: print(r)
 
     def test_some_NeurDMK(self):
@@ -31,10 +30,9 @@ class TestGamesManager(unittest.TestCase):
                     'load_cardnet_pretrained':  True,
                     'device':                   n%2},
             } for n in range(10)],
-            game_size=  3000000,
             loglevel=   20,
         )
-        res_list = gm.run_game(sleep=1)
+        res_list = gm.run_game(game_size=3000000, sleep=1)['dmk_results']
         for r in res_list: print(r)
 
 
@@ -76,5 +74,5 @@ class TestGamesManager_PTR(unittest.TestCase):
             dmk_n_players=  15,
             loglevel=       20
         )
-        res_list = gm.run_game()
+        res_list = gm.run_game()['dmk_results']
         for r in res_list: print(r)

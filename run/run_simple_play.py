@@ -38,7 +38,7 @@ if __name__ == "__main__":
         dmk_point_PLL=  [{'name':dn, 'motorch_point':{'device':n%n_gpus}, **pub} for n,dn in enumerate(names)],
         game_size=      game_size,
         dmk_n_players=  150,
-        logger=         logger)
+        logger=         logger)['dmk_results']
 
     for dn in dmk_results:
         print(f'{dn} : {dmk_results[dn]}')

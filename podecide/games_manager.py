@@ -292,7 +292,7 @@ class GamesManager:
             sep_pairs: Optional[List[Tuple[str,str]]]=  None,   # pairs of DMK names for separation condition
             sep_pairs_factor: float=                    0.9,    # factor of separated pairs needed to break the game
             sep_n_stdev: float=                         2.0,
-    ) -> Dict:
+    ) -> Dict[str, Dict]:
         """
         By now, by design run_game() may be called only once,
         cause DMK processes are started and then stopped and process cannot be started twice,
@@ -410,9 +410,13 @@ class GamesManager:
 
         taken_sec = time.time() - stime
         taken_nfo = f'{taken_sec / 60:.1f}min' if taken_sec > 100 else f'{taken_sec:.1f}sec'
-        self.logger.info(f'{self.name} finished run_game, avg speed: {n_hands / taken_sec:.1f}H/s, time taken: {taken_nfo}')
+        speed = n_hands / taken_sec
+        self.logger.info(f'{self.name} finished run_game, avg speed: {speed:.1f}H/s, time taken: {taken_nfo}')
+        loop_stats = {'speed': speed}
 
-        return dmk_results
+        return {
+            'dmk_results':  dmk_results,
+            'loop_stats':   loop_stats}
 
     # prepares list of DMK names GM is focused on
     def _get_dmk_focus_names(self) -> List[str]:
@@ -555,13 +559,11 @@ class GamesManager_PTR(GamesManager):
         for dmk in self.dmkD.values():
             if dmk.trainable: dmk.age += 1
 
-        dmk_results = GamesManager.run_game(self, **kwargs)
+        rgd = GamesManager.run_game(self, **kwargs)
 
-        # put age into res_list
-        for dn in dmk_results:
-            dmk_results[dn]['age'] = self.dmkD[dn].age
-
-        return dmk_results
+        for dn in rgd['dmk_results']:
+            rgd['dmk_results'][dn]['age'] = self.dmkD[dn].age
+        return rgd
 
     # prepares list of DMK names we are focused in the game (with focus on TRL)
     def _get_dmk_focus_names(self) -> List[str]:
