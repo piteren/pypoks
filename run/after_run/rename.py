@@ -11,7 +11,9 @@ if __name__ == "__main__":
 
     dmks = get_saved_dmks_names()
     print(dmks)
-    dmks_targets = [f'dmk00{dn[3]}{n:02}' for n,dn in enumerate(dmks)]
+
+    dmks_targets = [f'{dn[:-4]}' for n, dn in enumerate(dmks)]
+    #dmks_targets = [f'dmk00{dn[3]}{n:02}' for n,dn in enumerate(dmks)]
     print(dmks_targets)
 
     copy_dmks(names_src=dmks, names_trg=dmks_targets)
