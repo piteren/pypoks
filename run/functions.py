@@ -96,15 +96,15 @@ def build_single_foldmk(name:str, family:str, logger=None):
     points = get_fresh_dna(name, family)
     FolDMK.from_points(**points, logger=logger)
 
-# TODO: add descriptions to params
+
 def pretrain(
         n_dmk_total: int=       10,         # final total number of pretrained DMKs
         families=               'abcd',
-        multi_pretrain: int=    3,          #
-        n_dmk_TR_group: int=    10,
+        multi_pretrain: int=    3,          # total multiplication of DMKs for pretrain
+        n_dmk_TR_group: int=    10,         # DMKs group size while TR
         game_size_TR=           100000,
         dmk_n_players_TR=       150,
-        n_dmk_TS_group: int=    20,
+        n_dmk_TS_group: int=    20,         # DMKs group size while TS
         game_size_TS=           100000,
         dmk_n_players_TS=       150,
         logger=                 None):
@@ -114,6 +114,7 @@ def pretrain(
             name=   'pretrain',
             folder= DMK_MODELS_FD,
             level=  20)
+    logger.info(f'running pretrain for {n_dmk_total} DMKs from families: {families}, multi: {multi_pretrain}')
 
     pub = {
         'publish_player_stats': False,

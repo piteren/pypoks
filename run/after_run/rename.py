@@ -1,6 +1,3 @@
-"""
-script to rename saved DMKs
-"""
 import shutil
 
 from pypoks_envy import DMK_MODELS_FD
@@ -8,6 +5,8 @@ from run.functions import get_saved_dmks_names, copy_dmks
 
 
 if __name__ == "__main__":
+
+    # With this script to saved DMKs may be renamed
 
     dmks = get_saved_dmks_names()
     print(dmks)

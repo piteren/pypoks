@@ -16,14 +16,14 @@ def get_ranks(
         all_results = r_json(RESULTS_FP)
 
     all_names = []
-    for l in all_results['loops']:
-        all_names += all_results['loops'][l]
+    for lix in all_results['loops']:
+        all_names += all_results['loops'][lix]
     all_names = set(all_names)
 
     ranks = {dn: [] for dn in all_names}
-    for l in all_results['loops']:
+    for lix in all_results['loops']:
         names_present = []
-        for r,dn in enumerate(all_results['loops'][l]):
+        for r,dn in enumerate(all_results['loops'][lix]):
             names_present.append(dn)
             ranks[dn].append(r)
         for dn in ranks:

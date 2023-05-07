@@ -11,8 +11,8 @@
 
         all_results = {
             'loops': {
-                1:  ['dmka00_00','dmkb00_01',..],               <- ranking after 1st loop
-                2:  ['dmka00_01','dmkb00_04',..],               <- ranking after 2nd loop
+                '1':  ['dmka00_00','dmkb00_01',..],               <- ranking after 1st loop
+                '2':  ['dmka00_01','dmkb00_04',..],               <- ranking after 2nd loop
                 ..
             },
             'lifemarks': {
@@ -58,7 +58,6 @@ from run.after_run.ranks import get_ranks
 
 CONFIG_INIT = {
         # general
-    'pretrain_game_size':       100000,
     'exit':                     False,      # exits loop (after train)
     'pause':                    False,      # pauses loop after test till Enter pressed
     'families':                 'a',        # -> 'abcd' active families (at least one DMK should be present)
@@ -70,6 +69,7 @@ CONFIG_INIT = {
     'factor_TS_TR':             3,          # max TS_game_size : TR_game_size factor, if higher TR is increased
         # pretrain
     'multi_pretrain':           3,
+    'n_dmk_TS_group':           20,
         # train
     'game_size_TR':             100000,
     'dmk_n_players_TR':         150,        # number of players per DMK while TR
@@ -138,15 +138,20 @@ if __name__ == "__main__":
     7. do PMT every N loop
     """
 
-    ### 0. pretrain trainable
+    ### 0. pretrain new trainable
 
-    # TODO: manage parameters
     if loop_ix == 1:
         pretrain(
-            n_dmk_total=    cm.n_dmk_total,
-            #families=       cm.families,
-            multi_pretrain= cm.multi_pretrain,
-            logger=         logger)
+            n_dmk_total=        cm.n_dmk_total,
+            families=           cm.families,
+            multi_pretrain=     cm.multi_pretrain,
+            n_dmk_TR_group=     2 * cm.n_dmk_TR_group,
+            game_size_TR=       cm.game_size_TR,
+            dmk_n_players_TR=   cm.dmk_n_players_TR,
+            n_dmk_TS_group=     cm.n_dmk_TS_group,
+            game_size_TS=       cm.game_size_TS,
+            dmk_n_players_TS=   cm.dmk_n_players_TS,
+            logger=             logger)
 
     while True:
 
@@ -245,7 +250,7 @@ if __name__ == "__main__":
         # prepare new rank(ed)
         dmk_ranked = [(dn, dmk_results[dn]['wonH_afterIV'][-1]) for dn in dmk_ranked]
         dmk_ranked = [e[0] for e in sorted(dmk_ranked, key=lambda x:x[1], reverse=True)]
-        all_results['loops'][loop_ix] = dmk_ranked  # update with new dmk_ranked
+        all_results['loops'][str(loop_ix)] = dmk_ranked  # update with new dmk_ranked
         ranks_smooth = get_ranks(all_results=all_results, mavg_factor=cm.rank_mavg_factor)['ranks_smooth']
 
         res_nfo = f'DMKs train results:\n'
@@ -321,7 +326,7 @@ if __name__ == "__main__":
         dmk_ranked = [e[0] for e in sorted(dmk_ranked, key=lambda x: x[1], reverse=True)]
 
         # finally update all_results
-        all_results['loops'][loop_ix] = dmk_ranked
+        all_results['loops'][str(loop_ix)] = dmk_ranked
         for dn in dmk_ranked:
             all_results['lifemarks'][dn] = dmk_results[dn]['lifemark']
 
@@ -409,7 +414,7 @@ if __name__ == "__main__":
                 dmk_ranked.append(name_child)
                 cix += 1
 
-            all_results['loops'][loop_ix] = dmk_ranked # update with new dmk_ranked
+            all_results['loops'][str(loop_ix)] = dmk_ranked # update with new dmk_ranked
 
         w_json(all_results, RESULTS_FP)
 
