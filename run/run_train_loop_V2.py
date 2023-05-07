@@ -358,7 +358,7 @@ if __name__ == "__main__":
                 if families_forced:
                     family = families_forced.pop()
                     name_child = f'dmk{loop_ix:02}{family}{cix:02}'
-                    logger.info(f'> {name_child} forced from family {family}')
+                    logger.info(f'> {name_child} <- fresh, forced from family {family}')
                     build_single_foldmk(
                         name=   name_child,
                         family= family,
