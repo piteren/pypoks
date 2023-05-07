@@ -60,7 +60,7 @@ CONFIG_INIT = {
     dmk_old = ['dmka00_00_old','dmkb00_01_old',..]          <- just all _old names
     
     dmk_results = {
-        'dmka00_00': {                                      # _old do not have all keys and are removed later
+        'dmka00_00': {                                      # _old do not have all keys
             'wonH_IV':          [float,..]                  <- wonH of interval
             'wonH_afterIV':     [float,..]                  <- wonH after interval
             'family':           dmk.family,
@@ -124,8 +124,9 @@ if __name__ == "__main__":
         report
         roll back from _old those who not improved
         adjust TR / TS parameters     
-    5. eventually replace poor with a new / GX
-    6. do PMT every N loop
+    5. eventually remove poor
+    6. eventually create missing (new / GX)
+    7. do PMT every N loop
     """
     while True:
 
@@ -139,7 +140,7 @@ if __name__ == "__main__":
             break
 
         ### 1. prepare dmk_ranked, duplicate them to _old
-        #TODO: check why loops are saved as str in json
+
         dmk_ranked = all_results['loops'][str(loop_ix-1)] if loop_ix>1 else [dn for dn in get_saved_dmks_names() if '_old' not in dn]
         logger.info(f'got DMKs ranked: {dmk_ranked}, duplicating them to _old..')
         dmk_old = [f'{nm}_old' for nm in dmk_ranked]
@@ -219,14 +220,16 @@ if __name__ == "__main__":
 
         notsep_factor = session_lifemarks.count('|') / cm.n_dmk_total
 
-        # log results
-        res_nfo = f'DMKs train results:\n'
+        ### log results
+
+        # prepare new rank(ed)
         dmk_ranked = [(dn, dmk_results[dn]['wonH_afterIV'][-1]) for dn in dmk_ranked]
         dmk_ranked = [e[0] for e in sorted(dmk_ranked, key=lambda x:x[1], reverse=True)]
         all_results['loops'][loop_ix] = dmk_ranked  # update with new dmk_ranked
         ranks_smooth = get_ranks(all_results=all_results, mavg_factor=cm.rank_mavg_factor)['ranks_smooth']
-        pos = 0
-        for dn in dmk_ranked:
+
+        res_nfo = f'DMKs train results:\n'
+        for pos,dn in enumerate(dmk_ranked):
             rank = f'{ranks_smooth[dn][-1] / cm.n_dmk_total:4.2f}' if ranks_smooth[dn] else '----'
             nm_aged = f'{dn}({dmk_results[dn]["age"]})'
             wonH = dmk_results[dn]['wonH_afterIV'][-1]
@@ -234,7 +237,6 @@ if __name__ == "__main__":
             sep_nfo = ' s' if dmk_results[dn]['separated_old'] else '  '
             lifemark_nfo = f' {dmk_results[dn]["lifemark"]}'
             res_nfo += f' > {pos:>2}({rank}) {nm_aged:15s} : {wonH:6.2f} :: {wonH_old_diff:6.2f}{sep_nfo}{lifemark_nfo}\n'
-            pos += 1
         logger.info(res_nfo)
 
         ### TB log
@@ -291,29 +293,29 @@ if __name__ == "__main__":
             dmk_results[dn]['wonH_IV'] = dmk_results[f'{dn}_old']['wonH_IV']
             dmk_results[dn]['wonH_afterIV'] = dmk_results[f'{dn}_old']['wonH_afterIV']
             dmk_results[dn]['age'] -= 1
-        for dn in dmk_old:
-            dmk_results.pop(dn)
 
-        # log again results after roll back
-        res_nfo = f'DMKs train results after roll back:\n'
+        ### log again results after roll back
+
+        # prepare new rank(ed) again (with rolled back)
         dmk_ranked = [(dn, dmk_results[dn]['wonH_afterIV'][-1]) for dn in dmk_ranked]
         dmk_ranked = [e[0] for e in sorted(dmk_ranked, key=lambda x: x[1], reverse=True)]
-        all_results['loops'][loop_ix] = dmk_ranked  # update with new dmk_ranked
-        ranks_smooth = get_ranks(all_results=all_results, mavg_factor=cm.rank_mavg_factor)['ranks_smooth']
-        pos = 0
-        for dn in dmk_ranked:
-            rank = f'{ranks_smooth[dn][-1] / cm.n_dmk_total:4.2f}' if ranks_smooth[dn] else '----'
-            nm_aged = f'{dn}({dmk_results[dn]["age"]})'
-            wonH = dmk_results[dn]['wonH_afterIV'][-1]
-            res_nfo += f' > {pos:>2}({rank}) {nm_aged:15s} : {wonH:6.2f}\n'
-            pos += 1
-        logger.info(res_nfo)
 
+        # finally update all_results
         all_results['loops'][loop_ix] = dmk_ranked
         for dn in dmk_ranked:
             all_results['lifemarks'][dn] = dmk_results[dn]['lifemark']
 
-        ### 5. eventually replace poor with a new
+        ranks_smooth = get_ranks(all_results=all_results, mavg_factor=cm.rank_mavg_factor)['ranks_smooth']
+
+        res_nfo = f'DMKs train results after roll back:\n'
+        for pos,dn in enumerate(dmk_ranked):
+            rank = f'{ranks_smooth[dn][-1] / cm.n_dmk_total:4.2f}' if ranks_smooth[dn] else '----'
+            nm_aged = f'{dn}({dmk_results[dn]["age"]})'
+            wonH = dmk_results[dn]['wonH_afterIV'][-1]
+            res_nfo += f' > {pos:>2}({rank}) {nm_aged:15s} : {wonH:6.2f}\n'
+        logger.info(res_nfo)
+
+        ### 5. eventually remove poor
 
         dmk_masters = dmk_ranked[:cm.n_dmk_master]
         dmk_poor = dmk_ranked[cm.n_dmk_master:]
@@ -332,23 +334,25 @@ if __name__ == "__main__":
         remove = set(rank_candidates) & set(lifemark_candidates)
         logger.info(f'DMKs to remove: {remove}')
 
-        if remove:
+        for dn in remove:
+            shutil.rmtree(f'{DMK_MODELS_FD}/{dn}', ignore_errors=True)
+            shutil.rmtree(f'{DMK_MODELS_FD}/{dn}_old', ignore_errors=True)
+            dmk_ranked.remove(dn)
 
-            for dn in remove:
-                shutil.rmtree(f'{DMK_MODELS_FD}/{dn}', ignore_errors=True)
-                shutil.rmtree(f'{DMK_MODELS_FD}/{dn}_old', ignore_errors=True)
-                dmk_results.pop(dn)
-                dmk_ranked.remove(dn)
+        ### 6. eventually create missing (new / GX)
+
+        if len(dmk_ranked) < cm.n_dmk_total:
 
             # look for forced families
             families_count = {fm: 0 for fm in cm.families}
-            for dn in dmk_results:
+            for dn in dmk_ranked:
                 families_count[dmk_results[dn]['family']] += 1
             families_count = [(fm, families_count[fm]) for fm in families_count]
             families_forced = [fc[0] for fc in families_count if fc[1] < 1]
             if families_forced: logger.info(f'families forced: {families_forced}')
 
-            for cix in range(len(remove)):
+            cix = 0
+            while len(dmk_ranked) < cm.n_dmk_total:
 
                 # build new one from forced
                 if families_forced:
@@ -383,12 +387,13 @@ if __name__ == "__main__":
                         logger=                     get_child(logger, change_level=10))
 
                 dmk_ranked.append(name_child)
+                cix += 1
 
             all_results['loops'][loop_ix] = dmk_ranked # update with new dmk_ranked
 
         w_json(all_results, RESULTS_FP)
 
-        ### 6. PMT evaluation
+        ### 7. PMT evaluation
 
         if loop_ix % cm.n_loops_PMT == 0:
 
