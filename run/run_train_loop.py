@@ -1,3 +1,45 @@
+"""
+    This script trains a group of DMKs.
+    DMKs are trained from a scratch with self-play game.
+    Configuration is set to fully utilize power of 2 GPUs (11GB RAM).
+
+    Training should start with pretrain.
+    Pretrain is a procedure of selecting good candidates at the beginning of the loops.
+
+
+    Below are descriptions of some structures used
+
+        all_results = {
+            'loops': {
+                1:  ['dmka00_00','dmkb00_01',..],               <- ranking after 1st loop
+                2:  ['dmka00_01','dmkb00_04',..],               <- ranking after 2nd loop
+                ..
+            },
+            'lifemarks': {
+                'dmka00_00': '++',
+                'dmka00_01': '|-',
+                ..
+            }
+        }
+
+        dmk_ranked = ['dmka00_00','dmkb00_01',..]               <- ranking after last loop, updated in the loop after train
+        dmk_old = ['dmka00_00_old','dmkb00_01_old',..]          <- just all _old names
+
+        dmk_results = {
+            'dmka00_00': {                                      # _old do not have all keys
+                'wonH_IV':          [float,..]                  <- wonH of interval
+                'wonH_afterIV':     [float,..]                  <- wonH after interval
+                'family':           dmk.family,
+                'trainable':        dmk.trainable,
+                'age':              dmk.age
+                'separated_old':    0 or 1
+                'wonH_old_diff':    float
+                'lifemark':         '++'
+            },
+            ..
+        }
+"""
+
 from pypaq.lipytools.files import r_json, w_json
 from pypaq.lipytools.pylogger import get_pylogger, get_child
 from pypaq.lipytools.printout import stamp
@@ -11,7 +53,7 @@ import sys
 from pypoks_envy import DMK_MODELS_FD, PMT_FD, CONFIG_FP, RESULTS_FP
 from podecide.dmk import FolDMK
 from podecide.games_manager import stdev_with_none, separation_report
-from run.functions import get_saved_dmks_names, run_GM, copy_dmks, build_single_foldmk
+from run.functions import pretrain, get_saved_dmks_names, run_GM, copy_dmks, build_single_foldmk
 from run.after_run.ranks import get_ranks
 
 CONFIG_INIT = {
@@ -19,13 +61,15 @@ CONFIG_INIT = {
     'pretrain_game_size':       100000,
     'exit':                     False,      # exits loop (after train)
     'pause':                    False,      # pauses loop after test till Enter pressed
-    'families':                 'abcd',     # active families, at least one representative should be present
-    'n_dmk_total':              12,         # total number of trainable DMKs (population size)  // 12x cN12 playing / GPU 6x cN12 training
-    'n_dmk_master':             6,          # number of 'masters' DMKs (trainable are trained against them)
-    'n_dmk_TR_group':           6,          # DMKs are trained with masters in groups of that size (group is build of n_dmk_TR_group + n_dmk_master)
+    'families':                 'a',        # -> 'abcd' active families (at least one DMK should be present)
+    'n_dmk_total':              10,         # total number of trainable DMKs (population size)
+    'n_dmk_master':             5,          # number of 'masters' DMKs (trainable are trained against them)
+    'n_dmk_TR_group':           5,          # DMKs are trained with masters in groups of that size (group is build of n_dmk_TR_group + n_dmk_master)
     'game_size_upd':            100000,     # how much increase TR or TS game size when needed
     'max_notsep':               0.6,        # -> 0.3    max factor of DMKs not separated, if higher TS game is increased
     'factor_TS_TR':             3,          # max TS_game_size : TR_game_size factor, if higher TR is increased
+        # pretrain
+    'multi_pretrain':           3,
         # train
     'game_size_TR':             100000,
     'dmk_n_players_TR':         150,        # number of players per DMK while TR
@@ -43,44 +87,24 @@ CONFIG_INIT = {
     'n_loops_PMT':              10,         # do PMT every N loops
     'n_dmk_PMT':                20}         # max number of DMKs (masters) in PMT
 
-"""
-    # below are descriptions of structures used
-    
-    all_results = {
-        'loops': {
-            1:  ['dmka00_00','dmkb00_01',..],               <- ranking after 1st loop
-            2:  ['dmka00_01','dmkb00_04',..],               <- ranking after 2nd loop
-            ..},
-        'lifemarks': {
-            'dmka00_00': '++',
-            'dmka00_01': '|-',
-            ..}
-            
-    dmk_ranked = ['dmka00_00','dmkb00_01',..]               <- ranking after last loop, updated in the loop after train
-    dmk_old = ['dmka00_00_old','dmkb00_01_old',..]          <- just all _old names
-    
-    dmk_results = {
-        'dmka00_00': {                                      # _old do not have all keys
-            'wonH_IV':          [float,..]                  <- wonH of interval
-            'wonH_afterIV':     [float,..]                  <- wonH after interval
-            'family':           dmk.family,
-            'trainable':        dmk.trainable,
-            'age':              dmk.age
-            'separated_old':    0 or 1
-            'wonH_old_diff':    float
-            'lifemark':         '++'
-        },
-        ..}
-    
-"""
-
 
 
 if __name__ == "__main__":
 
-    # check for continuation
+    tl_name = f'train_loop_{stamp()}'
+    logger = get_pylogger(
+        name=       tl_name,
+        add_stamp=  False,
+        folder=     DMK_MODELS_FD,
+        level=      20)
+
+    logger.info(f'train_loop {tl_name} starts..')
+
+    cm = ConfigManager(file_FP=CONFIG_FP, config_init=CONFIG_INIT, logger=logger)
+    tbwr = TBwr(logdir=f'{DMK_MODELS_FD}/{tl_name}')
     loop_ix = 1
-    _continue = False
+
+    # check for continuation
     saved_n_loops = None
     all_results = r_json(RESULTS_FP)
     if all_results:
@@ -91,27 +115,12 @@ if __name__ == "__main__":
             pass
         else:
             loop_ix = saved_n_loops + 1
-            _continue = True
+            logger.info(f'> continuing with saved {saved_n_loops} loops')
     else:
         all_results = {'loops': {}, 'lifemarks': {}}
 
-    tl_name = f'train_loop_V2_{stamp()}'
-
-    logger = get_pylogger(
-        name=       tl_name,
-        add_stamp=  False,
-        folder=     DMK_MODELS_FD,
-        level=      20)
-
-    logger.info(f'train_loop_V2 starts..')
-    if _continue:
-        logger.info(f'> continuing with saved {saved_n_loops} loops')
-
-    cm = ConfigManager(file_FP=CONFIG_FP, config_init=CONFIG_INIT, logger=logger)
-
-    tbwr = TBwr(logdir=f'{DMK_MODELS_FD}/{tl_name}')
-
     """
+    0. eventually pretrain trainable
     1. duplicate trainable to _old
     2. train
         split n_dmk_total into groups of n_dmk_TR_group
@@ -128,6 +137,17 @@ if __name__ == "__main__":
     6. eventually create missing (new / GX)
     7. do PMT every N loop
     """
+
+    ### 0. pretrain trainable
+
+    # TODO: manage parameters
+    if loop_ix == 1:
+        pretrain(
+            n_dmk_total=    cm.n_dmk_total,
+            #families=       cm.families,
+            multi_pretrain= cm.multi_pretrain,
+            logger=         logger)
+
     while True:
 
         logger.info(f'\n ************** starts loop {loop_ix} **************')
@@ -171,7 +191,7 @@ if __name__ == "__main__":
         for tg in tr_groups:
             run_GM(
                 dmk_point_PLL=  [{'name':f'{dn}_old', 'motorch_point':{'device':0}, **pub_PL} for dn in dmk_ranked[:cm.n_dmk_master]], # we take old here since GM cannot have same player name in PPL nad TRL
-                dmk_point_TRL=  [{'name':nm, 'motorch_point':{'device':1}, **pub_TR} for nm in tg],
+                dmk_point_TRL=  [{'name':dn, 'motorch_point':{'device':1}, **pub_TR} for dn in tg],
                 game_size=      cm.game_size_TR,
                 dmk_n_players=  cm.dmk_n_players_TR,
                 logger=         logger)
