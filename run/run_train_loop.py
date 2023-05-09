@@ -76,13 +76,15 @@ CONFIG_INIT = {
         # test
     'game_size_TS':             100000,
     'dmk_n_players_TS':         150,        # number of players per DMK while TS
-    'sep_pairs_factor':         0.75,       # -> 1.0    pairs separation break value
+    # TODO: consider last factor(s) of TS game
+    'sep_pairs_factor':         0.8,        # -> 1.0    pairs separation break value
     'sep_n_stdev':              2.0,        # separation won IV mean stdev factor
         # replace / new
     'rank_mavg_factor':         0.3,        # mavg_factor of rank_smooth calculation
     'safe_rank':                0.5,        # <0.0;1.0> factor of rank_smooth that is safe (not considered to be replaced, 0.6 means that top 60% of rank is safe)
-    'remove_key':               [2,0],      # -> [3,1]  [A,B] remove DMK if in last A+B life marks there are A -|
-    'prob_fresh':               0.7,        # probability of fresh checkpoint (child from GX of point only, without GX of ckpt)
+    'remove_key':               [3,1],      # [A,B] remove DMK if in last A+B life marks there are A -|
+    'prob_fresh_dmk':           0.8,        # -> 0.5    probability of 100% fresh DMK
+    'prob_fresh_ckpt':          0.8,        # -> 0.5    probability of fresh checkpoint (child from GX of point only, without GX of ckpt)
         # PMT (Periodical Masters Test)
     'n_loops_PMT':              10,         # do PMT every N loops
     'n_dmk_PMT':                20}         # max number of DMKs (masters) in PMT
@@ -144,7 +146,7 @@ if __name__ == "__main__":
         pretrain(
             n_dmk_total=        cm.n_dmk_total,
             families=           cm.families,
-            multi_pretrain=     cm.multi_pretrain,
+            multi_pretrain=     1,#cm.multi_pretrain,
             n_dmk_TR_group=     2 * cm.n_dmk_TR_group,
             game_size_TR=       cm.game_size_TR,
             dmk_n_players_TR=   cm.dmk_n_players_TR,
@@ -389,27 +391,39 @@ if __name__ == "__main__":
                         family= family,
                         logger= get_child(logger, change_level=10))
 
-                # GX from parents
+
                 else:
 
                     pa = random.choice(dmk_masters)
                     family = dmk_results[pa]['family']
-                    other_fam = [dn for dn in dmk_masters if dmk_results[dn]['family'] == family]
-                    if len(other_fam) > 1:
-                        other_fam.remove(pa)
-                    pb = random.choice(other_fam)
-
-                    ckpt_fresh = random.random() < cm.prob_fresh
-                    ckpt_fresh_info = ' (fresh ckpt)' if ckpt_fresh else ''
                     name_child = f'dmk{loop_ix:02}{family}{cix:02}'
-                    logger.info(f'> {name_child} = {pa} + {pb}{ckpt_fresh_info}')
-                    FolDMK.gx_saved(
-                        name_parent_main=           pa,
-                        name_parent_scnd=           pb,
-                        name_child=                 name_child,
-                        save_topdir_parent_main=    DMK_MODELS_FD,
-                        do_gx_ckpt=                 not ckpt_fresh,
-                        logger=                     get_child(logger, change_level=10))
+
+                    # 100% fresh DMK from selected family
+                    if random.random() < cm.prob_fresh_dmk:
+                        logger.info(f'> {name_child} <- 100% fresh')
+                        build_single_foldmk(
+                            name=   name_child,
+                            family= family,
+                            logger= get_child(logger, change_level=10))
+
+                    # GX from parents
+                    else:
+                        other_fam = [dn for dn in dmk_masters if dmk_results[dn]['family'] == family]
+                        if len(other_fam) > 1:
+                            other_fam.remove(pa)
+                        pb = random.choice(other_fam)
+
+                        ckpt_fresh = random.random() < cm.prob_fresh_ckpt
+                        ckpt_fresh_info = ' (fresh ckpt)' if ckpt_fresh else ''
+                        name_child = f'dmk{loop_ix:02}{family}{cix:02}'
+                        logger.info(f'> {name_child} = {pa} + {pb}{ckpt_fresh_info}')
+                        FolDMK.gx_saved(
+                            name_parent_main=           pa,
+                            name_parent_scnd=           pb,
+                            name_child=                 name_child,
+                            save_topdir_parent_main=    DMK_MODELS_FD,
+                            do_gx_ckpt=                 not ckpt_fresh,
+                            logger=                     get_child(logger, change_level=10))
 
                 dmk_ranked.append(name_child)
                 cix += 1

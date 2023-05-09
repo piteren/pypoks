@@ -100,7 +100,7 @@ def build_single_foldmk(name:str, family:str, logger=None):
 def pretrain(
         n_dmk_total: int=       10,         # final total number of pretrained DMKs
         families=               'abcd',
-        multi_pretrain: int=    3,          # total multiplication of DMKs for pretrain
+        multi_pretrain: int=    3,          # total multiplication of DMKs for pretrain, for 1 there is no pretrain
         n_dmk_TR_group: int=    10,         # DMKs group size while TR
         game_size_TR=           100000,
         dmk_n_players_TR=       150,
@@ -116,12 +116,6 @@ def pretrain(
             level=  20)
     logger.info(f'running pretrain for {n_dmk_total} DMKs from families: {families}, multi: {multi_pretrain}')
 
-    pub = {
-        'publish_player_stats': False,
-        'publish_pex':          False,
-        'publish_update':       False,
-        'publish_more':         False}
-
     ### 0. create DMKs
 
     fam = families * n_dmk_total * multi_pretrain
@@ -134,43 +128,51 @@ def pretrain(
         families=   fam,
         logger=     logger)
 
-    ### 1. train DMKs in groups
+    if multi_pretrain > 1:
 
-    tr_names = [] + names
-    random.shuffle(tr_names)
-    tr_groups = []
-    while tr_names:
-        tr_groups.append(tr_names[:n_dmk_TR_group])
-        tr_names = tr_names[n_dmk_TR_group:]
-    for tg in tr_groups:
-        run_GM(
-            dmk_point_TRL=  [{'name':nm, 'motorch_point':{'device':n%2}, **pub} for n,nm in enumerate(tg)],
-            game_size=      game_size_TR,
-            dmk_n_players=  dmk_n_players_TR,
-            logger=         logger)
+        pub = {
+            'publish_player_stats': False,
+            'publish_pex':          False,
+            'publish_update':       False,
+            'publish_more':         False}
 
-    ### 2. test DMKs in groups
+        ### 1. train DMKs in groups
 
-    dmk_results = {}
-    ts_names = [] + names
-    random.shuffle(ts_names)
-    ts_groups = []
-    while ts_names:
-        ts_groups.append(ts_names[:n_dmk_TS_group])
-        ts_names = ts_names[n_dmk_TS_group:]
-    for tg in ts_groups:
-        rgd = run_GM(
-            dmk_point_PLL=  [{'name':nm, 'motorch_point':{'device':n%2}, **pub} for n,nm in enumerate(tg)],
-            game_size=      game_size_TS,
-            dmk_n_players=  dmk_n_players_TS,
-            logger=         logger)
-        dmk_results.update(rgd['dmk_results'])
+        tr_names = [] + names
+        random.shuffle(tr_names)
+        tr_groups = []
+        while tr_names:
+            tr_groups.append(tr_names[:n_dmk_TR_group])
+            tr_names = tr_names[n_dmk_TR_group:]
+        for tg in tr_groups:
+            run_GM(
+                dmk_point_TRL=  [{'name':nm, 'motorch_point':{'device':n%2}, **pub} for n,nm in enumerate(tg)],
+                game_size=      game_size_TR,
+                dmk_n_players=  dmk_n_players_TR,
+                logger=         logger)
 
-    ### 3. select best, remove rest
-    dmk_ranked = [(dn, dmk_results[dn]['wonH_afterIV'][-1]) for dn in names]
-    dmk_ranked = [e[0] for e in sorted(dmk_ranked, key=lambda x: x[1], reverse=True)]
-    for dn in dmk_ranked[n_dmk_total:]:
-        shutil.rmtree(f'{DMK_MODELS_FD}/{dn}', ignore_errors=True)
+        ### 2. test DMKs in groups
+
+        dmk_results = {}
+        ts_names = [] + names
+        random.shuffle(ts_names)
+        ts_groups = []
+        while ts_names:
+            ts_groups.append(ts_names[:n_dmk_TS_group])
+            ts_names = ts_names[n_dmk_TS_group:]
+        for tg in ts_groups:
+            rgd = run_GM(
+                dmk_point_PLL=  [{'name':nm, 'motorch_point':{'device':n%2}, **pub} for n,nm in enumerate(tg)],
+                game_size=      game_size_TS,
+                dmk_n_players=  dmk_n_players_TS,
+                logger=         logger)
+            dmk_results.update(rgd['dmk_results'])
+
+        ### 3. select best, remove rest
+        dmk_ranked = [(dn, dmk_results[dn]['wonH_afterIV'][-1]) for dn in names]
+        dmk_ranked = [e[0] for e in sorted(dmk_ranked, key=lambda x: x[1], reverse=True)]
+        for dn in dmk_ranked[n_dmk_total:]:
+            shutil.rmtree(f'{DMK_MODELS_FD}/{dn}', ignore_errors=True)
 
 # builds dmks, checks folder for present ones
 def build_from_names(
