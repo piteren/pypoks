@@ -342,10 +342,13 @@ class GamesManager:
             sep_nf = sr['sep_nf']
             sep_pairs_nc = sr['sep_pairs_nc']
             sep_pairs_nf = sr['sep_pairs_nf']
+
             if publish_GM:
-                for k in sr:
-                    if k != 'sep_pairs_stat':
-                        self.tbwr.add(value=sr[k], tag=f'GM/{k}', step=loop_ix)
+                self.tbwr.add(value=sep_nc, tag=f'GM/sep_nc', step=loop_ix)
+                self.tbwr.add(value=sep_nf, tag=f'GM/sep_nf', step=loop_ix)
+                if sep_pairs:
+                    self.tbwr.add(value=sep_pairs_nc, tag=f'GM/sep_pairs_nc', step=loop_ix)
+                    self.tbwr.add(value=sep_pairs_nf, tag=f'GM/sep_pairs_nf', step=loop_ix)
 
             # INFO: progress relies on reports, and reports may be prepared in custom way (overridden) by diff GMs
             if progress_report:

@@ -146,7 +146,7 @@ if __name__ == "__main__":
         pretrain(
             n_dmk_total=        cm.n_dmk_total,
             families=           cm.families,
-            multi_pretrain=     1,#cm.multi_pretrain,
+            multi_pretrain=     cm.multi_pretrain,
             n_dmk_TR_group=     2 * cm.n_dmk_TR_group,
             game_size_TR=       cm.game_size_TR,
             dmk_n_players_TR=   cm.dmk_n_players_TR,
@@ -269,11 +269,14 @@ if __name__ == "__main__":
         ### TB log
 
         masters = dmk_ranked[:cm.n_dmk_master]
-        masters_gain = sum([dmk_results[dn]['wonH_old_diff'] for dn in masters if dmk_results[dn]['separated_old']])
+        masters_res = [dmk_results[dn]['wonH_old_diff'] for dn in masters if dmk_results[dn]['separated_old']]
+        masters_gain_sum = sum(masters_res)
+        masters_gain_pos = sum([v for v in masters_res if v > 0])
         masters_wonH_avg = sum([dmk_results[dn]['wonH_afterIV'][-1] for dn in masters]) / len(masters)
         masters_wonH_std_avg = sum([stdev_with_none(dmk_results[dn]['wonH_IV']) for dn in masters]) / len(masters)
 
-        tbwr.add(value=masters_gain,            tag=f'loop/masters_gain',           step=loop_ix)
+        tbwr.add(value=masters_gain_sum,        tag=f'loop/masters_gain_sum',       step=loop_ix)
+        tbwr.add(value=masters_gain_pos,        tag=f'loop/masters_gain_pos',       step=loop_ix)
         tbwr.add(value=masters_wonH_avg,        tag=f'loop/masters_wonH_avg',       step=loop_ix)
         tbwr.add(value=masters_wonH_std_avg,    tag=f'loop/masters_wonH_std_avg',   step=loop_ix)
         tbwr.add(value=loop_stats['speed'],     tag=f'loop/speed_Hs',               step=loop_ix)
@@ -369,6 +372,8 @@ if __name__ == "__main__":
         ### 6. eventually create missing (new / GX)
 
         if len(dmk_ranked) < cm.n_dmk_total:
+
+            logger.info(f'building {cm.n_dmk_total - len(dmk_ranked)} new DMKs:')
 
             # look for forced families
             families_count = {fm: 0 for fm in cm.families}
