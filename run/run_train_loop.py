@@ -357,7 +357,7 @@ if __name__ == "__main__":
         lifemark_candidates = []
         for dn in dmk_poor:
             lifemark_ending = all_results['lifemarks'][dn][-sum(cm.remove_key):]
-            if lifemark_ending.count('-') + lifemark_ending.count('|') >= cm.remove_key[0]:
+            if lifemark_ending.count('-') + lifemark_ending.count('|') >= cm.remove_key[0] and lifemark_ending[-1] != '+':
                 lifemark_candidates.append(dn)
         logger.info(f'lifemark_candidates: {lifemark_candidates}')
 
@@ -473,7 +473,7 @@ if __name__ == "__main__":
                 pos = 1
                 for dn in pmt_ranked:
                     nm_aged = f'{dn}({pmt_results[dn]["age"]}){pmt_results[dn]["family"]}'
-                    pmt_nfo += f' > {pos:>2} {nm_aged:25s} : {pmt_results[dn]["wonH_afterIV"][-1]:5.2f}\n'
+                    pmt_nfo += f' > {pos:>2} {nm_aged:25s} : {pmt_results[dn]["wonH_afterIV"][-1]:6.2f}\n'
                     pos += 1
                 logger.info(pmt_nfo)
 
