@@ -197,6 +197,7 @@ def build_from_names(
 def copy_dmks(
         names_src: List[str],
         names_trg: List[str],
+        save_topdir_src: str=           DMK_MODELS_FD,
         save_topdir_trg: Optional[str]= None,
         logger=                         None,
         loglevel=                       30):
@@ -205,6 +206,7 @@ def copy_dmks(
         FolDMK.copy_saved(
             name_src=           ns,
             name_trg=           nt,
+            save_topdir_src=    save_topdir_src,
             save_topdir_trg=    save_topdir_trg,
             logger=             logger)
 

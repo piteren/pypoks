@@ -49,11 +49,12 @@ import random
 import select
 import shutil
 import sys
+import time
 
 from pypoks_envy import DMK_MODELS_FD, PMT_FD, CONFIG_FP, RESULTS_FP
 from podecide.dmk import FolDMK
 from podecide.games_manager import stdev_with_none, separation_report
-from run.functions import pretrain, get_saved_dmks_names, run_GM, copy_dmks, build_single_foldmk
+from run.functions import get_saved_dmks_names, run_GM, copy_dmks, build_single_foldmk
 from run.after_run.ranks import get_ranks
 
 CONFIG_INIT = {
@@ -65,20 +66,17 @@ CONFIG_INIT = {
     'n_dmk_master':             5,          # number of 'masters' DMKs (trainable are trained against them)
     'n_dmk_TR_group':           5,          # DMKs are trained with masters in groups of that size (group is build of n_dmk_TR_group + n_dmk_master)
     'game_size_upd':            100000,     # how much increase TR or TS game size when needed
-    'max_notsep':               0.6,        # -> 0.3    max factor of DMKs not separated, if higher TS game is increased
-    'factor_TS_TR':             3,          # max TS_game_size : TR_game_size factor, if higher TR is increased
-        # pretrain
-    'multi_pretrain':           3,
-    'n_dmk_TS_group':           20,
+    'min_sep':                  0.4,        # -> 0.7    min factor of DMKs separated, if lower TS game is increased
+    'factor_TS_TR':             2,          # max factor TS_game_size/TR_game_size, if higher TR is increased
         # train
-    'game_size_TR':             100000,
+    'game_size_TR':             300000,
     'dmk_n_players_TR':         150,        # number of players per DMK while TR
         # test
-    'game_size_TS':             100000,
+    'game_size_TS':             300000,
     'dmk_n_players_TS':         150,        # number of players per DMK while TS
     # TODO: consider last factor(s) of TS game
     'sep_pairs_factor':         0.8,        # -> 1.0    pairs separation break value
-    'sep_n_stdev':              2.0,        # separation won IV mean stdev factor
+    'sep_n_stdev':              1.5,        # separation won IV mean stdev factor
         # replace / new
     'rank_mavg_factor':         0.3,        # mavg_factor of rank_smooth calculation
     'safe_rank':                0.5,        # <0.0;1.0> factor of rank_smooth that is safe (not considered to be replaced, 0.6 means that top 60% of rank is safe)
@@ -122,9 +120,9 @@ if __name__ == "__main__":
         all_results = {'loops': {}, 'lifemarks': {}}
 
     """
-    0. eventually pretrain trainable
-    1. duplicate trainable to _old
+    1. eventually create missing (new / GX) -> fill dmk_ranked
     2. train
+        duplicate dmk_ranked to _old
         split n_dmk_total into groups of n_dmk_TR_group
         train each group against n_dmk_master (in first loop - random selected)
     3. test trainable + _old, test has to
@@ -135,29 +133,13 @@ if __name__ == "__main__":
         report
         roll back from _old those who not improved
         adjust TR / TS parameters     
-    5. eventually remove poor
-    6. eventually create missing (new / GX)
-    7. do PMT every N loop
+    5. eventually remove poor & save all_results
+    6. do PMT every N loop
     """
-
-    ### 0. pretrain new trainable
-
-    if loop_ix == 1:
-        pretrain(
-            n_dmk_total=        cm.n_dmk_total,
-            families=           cm.families,
-            multi_pretrain=     cm.multi_pretrain,
-            n_dmk_TR_group=     2 * cm.n_dmk_TR_group,
-            game_size_TR=       cm.game_size_TR,
-            dmk_n_players_TR=   cm.dmk_n_players_TR,
-            n_dmk_TS_group=     cm.n_dmk_TS_group,
-            game_size_TS=       cm.game_size_TS,
-            dmk_n_players_TS=   cm.dmk_n_players_TS,
-            logger=             logger)
-
     while True:
 
         logger.info(f'\n ************** starts loop {loop_ix} **************')
+        loop_stime = time.time()
 
         config = cm.load() # eventually load new config from file
 
@@ -166,17 +148,91 @@ if __name__ == "__main__":
             cm.exit = False
             break
 
-        ### 1. prepare dmk_ranked, duplicate them to _old
+        dmk_ranked = []
+        if loop_ix > 1:
+            dmk_ranked = all_results['loops'][str(loop_ix-1)]
+            logger.info(f'got DMKs ranked: {dmk_ranked}')
 
-        dmk_ranked = all_results['loops'][str(loop_ix-1)] if loop_ix>1 else [dn for dn in get_saved_dmks_names() if '_old' not in dn]
-        logger.info(f'got DMKs ranked: {dmk_ranked}, duplicating them to _old..')
+        if not dmk_ranked:
+            dmk_ranked = [dn for dn in get_saved_dmks_names() if '_old' not in dn]
+            logger.info(f'got {len(dmk_ranked)} DMKs saved in {DMK_MODELS_FD}: {dmk_ranked}')
+
+        ### 1. eventually create missing (new / GX, -> fill dmk_ranked)
+
+        if len(dmk_ranked) < cm.n_dmk_total:
+
+            logger.info(f'building {cm.n_dmk_total - len(dmk_ranked)} new DMKs:')
+
+            ranked_families = {dn: FolDMK.load_point(name=dn)['family'] for dn in dmk_ranked}
+
+            # look for forced families
+            families_present = ''.join(list(ranked_families.values()))
+            families_count = {fm: families_present.count(fm) for fm in cm.families}
+            families_count = [(fm, families_count[fm]) for fm in families_count]
+            families_forced = [fc[0] for fc in families_count if fc[1] < 1]
+            if families_forced: logger.info(f'families forced: {families_forced}')
+
+            cix = 0
+            dmk_ranked_parents = [dn for dn in dmk_ranked[:cm.n_dmk_master] if ranked_families[dn] in cm.families]
+            while len(dmk_ranked) < cm.n_dmk_total:
+
+                # build new one from forced
+                if families_forced:
+                    family = families_forced.pop()
+                    name_child = f'dmk{loop_ix:02}{family}{cix:02}'
+                    logger.info(f'> {name_child} <- fresh, forced from family {family}')
+                    build_single_foldmk(
+                        name=   name_child,
+                        family= family,
+                        logger= get_child(logger, change_level=10))
+
+                else:
+
+                    pa = random.choice(dmk_ranked_parents) if dmk_ranked_parents else None
+                    family = ranked_families[pa] if pa is not None else random.choice(cm.families)
+                    name_child = f'dmk{loop_ix:02}{family}{cix:02}'
+
+                    # 100% fresh DMK from selected family
+                    if random.random() < cm.prob_fresh_dmk or pa is None:
+                        logger.info(f'> {name_child} <- 100% fresh')
+                        build_single_foldmk(
+                            name=   name_child,
+                            family= family,
+                            logger= get_child(logger, change_level=10))
+
+                    # GX from parents
+                    else:
+                        other_fam = [dn for dn in dmk_ranked_parents if ranked_families[dn] == family]
+                        if len(other_fam) > 1:
+                            other_fam.remove(pa)
+                        pb = random.choice(other_fam)
+
+                        ckpt_fresh = random.random() < cm.prob_fresh_ckpt
+                        ckpt_fresh_info = ' (fresh ckpt)' if ckpt_fresh else ''
+                        name_child = f'dmk{loop_ix:02}{family}{cix:02}'
+                        logger.info(f'> {name_child} = {pa} + {pb}{ckpt_fresh_info}')
+                        FolDMK.gx_saved(
+                            name_parent_main=           pa,
+                            name_parent_scnd=           pb,
+                            name_child=                 name_child,
+                            save_topdir_parent_main=    DMK_MODELS_FD,
+                            do_gx_ckpt=                 not ckpt_fresh,
+                            logger=                     get_child(logger, change_level=10))
+
+                dmk_ranked.append(name_child)
+                cix += 1
+
+            all_results['loops'][str(loop_ix)] = dmk_ranked  # update with new dmk_ranked
+
+        ### 2. train
+
+        # duplicate dmk_ranked to _old
+        logger.info(f'duplicating ranked to _old..')
         dmk_old = [f'{nm}_old' for nm in dmk_ranked]
         copy_dmks(
             names_src=  dmk_ranked,
             names_trg=  dmk_old,
             logger=     get_child(logger, change_level=10))
-
-        ### 2. train
 
         # create groups
         tr_groups = []
@@ -245,7 +301,7 @@ if __name__ == "__main__":
             dmk_results[dn]['lifemark'] = lifemark_prev + lifemark_upd
             session_lifemarks += lifemark_upd
 
-        notsep_factor = session_lifemarks.count('|') / cm.n_dmk_total
+        sep_factor = (cm.n_dmk_total - session_lifemarks.count('|')) / cm.n_dmk_total
 
         ### log results
 
@@ -270,19 +326,17 @@ if __name__ == "__main__":
 
         masters = dmk_ranked[:cm.n_dmk_master]
         masters_res = [dmk_results[dn]['wonH_old_diff'] for dn in masters if dmk_results[dn]['separated_old']]
-        masters_gain_sum = sum(masters_res)
-        masters_gain_pos = sum([v for v in masters_res if v > 0])
+        masters_gain = sum([v for v in masters_res if v > 0])
         masters_wonH_avg = sum([dmk_results[dn]['wonH_afterIV'][-1] for dn in masters]) / len(masters)
         masters_wonH_std_avg = sum([stdev_with_none(dmk_results[dn]['wonH_IV']) for dn in masters]) / len(masters)
 
-        tbwr.add(value=masters_gain_sum,        tag=f'loop/masters_gain_sum',       step=loop_ix)
-        tbwr.add(value=masters_gain_pos,        tag=f'loop/masters_gain_pos',       step=loop_ix)
+        tbwr.add(value=masters_gain,            tag=f'loop/masters_gain',           step=loop_ix)
         tbwr.add(value=masters_wonH_avg,        tag=f'loop/masters_wonH_avg',       step=loop_ix)
         tbwr.add(value=masters_wonH_std_avg,    tag=f'loop/masters_wonH_std_avg',   step=loop_ix)
         tbwr.add(value=loop_stats['speed'],     tag=f'loop/speed_Hs',               step=loop_ix)
         tbwr.add(value=cm.game_size_TS,         tag=f'loop/game_size_TS',           step=loop_ix)
         tbwr.add(value=cm.game_size_TR,         tag=f'loop/game_size_TR',           step=loop_ix)
-        tbwr.add(value=notsep_factor,           tag=f'loop/notsep_factor',          step=loop_ix)
+        tbwr.add(value=sep_factor,              tag=f'loop/sep_factor',             step=loop_ix)
 
         dmk_sets = {
             'best':         [dmk_ranked[0]],
@@ -301,7 +355,7 @@ if __name__ == "__main__":
                     step=   loop_ix)
 
         # eventually increase game_size
-        if notsep_factor > cm.max_notsep:
+        if sep_factor < cm.min_sep:
             cm.game_size_TS = cm.game_size_TS + cm.game_size_upd
         if cm.game_size_TS > cm.game_size_TR * cm.factor_TS_TR:
             cm.game_size_TR = cm.game_size_TR + cm.game_size_upd
@@ -345,7 +399,7 @@ if __name__ == "__main__":
             res_nfo += f' > {pos:>2}({rank}) {nm_aged:15s} : {wonH:6.2f}\n'
         logger.info(res_nfo)
 
-        ### 5. eventually remove poor
+        ### 5. eventually remove poor and finally save all_results
 
         dmk_masters = dmk_ranked[:cm.n_dmk_master]
         dmk_poor = dmk_ranked[cm.n_dmk_master:]
@@ -362,82 +416,19 @@ if __name__ == "__main__":
         logger.info(f'lifemark_candidates: {lifemark_candidates}')
 
         remove = set(rank_candidates) & set(lifemark_candidates)
-        logger.info(f'DMKs to remove: {remove}')
+        if remove:
+            logger.info(f'DMKs to remove: {remove}')
 
-        for dn in remove:
-            shutil.rmtree(f'{DMK_MODELS_FD}/{dn}', ignore_errors=True)
-            shutil.rmtree(f'{DMK_MODELS_FD}/{dn}_old', ignore_errors=True)
-            dmk_ranked.remove(dn)
+            for dn in remove:
+                shutil.rmtree(f'{DMK_MODELS_FD}/{dn}', ignore_errors=True)
+                shutil.rmtree(f'{DMK_MODELS_FD}/{dn}_old', ignore_errors=True)
+                dmk_ranked.remove(dn)
 
-        ### 6. eventually create missing (new / GX)
-
-        if len(dmk_ranked) < cm.n_dmk_total:
-
-            logger.info(f'building {cm.n_dmk_total - len(dmk_ranked)} new DMKs:')
-
-            # look for forced families
-            families_count = {fm: 0 for fm in cm.families}
-            for dn in dmk_ranked:
-                families_count[dmk_results[dn]['family']] += 1
-            families_count = [(fm, families_count[fm]) for fm in families_count]
-            families_forced = [fc[0] for fc in families_count if fc[1] < 1]
-            if families_forced: logger.info(f'families forced: {families_forced}')
-
-            cix = 0
-            while len(dmk_ranked) < cm.n_dmk_total:
-
-                # build new one from forced
-                if families_forced:
-                    family = families_forced.pop()
-                    name_child = f'dmk{loop_ix:02}{family}{cix:02}'
-                    logger.info(f'> {name_child} <- fresh, forced from family {family}')
-                    build_single_foldmk(
-                        name=   name_child,
-                        family= family,
-                        logger= get_child(logger, change_level=10))
-
-
-                else:
-
-                    pa = random.choice(dmk_masters)
-                    family = dmk_results[pa]['family']
-                    name_child = f'dmk{loop_ix:02}{family}{cix:02}'
-
-                    # 100% fresh DMK from selected family
-                    if random.random() < cm.prob_fresh_dmk:
-                        logger.info(f'> {name_child} <- 100% fresh')
-                        build_single_foldmk(
-                            name=   name_child,
-                            family= family,
-                            logger= get_child(logger, change_level=10))
-
-                    # GX from parents
-                    else:
-                        other_fam = [dn for dn in dmk_masters if dmk_results[dn]['family'] == family]
-                        if len(other_fam) > 1:
-                            other_fam.remove(pa)
-                        pb = random.choice(other_fam)
-
-                        ckpt_fresh = random.random() < cm.prob_fresh_ckpt
-                        ckpt_fresh_info = ' (fresh ckpt)' if ckpt_fresh else ''
-                        name_child = f'dmk{loop_ix:02}{family}{cix:02}'
-                        logger.info(f'> {name_child} = {pa} + {pb}{ckpt_fresh_info}')
-                        FolDMK.gx_saved(
-                            name_parent_main=           pa,
-                            name_parent_scnd=           pb,
-                            name_child=                 name_child,
-                            save_topdir_parent_main=    DMK_MODELS_FD,
-                            do_gx_ckpt=                 not ckpt_fresh,
-                            logger=                     get_child(logger, change_level=10))
-
-                dmk_ranked.append(name_child)
-                cix += 1
-
-            all_results['loops'][str(loop_ix)] = dmk_ranked # update with new dmk_ranked
+            all_results['loops'][str(loop_ix)] = dmk_ranked  # update with new dmk_ranked
 
         w_json(all_results, RESULTS_FP)
 
-        ### 7. PMT evaluation
+        ### 6. PMT evaluation
 
         if loop_ix % cm.n_loops_PMT == 0:
 
@@ -461,7 +452,7 @@ if __name__ == "__main__":
                     'publish_more':         False}
                 pmt_results = run_GM(
                     dmk_point_PLL=  [{'name':dn, 'motorch_point':{'device':n%2}, 'save_topdir':PMT_FD, **pub} for n,dn in enumerate(all_pmt)],
-                    game_size=      cm.game_size_TS,
+                    game_size=      cm.game_size_TS * 2,
                     dmk_n_players=  cm.dmk_n_players_TS,
                     sep_all_break=  True,
                     logger=         logger)['dmk_results']
@@ -484,5 +475,9 @@ if __name__ == "__main__":
                     logger.info(f'removed PMT: {dn}')
 
         if cm.pause: input("press Enter to continue..")
+
+        loop_time = (time.time() - loop_stime) / 60
+        logger.info(f'\n loop {loop_ix} finished, time taken: {loop_time:.1f}min')
+        tbwr.add(value=loop_time, tag=f'loop/loop_time', step=loop_ix)
 
         loop_ix += 1
