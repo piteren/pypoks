@@ -109,7 +109,7 @@ if __name__ == "__main__":
     all_results = r_json(RESULTS_FP)
     if all_results:
         saved_n_loops = len(all_results['loops'])
-        print(f'Do you want to continue with saved (in {DMK_MODELS_FD}) {saved_n_loops} loops? ..waiting 10 sec (y/n, y-default)')
+        logger.info(f'Do you want to continue with saved (in {DMK_MODELS_FD}) {saved_n_loops} loops? ..waiting 10 sec (y/n, y-default)')
         i, o, e = select.select([sys.stdin], [], [], 10)
         if i and sys.stdin.readline().strip() == 'n':
             pass
@@ -141,7 +141,6 @@ if __name__ == "__main__":
         logger.info(f'\n ************** starts loop {loop_ix} **************')
         loop_stime = time.time()
 
-        cm.load() # eventually load new config from file
         if cm.exit:
             logger.info('train loop exits')
             cm.exit = False
