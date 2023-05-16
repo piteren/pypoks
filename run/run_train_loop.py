@@ -141,10 +141,9 @@ if __name__ == "__main__":
         logger.info(f'\n ************** starts loop {loop_ix} **************')
         loop_stime = time.time()
 
-        config = cm.load() # eventually load new config from file
-
+        cm.load() # eventually load new config from file
         if cm.exit:
-            logger.info('train_loop_V2 exits')
+            logger.info('train loop exits')
             cm.exit = False
             break
 
