@@ -44,7 +44,7 @@ $ python run/run_train_loop.py
 ```
 
 This script will train a set of agents with RL self-play. Script is preconfigured with many options that will fit for system with 2x GPUs (11GB).
-Trained agents available to download with a link above took about 30 hours to train.<br>
+Trained agents available to download with a link above took about 5 days to train.<br>
 
 While training, you may check the progress with TensorBoard (run `run_TB.sh`)
 
