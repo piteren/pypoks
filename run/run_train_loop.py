@@ -475,7 +475,7 @@ if __name__ == "__main__":
         if cm.pause: input("press Enter to continue..")
 
         loop_time = (time.time() - loop_stime) / 60
-        logger.info(f'\n loop {loop_ix} finished, time taken: {loop_time:.1f}min')
+        logger.info(f'loop {loop_ix} finished, time taken: {loop_time:.1f}min')
         tbwr.add(value=loop_time, tag=f'loop/loop_time', step=loop_ix)
 
         loop_ix += 1
