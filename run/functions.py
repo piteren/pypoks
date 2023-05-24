@@ -8,8 +8,7 @@ from pypaq.pms.paspa import PaSpa
 import shutil
 from typing import List, Optional, Dict, Tuple, Union
 
-from pypoks_base import PyPoksException
-from pypoks_envy import DMK_MODELS_FD
+from pypoks_envy import DMK_MODELS_FD, PyPoksException
 from podecide.dmk import FolDMK
 from podecide.dmk_module_pg import ProCNN_DMK_PG
 from podecide.dmk_module_a2c import ProCNN_DMK_A2C

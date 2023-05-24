@@ -1,6 +1,3 @@
-from pypoks_base import PyPoksException
-
-
 DEBUG_MODE = True # True allows more information to be shown
 
 
@@ -43,3 +40,7 @@ def get_pos_names(n_table_players=N_TABLE_PLAYERS):
 
 def get_cardNet_name(c_embW :int):
     return f'cardNet{c_embW}'
+
+
+class PyPoksException(Exception):
+    pass
