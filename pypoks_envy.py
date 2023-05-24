@@ -1,9 +1,12 @@
+from pypoks_base import PyPoksException
+
+
 DEBUG_MODE = True # True allows more information to be shown
 
 
 # poker game settings
-N_TABLE_PLAYERS =   3
-TABLE_CASH_START =  500 # player starts every hand with 500
+N_TABLE_PLAYERS =   3       # supported are 2,3,6,9
+TABLE_CASH_START =  500     # player starts every hand with 500
 TABLE_SB =          2
 TABLE_BB =          5
 
@@ -12,18 +15,8 @@ TBL_MOV = {
     1:  ('CLL', None),      # call
     2:  ('BRS', 2.5, 0.6),  # bet/raise small
     3:  ('BRL', 4.0, 1.0),  # bet/raise large
-    #4:  ('BR6', 6/3),  # bet/raise 6/3 pot
-    #5:  ('BR8', 8/3),  # bet/raise 8/3 pot
-    # 4:'BRA'   # all-in
 }
 TBL_MOV_R = {TBL_MOV[k][0]: k for k in TBL_MOV}
-
-POS_NMS = {
-    2:  ['SB','BB'],
-    3:  ['SB','BB','BTN'],
-    6:  ['SB','BB','UTG','MP','CT','BTN'],
-    9:  ['SB','BB','UTG1','UTG2','MP1','MP2','HJ','CT','BTN']}
-POS_NMS_R = {POS_NMS[9][ix]: ix for ix in range(9)}
 
 # folders
 MODELS_FD =          '_models'
@@ -37,6 +30,16 @@ CONFIG_FP =         f'{DMK_MODELS_FD}/pypoks.cfg'
 RESULTS_FP =        f'{DMK_MODELS_FD}/all_results.json'
 
 DMK_STATS_IV = 1000 # DMK (player) stats interval size, it is quite important constant for DMK, StatsManager & GamesManager
+
+
+def get_pos_names(n_table_players=N_TABLE_PLAYERS):
+    if n_table_players not in (2,3,6,9):
+        raise PyPoksException('not supported number of table players')
+    if n_table_players == 2: return ['SB','BB']
+    if n_table_players == 3: return ['SB','BB','BTN']
+    if n_table_players == 6: return ['SB','BB','UTG','MP','CT','BTN']
+    if n_table_players == 9: return ['SB','BB','UTG1','UTG2','MP1','MP2','HJ','CT','BTN']
+
 
 def get_cardNet_name(c_embW :int):
     return f'cardNet{c_embW}'

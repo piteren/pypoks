@@ -27,7 +27,7 @@ from pypaq.mpython.mptools import Que, QMessage
 
 from pologic.hand_history import HHistory
 from pologic.podeck import PDeck
-from pypoks_envy import TABLE_CASH_START, TABLE_SB, TABLE_BB, TBL_MOV, POS_NMS
+from pypoks_envy import TABLE_CASH_START, TABLE_SB, TABLE_BB, TBL_MOV, get_pos_names
 
 # table states
 TBL_STT = {
@@ -152,6 +152,8 @@ class PTable:
             self.players = [PPlayer(id) for id in pl_ids]
             self._early_update_players()
 
+        self.p_names = get_pos_names()
+
         if self.logger: self.logger.info(f'*** PTable *** {self.name} initialized')
 
     # update some players info since their position on table is known
@@ -198,8 +200,8 @@ class PTable:
         self.state = 1
 
         h_pls = [] + self.players # original order of players for current hand (SB, BB, ..) ..every hand players are rotated
-        p_names = POS_NMS[len(h_pls)]
-        for ix in range(len(h_pls)): hh.add('POS', (h_pls[ix].name, p_names[ix]))
+
+        for ix in range(len(h_pls)): hh.add('POS', (h_pls[ix].name, self.p_names[ix]))
 
         # put blinds on table
         h_pls[0].cash -= self.SB

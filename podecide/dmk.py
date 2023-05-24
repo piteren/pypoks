@@ -74,7 +74,7 @@ from torchness.tbwr import TBwr
 from torchness.comoneural.zeroes_processor import ZeroesProcessor
 from typing import List, Tuple, Optional, Dict, Any
 
-from pypoks_envy import DMK_MODELS_FD, DMK_POINT_PFX, N_TABLE_PLAYERS, TABLE_CASH_START, TBL_MOV_R, POS_NMS_R, DMK_STATS_IV
+from pypoks_envy import DMK_MODELS_FD, DMK_POINT_PFX, N_TABLE_PLAYERS, TABLE_CASH_START, TBL_MOV_R, DMK_STATS_IV, get_pos_names
 from pologic.podeck import PDeck
 from podecide.game_state import GameState
 from podecide.dmk_motorch import DMK_MOTorch
@@ -744,6 +744,7 @@ class NeurDMK(ExaDMK):
         self._mdl = None
         self.motorch_point = motorch_point or {}
         self.publish_update = publish_update
+        self._pos_names = get_pos_names()
 
     # prepares state data into form accepted by NN input
     #  - encodes only selection of states: [POS,PLH,TCD,MOV,PRS] ..does not use: HST,TST,PSB,PBB,T$$
@@ -777,7 +778,7 @@ class NeurDMK(ExaDMK):
             if val[0] == 'POS' and val[1][0] == 0: # my position
                 nval = {
                     'cards':    None,
-                    'event':    1 + POS_NMS_R[val[1][1]]}
+                    'event':    1 + self._pos_names.index(val[1][1])}
 
             if val[0] == 'MOV' and val[1][0] != 0: # moves, all but mine
                 evsIX = 1 + N_TABLE_PLAYERS

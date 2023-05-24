@@ -5,8 +5,8 @@
     hand history is build by the table, while playing a hand, below are implemented states:
 
         HST:    (table_name:str, hand_id:int)                           hand starts - maybe later add game info (table size, SB,BB.. )
-        TST:    (state:str,)                                            table state (potable.TBL_STT)
-        POS:    (pln:str, pos:str)                                      player position (potable.POS_NMS)
+        TST:    (state:str,)                                            table state
+        POS:    (pln:str, pos:str)                                      player position
         PSB:    (pln:str, SB:int)                                       player puts small blind
         PBB:    (pln:str, BB:int)                                       player puts big blind
         T$$:    (cash:int, cash_cr:int, cash_tc:int)                    table cash (on table, current river, to call(river))
