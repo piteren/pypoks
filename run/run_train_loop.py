@@ -61,7 +61,7 @@ CONFIG_INIT = {
         # general
     'exit':                     False,      # exits loop (after train)
     'pause':                    False,      # pauses loop after test till Enter pressed
-    'families':                 'a',        # -> 'abcd' active families (at least one DMK should be present)
+    'families':                 'abcd',     # active families (at least one DMK should be present)
     'n_dmk_total':              10,         # total number of trainable DMKs (population size)
     'n_dmk_master':             5,          # number of 'masters' DMKs (trainable are trained against them)
     'n_dmk_TR_group':           5,          # DMKs are trained with masters in groups of that size (group is build of n_dmk_TR_group + n_dmk_master)
@@ -76,7 +76,7 @@ CONFIG_INIT = {
     'dmk_n_players_TS':         150,        # number of players per DMK while TS
     # TODO: consider last factor(s) of TS game
     'sep_pairs_factor':         0.8,        # -> 1.0    pairs separation break value
-    'sep_n_stdev':              1.5,        # separation won IV mean stdev factor
+    'sep_n_stdev':              2.0,        # separation won IV mean stdev factor
         # replace / new
     'rank_mavg_factor':         0.3,        # mavg_factor of rank_smooth calculation
     'safe_rank':                0.5,        # <0.0;1.0> factor of rank_smooth that is safe (not considered to be replaced, 0.6 means that top 60% of rank is safe)
