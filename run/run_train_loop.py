@@ -80,7 +80,7 @@ CONFIG_INIT = {
         # replace / new
     'rank_mavg_factor':         0.3,        # mavg_factor of rank_smooth calculation
     'safe_rank':                0.5,        # <0.0;1.0> factor of rank_smooth that is safe (not considered to be replaced, 0.6 means that top 60% of rank is safe)
-    'remove_key':               [3,1],      # [A,B] remove DMK if in last A+B life marks there are A -|
+    'remove_key':               [4,1],      # [A,B] remove DMK if in last A+B life marks there are A -|
     'prob_fresh_dmk':           0.8,        # -> 0.5    probability of 100% fresh DMK
     'prob_fresh_ckpt':          0.8,        # -> 0.5    probability of fresh checkpoint (child from GX of point only, without GX of ckpt)
         # PMT (Periodical Masters Test)
