@@ -91,7 +91,7 @@ CONFIG_INIT = {
 
 if __name__ == "__main__":
 
-    tl_name = f'train_loop_{stamp()}'
+    tl_name = f'run_train_loop_{stamp()}'
     logger = get_pylogger(
         name=       tl_name,
         add_stamp=  False,

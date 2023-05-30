@@ -6,12 +6,12 @@ from run.functions import get_saved_dmks_names, run_GM
 
 if __name__ == "__main__":
 
-    # INFO: although game size is big game will be broken as soon as DMKs become separated
+    # INFO: although game size is quite big, game will be broken as soon as DMKs become separated
     sep_n_stdev = 1.0 # for deeper test use at least 2.0
     game_size = 2000000
 
     logger = get_pylogger(
-        name=   'run_simple_play',
+        name=   'run_play',
         folder= DMK_MODELS_FD,
         level=  20)
 
@@ -27,7 +27,7 @@ if __name__ == "__main__":
     rgd = run_GM(
         dmk_point_PLL=  [{'name':dn, 'motorch_point':{'device':n%2}, **pub} for n,dn in enumerate(names)],
         game_size=      game_size,
-        dmk_n_players=  300 if len(names) < 11 else 150,
+        dmk_n_players=  (120 // len(names)) * 30,
         sep_all_break=  True,
         sep_n_stdev=    sep_n_stdev,
         logger=         logger)
