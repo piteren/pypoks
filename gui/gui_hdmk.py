@@ -55,7 +55,7 @@ class GUI_HDMK:
         self.tcsh_tc = 0 # will keep it to capture fold event
         self.pl_won = [0 for _ in range(len(players))]
         self.n_hands = 0
-        self.ops_cards = {1:[],2:[]}
+        self.players_cards = {0:[], 1:[], 2:[]}
 
         pyp_lbl = Label(self.tk)
         pyp_lbl.grid(row=0, column=0)
@@ -236,7 +236,7 @@ class GUI_HDMK:
         if state[0] == 'PLH':
             if state[1][0] == 0:
                 self.__upd_myc(state[1][1], state[1][2])
-            else: self.ops_cards[state[1][0]] = state[1][1:]
+            self.players_cards[state[1][0]] = state[1][1:]
             prn = False
 
         if state[0] == 'TCD':
@@ -266,9 +266,8 @@ class GUI_HDMK:
 
         if state[0] == 'HFN':
             if DEBUG_MODE:
-                if self.ops_cards[1]:
-                    for ix in [1,2]:
-                        print(f' DEB: pl{ix} cards: {self.ops_cards[ix][0]} {self.ops_cards[ix][1]}')
+                for ix in [0,1,2]:
+                    print(f' DEB: pl{ix} cards: {self.players_cards[ix][0]} {self.players_cards[ix][1]}')
             self.next_btn['state'] = 'normal'
             print('\npress GO to start next hand')
             self.next_btn.wait_variable(self.next_go)
