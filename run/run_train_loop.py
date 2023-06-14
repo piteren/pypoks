@@ -3,10 +3,6 @@
     DMKs are trained from a scratch with self-play game.
     Configuration is set to fully utilize power of 2 GPUs (11GB RAM).
 
-    Training should start with pretrain.
-    Pretrain is a procedure of selecting good candidates at the beginning of the loops.
-
-
     Below are descriptions of some structures used
 
         all_results = {
