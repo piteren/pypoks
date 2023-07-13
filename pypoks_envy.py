@@ -32,7 +32,7 @@ DMK_STATS_IV = 1000 # DMK (player) stats interval size, it is quite important co
 def get_pos_names(n_table_players=N_TABLE_PLAYERS):
     if n_table_players not in (2,3,6,9):
         raise PyPoksException('not supported number of table players')
-    if n_table_players == 2: return ['SB','BB']
+    if n_table_players == 2: return ['BTN','BB']
     if n_table_players == 3: return ['SB','BB','BTN']
     if n_table_players == 6: return ['SB','BB','UTG','MP','CT','BTN']
     if n_table_players == 9: return ['SB','BB','UTG1','UTG2','MP1','MP2','HJ','CT','BTN']
