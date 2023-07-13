@@ -142,7 +142,7 @@ class GUI_HDMK:
         # decision subframe ********************************************************************************************
 
         lcol = ['black', 'DodgerBlue3'] + ['red'] * (len(TBL_MOV) - 2)  # fg colors in frame
-        mnm = [TBL_MOV[k][0] for k in sorted(list(TBL_MOV.keys()))]  # moves names
+        mnm = [TBL_MOV[k][0] for k in sorted(list(TBL_MOV.keys()))]     # moves names
         dec_frm = Frame(m_frm, padx=5, pady=5)
         dec_frm.grid(row=0, column=1)
 

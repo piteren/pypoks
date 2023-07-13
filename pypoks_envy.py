@@ -19,7 +19,7 @@ TBL_MOV = {
 TBL_MOV_R = {TBL_MOV[k][0]: k for k in TBL_MOV}
 
 POS_NMS = {
-    2:  ['SB','BB'],
+    2:  ['BTN','BB'],
     3:  ['SB','BB','BTN'],
     6:  ['SB','BB','UTG','MP','CT','BTN'],
     9:  ['SB','BB','UTG1','UTG2','MP1','MP2','HJ','CT','BTN']}
