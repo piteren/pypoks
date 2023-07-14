@@ -6,7 +6,7 @@ from torchness.layers import LayDense
 from torchness.encoders import EncCNN
 from typing import Optional
 
-from pypoks_envy import N_TABLE_PLAYERS, TBL_MOV
+from envy import N_TABLE_PLAYERS, TBL_MOV
 from podecide.cardNet.cardNet_module import CardNet_MOTorch
 
 

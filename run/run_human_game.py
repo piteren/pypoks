@@ -1,6 +1,6 @@
 from pypaq.lipytools.files import r_json
 
-from pypoks_envy import RESULTS_FP
+from envy import RESULTS_FP
 from podecide.games_manager import HuGamesManager
 
 

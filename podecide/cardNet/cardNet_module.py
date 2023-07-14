@@ -6,7 +6,7 @@ from torchness.encoders import EncTNS, EncDRT
 from torchness.motorch import Module, MOTorch
 from typing import Optional
 
-from pypoks_envy import CN_MODELS_FD, get_cardNet_name
+from envy import CN_MODELS_FD, get_cardNet_name
 
 
 class CardEnc(Module):

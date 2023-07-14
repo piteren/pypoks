@@ -1,6 +1,6 @@
 import shutil
 
-from pypoks_envy import DMK_MODELS_FD
+from envy import DMK_MODELS_FD
 from run.functions import get_saved_dmks_names, copy_dmks
 
 

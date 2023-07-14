@@ -47,7 +47,7 @@ import shutil
 import sys
 import time
 
-from pypoks_envy import DMK_MODELS_FD, PMT_FD, CONFIG_FP, RESULTS_FP
+from envy import DMK_MODELS_FD, PMT_FD, CONFIG_FP, RESULTS_FP
 from podecide.dmk import FolDMK
 from podecide.games_manager import stdev_with_none, separation_report
 from run.functions import get_saved_dmks_names, run_GM, copy_dmks, build_single_foldmk

@@ -3,7 +3,7 @@ from pypaq.lipytools.plots import two_dim_multi
 from pypaq.lipytools.moving_average import MovAvg
 from typing import List, Dict, Optional
 
-from pypoks_envy import RESULTS_FP
+from envy import RESULTS_FP
 from run.functions import get_saved_dmks_names
 
 

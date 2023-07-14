@@ -1,6 +1,6 @@
 from torchness.motorch import MOTorch
 
-from pypoks_envy import DMK_MODELS_FD
+from envy import DMK_MODELS_FD
 
 
 

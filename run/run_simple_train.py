@@ -1,6 +1,6 @@
 from pypaq.lipytools.pylogger import get_pylogger
 
-from pypoks_envy import MODELS_FD
+from envy import MODELS_FD
 from run.functions import run_GM, build_from_names
 
 

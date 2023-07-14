@@ -1,19 +1,22 @@
-DEBUG_MODE = True # True allows more information to be shown
+DEBUG_MODE = True # True allows more information to be shown while playing HumanGame
 
 
 # poker game settings
 N_TABLE_PLAYERS =   3       # supported are 2,3,6,9
 TABLE_CASH_START =  500     # player starts every hand with 500
-TABLE_SB =          2
-TABLE_BB =          5
+TABLE_CASH_SB =     2
+TABLE_CASH_BB =     5
 
+
+# possible table moves
+# {IX: (name,,)}
 TBL_MOV = {
     0:  ('C/F', None),      # check/fold
     1:  ('CLL', None),      # call
     2:  ('BRS', 2.5, 0.6),  # bet/raise small
     3:  ('BRL', 4.0, 1.0),  # bet/raise large
 }
-TBL_MOV_R = {TBL_MOV[k][0]: k for k in TBL_MOV}
+TBL_MOV_R = {TBL_MOV[k][0]: k for k in TBL_MOV} # {name: IX}
 
 # folders
 MODELS_FD =          '_models'

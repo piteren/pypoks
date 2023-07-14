@@ -5,7 +5,7 @@ import time
 from tkinter import Tk, Label, Button, Frame, IntVar
 from typing import List, Optional
 
-from pypoks_envy import DEBUG_MODE, TABLE_CASH_START, TABLE_SB, TABLE_BB, TBL_MOV
+from envy import DEBUG_MODE, TABLE_CASH_START, TABLE_CASH_SB, TABLE_CASH_BB, TBL_MOV
 from pologic.podeck import CRD_FIG, CRD_COL
 
 GUI_DELAY = 0.1 # seconds of delay for every message
@@ -142,7 +142,7 @@ class GUI_HDMK:
         # decision subframe ********************************************************************************************
 
         lcol = ['black', 'DodgerBlue3'] + ['red'] * (len(TBL_MOV) - 2)  # fg colors in frame
-        mnm = [TBL_MOV[k][0] for k in sorted(list(TBL_MOV.keys()))]  # moves names
+        mnm = [TBL_MOV[k][0] for k in sorted(list(TBL_MOV.keys()))]     # moves names
         dec_frm = Frame(m_frm, padx=5, pady=5)
         dec_frm.grid(row=0, column=1)
 
@@ -228,8 +228,8 @@ class GUI_HDMK:
             prn = False
 
         if state[0] == 'POS':
-            if state[1][1] == 'SB': self.__upd_plcsh(state[1][0], TABLE_CASH_START - TABLE_SB, TABLE_SB)
-            if state[1][1] == 'BB': self.__upd_plcsh(state[1][0], TABLE_CASH_START - TABLE_BB, TABLE_BB)
+            if state[1][1] == 'SB': self.__upd_plcsh(state[1][0], TABLE_CASH_START - TABLE_CASH_SB, TABLE_CASH_SB)
+            if state[1][1] == 'BB': self.__upd_plcsh(state[1][0], TABLE_CASH_START - TABLE_CASH_BB, TABLE_CASH_BB)
             if state[1][1] == 'BTN': self.__set_button(state[1][0])
             prn = False
 

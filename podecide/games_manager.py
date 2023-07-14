@@ -10,7 +10,7 @@ import time
 from tqdm import tqdm
 from typing import Dict, List, Tuple, Optional, Union
 
-from pypoks_envy import MODELS_FD, DMK_MODELS_FD, N_TABLE_PLAYERS, PyPoksException
+from envy import MODELS_FD, DMK_MODELS_FD, N_TABLE_PLAYERS, PyPoksException
 from pologic.potable import QPTable
 from podecide.dmk import FolDMK, HuDMK
 from gui.gui_hdmk import GUI_HDMK

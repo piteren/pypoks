@@ -1,6 +1,6 @@
 from pypaq.lipytools.pylogger import get_pylogger
 
-from pypoks_envy import DMK_MODELS_FD
+from envy import DMK_MODELS_FD
 from run.functions import get_saved_dmks_names, run_GM
 
 

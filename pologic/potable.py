@@ -27,7 +27,7 @@ from pypaq.mpython.mptools import Que, QMessage
 
 from pologic.hand_history import HHistory
 from pologic.podeck import PDeck
-from pypoks_envy import TABLE_CASH_START, TABLE_SB, TABLE_BB, TBL_MOV, get_pos_names
+from envy import TABLE_CASH_START, TABLE_CASH_SB, TABLE_CASH_BB, TBL_MOV, get_pos_names
 
 # table states
 TBL_STT = {
@@ -52,9 +52,9 @@ class PPlayer:
         self.pls = []       # names of all players @table, initialised with table constructor, self name always first
 
         self.hand = None
-        self.cash = 0       # cash (player left)
-        self.cash_ch = 0    # cash current hand (how much player put yet, now its not needed cause can be calculated, but when player starts with diff cash amount it will be needed)
-        self.cash_cr = 0    # cash current river (how much player put on current river)
+        self.cash = 0       # current player cash
+        self.cash_ch = 0    # cash current hand (how much player put in total on current hand up to now)
+        self.cash_cr = 0    # cash current river (how much player put on current river up to now)
 
         self.nhs_IX = 0     # next hand_state index to update from (while sending game states)
 
@@ -62,29 +62,31 @@ class PPlayer:
     def _pmc(self) -> Tuple[List[bool], List[int]]:
 
         n_tbl_mov = len(TBL_MOV)
-        possible_moves = [True] * n_tbl_mov  # by now all
+        possible_moves = [True] * n_tbl_mov     # by now all are possible
 
-        # calc moves cash
-        moves_cash = [0] * n_tbl_mov
+        # calculate moves cash
+        moves_cash = [0] * n_tbl_mov            # by now all have 0
         for mIX in range(n_tbl_mov):
             val = 0
-            if mIX == 1: val = self.table.cash_tc - self.cash_cr
+            if mIX == 1:
+                val = self.table.cash_tc - self.cash_cr
             if mIX > 1:
                 if self.table.state == 1:
                     val = round(TBL_MOV[mIX][1] * self.table.cash_tc)
-                    val -= self.cash_cr
                 else:
                     val = round(TBL_MOV[mIX][2] * self.table.cash)
                     if val < 2 * self.table.cash_tc: val = 2 * self.table.cash_tc
-                    val -= self.cash_cr
+                val -= self.cash_cr # TODO: why???
 
             moves_cash[mIX] = val
 
-        if moves_cash[1] == 0: possible_moves[1] = False # cannot call (..nobody bet on the river yet ..check or bet)
+        if moves_cash[1] == 0:
+            possible_moves[1] = False # cannot call (..nobody bet on the river yet ..check or bet)
+
         for mIX in range(2,n_tbl_mov):
             if moves_cash[mIX] <= moves_cash[1]: possible_moves[mIX] = False # cannot BET less than CALL
 
-        # eventually reduce moves_cash and disable next possibilities
+        # eventually reduce moves_cash and disable next (higher) moves
         for mIX in range(1,n_tbl_mov):
             if possible_moves[mIX] and self.cash <= moves_cash[mIX]:
                 moves_cash[mIX] = self.cash
@@ -118,7 +120,7 @@ class PPlayer:
         selected_move = self._make_decision(possible_moves, moves_cash)
         return selected_move, moves_cash[selected_move]
 
-# Poker Table is a single poker game environment
+# Table of (single) Poker game
 class PTable:
 
     def __init__(
@@ -132,19 +134,20 @@ class PTable:
         self.name = name
 
         self.moves = sorted(list(TBL_MOV.keys()))
-        self.SB = TABLE_SB
-        self.BB = TABLE_BB
+        self.SB = TABLE_CASH_SB
+        self.BB = TABLE_CASH_BB
         self.start_cash = TABLE_CASH_START
 
         self.deck =     PDeck()
 
-        self.state =    0   # int of table state while running hand
-        self.cards =    []  # table cards (max 5)
-        self.cash =     0   # cash (on table total)
-        self.cash_cr =  0   # cash current river
-        self.cash_tc =  0   # cash to call by player (on current river) = highest bet on river
+        self.state =        0   # table state while running hand (int)
+        self.cards =        []  # table cards (max 5)
+        self.cash =         0   # table cash (total, pot)
+        self.cash_cr =      0   # cash of current river
+        self.cash_tc =      0   # cash to call by player (on current river) = highest bet on river
+        self.cash_raise =   0   # last raise size
 
-        self.hand_ID =  -1  # hand counter
+        self.hand_ID =      0   # hand counter
 
         self.players = None
         # create players and put on the table
@@ -159,7 +162,9 @@ class PTable:
     # update some players info since their position on table is known
     def _early_update_players(self):
 
-        for pl in self.players: pl.table = self # update table
+        # update table in player
+        for pl in self.players:
+            pl.table = self
 
         # update players names with self on 1st pos, then next to me, then next..
         pls = [pl.name for pl in self.players] # list of names
@@ -173,7 +178,6 @@ class PTable:
     # runs single hand
     def run_hand(self):
 
-        self.hand_ID += 1
         if self.logger: self.logger.debug(f'{self.name} starts hand {self.hand_ID}')
 
         hh = HHistory()
@@ -340,6 +344,8 @@ class PTable:
             pl.take_hh(hh)
 
         self.players.append(self.players.pop(0)) # rotate table players for next hand
+
+        self.hand_ID += 1
 
         return hh
 

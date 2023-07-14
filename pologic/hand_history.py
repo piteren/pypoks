@@ -19,7 +19,7 @@
 """
 from typing import List, Tuple, Optional
 
-from pypoks_envy import DEBUG_MODE
+from envy import DEBUG_MODE
 
 STATE = Tuple[str,Tuple] # type
 NAMED_EVENTS = ('POS','PSB','PBB','PLH','MOV','PRS') # events where player name

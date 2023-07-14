@@ -74,7 +74,7 @@ from torchness.tbwr import TBwr
 from torchness.comoneural.zeroes_processor import ZeroesProcessor
 from typing import List, Tuple, Optional, Dict, Any
 
-from pypoks_envy import DMK_MODELS_FD, DMK_POINT_PFX, N_TABLE_PLAYERS, TABLE_CASH_START, TBL_MOV_R, DMK_STATS_IV, get_pos_names
+from envy import DMK_MODELS_FD, DMK_POINT_PFX, N_TABLE_PLAYERS, TABLE_CASH_START, TBL_MOV_R, DMK_STATS_IV, get_pos_names
 from pologic.podeck import PDeck
 from podecide.game_state import GameState
 from podecide.dmk_motorch import DMK_MOTorch
