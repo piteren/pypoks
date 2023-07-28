@@ -9,7 +9,7 @@ TABLE_CASH_BB =     5
 
 
 # possible table moves
-# {IX: (name,,)}
+# {IX: (name, check: potable.py ~#64)}
 TBL_MOV = {
     0:  ('C/F', None),      # check/fold
     1:  ('CLL', None),      # call
