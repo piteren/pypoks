@@ -565,8 +565,8 @@ class StaMaDMK(QueDMK, ABC):
         self.fwd_stats_iv = fwd_stats_iv
         self.publish_player_stats = publish_player_stats
 
-        self._wonH_IV = []      # wonH of interval (received from SM)
-        self._wonH_afterIV = [] # wonH AFTER interval
+        self._wonH_IV = []      # wonH of interval (DMK_STATS_IV), computed using SM won
+        self._wonH_afterIV = [] # wonH AFTER interval, sum(wonH_IV)/len(wonH_IV)
 
 
     def _encode_states(
@@ -578,7 +578,7 @@ class StaMaDMK(QueDMK, ABC):
 
         if statsD:
 
-            self._wonH_IV.append(statsD.pop('won') / DMK_STATS_IV)
+            self._wonH_IV.append(statsD.pop('won') / self.fwd_stats_iv)
             self._wonH_afterIV.append(sum(self._wonH_IV) / len(self._wonH_IV))
 
             if self.publish_player_stats:
@@ -623,7 +623,6 @@ class StaMaDMK(QueDMK, ABC):
             pids=       self._player_ids,
             stats_iv=   self.fwd_stats_iv)
         super()._pre_process()
-
 
     def _do_what_GM_says(self, message: QMessage):
 

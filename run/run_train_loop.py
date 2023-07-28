@@ -34,18 +34,40 @@
             },
             ..
         }
+
+    *** Some challenges of train_loop:
+
+    1. sometimes test game breaks too quick because of separation factor, running longer would easily separate more DMKs, below an example:
+
+        GM: 1.5min left:47.8min |--------------------| 3.1% 2109H/s (+1062Hpp) -- SEP:0.65[0.86]::0.80[1.00]2023-07-28 17:48:00,595 {    games_manager.py:391} p64325 INFO: > finished game (pairs separation factor: 0.80, game factor: 0.03)
+        2023-07-28 17:48:04,801 {    games_manager.py:416} p64325 INFO: GM_PL_0728_1745_hFo finished run_game, avg speed: 1938.1H/s, time taken: 95.1sec
+        2023-07-28 17:48:04,848 {   run_train_loop.py:317} p8824 INFO: DMKs train results:
+         >  0(0.00) dmk01b09(1)     :  41.02 ::  77.14 s +
+         >  1(0.10) dmk01b03(1)     :  40.73 ::  78.22 s +
+         >  2(0.20) dmk01b08(1)     :  38.93 ::  77.49 s +
+         >  3(0.30) dmk01b06(1)     :  36.06 ::  55.78 s +
+         >  4(0.40) dmk01b00(1)     :  31.38 ::  58.40 s +
+         >  5(0.50) dmk01b04(1)     :  26.97 ::  19.82 s +
+         >  6(0.60) dmk01b05(1)     :  18.77 :: -12.65   |
+         >  7(0.70) dmk01b01(1)     :   8.68 ::  48.70 s +
+         >  8(0.80) dmk01b02(1)     :   4.96 ::  32.00 s +
+         >  9(0.90) dmk01b07(1)     : -19.57 ::  13.72   |
+
+        ..with this example dmk01b07 would be updated as separated +
+
 """
 
 from pypaq.lipytools.files import r_json, w_json
 from pypaq.lipytools.pylogger import get_pylogger, get_child
 from pypaq.lipytools.printout import stamp
 from pypaq.pms.config_manager import ConfigManager
-from torchness.tbwr import TBwr
 import random
 import select
 import shutil
 import sys
 import time
+from torchness.tbwr import TBwr
+from typing import List
 
 from envy import DMK_MODELS_FD, PMT_FD, CONFIG_FP, RESULTS_FP
 from podecide.dmk import FolDMK
@@ -57,7 +79,7 @@ CONFIG_INIT = {
         # general
     'exit':                     False,      # exits loop (after train)
     'pause':                    False,      # pauses loop after test till Enter pressed
-    'families':                 'abcd',     # active families (at least one DMK should be present)
+    'families':                 'b',        # active families (at least one DMK should be present)
     'n_dmk_total':              10,         # total number of trainable DMKs (population size)
     'n_dmk_master':             5,          # number of 'masters' DMKs (trainable are trained against them)
     'n_dmk_TR_group':           5,          # DMKs are trained with masters in groups of that size (group is build of n_dmk_TR_group + n_dmk_master)
@@ -70,7 +92,6 @@ CONFIG_INIT = {
         # test
     'game_size_TS':             300000,
     'dmk_n_players_TS':         150,        # number of players per DMK while TS
-    # TODO: consider last factor(s) of TS game
     'sep_pairs_factor':         0.8,        # -> 1.0    pairs separation break value
     'sep_n_stdev':              2.0,        # separation won IV mean stdev factor
         # replace / new
@@ -80,7 +101,7 @@ CONFIG_INIT = {
     'prob_fresh_dmk':           0.8,        # -> 0.5    probability of 100% fresh DMK
     'prob_fresh_ckpt':          0.8,        # -> 0.5    probability of fresh checkpoint (child from GX of point only, without GX of ckpt)
         # PMT (Periodical Masters Test)
-    'n_loops_PMT':              10,         # do PMT every N loops
+    'n_loops_PMT':              5,          # do PMT every N loops
     'n_dmk_PMT':                20}         # max number of DMKs (masters) in PMT
 
 
@@ -142,7 +163,7 @@ if __name__ == "__main__":
             cm.exit = False
             break
 
-        dmk_ranked = []
+        dmk_ranked: List[str] = []
         if loop_ix > 1:
             dmk_ranked = all_results['loops'][str(loop_ix-1)]
             logger.info(f'got DMKs ranked: {dmk_ranked}')
@@ -299,21 +320,21 @@ if __name__ == "__main__":
 
         ### log results
 
-        # prepare new rank(ed)
-        dmk_ranked = [(dn, dmk_results[dn]['wonH_afterIV'][-1]) for dn in dmk_ranked]
-        dmk_ranked = [e[0] for e in sorted(dmk_ranked, key=lambda x:x[1], reverse=True)]
+        # prepare new rank(ed) ..sorted by wonH_afterIV
+        dmk_rw = [(dn, dmk_results[dn]['wonH_afterIV'][-1]) for dn in dmk_ranked]
+        dmk_ranked = [e[0] for e in sorted(dmk_rw, key=lambda x:x[1], reverse=True)]
         all_results['loops'][str(loop_ix)] = dmk_ranked  # update with new dmk_ranked
         ranks_smooth = get_ranks(all_results=all_results, mavg_factor=cm.rank_mavg_factor)['ranks_smooth']
 
         res_nfo = f'DMKs train results:\n'
         for pos,dn in enumerate(dmk_ranked):
-            rank = f'{ranks_smooth[dn][-1] / cm.n_dmk_total:4.2f}' if ranks_smooth[dn] else '----'
-            nm_aged = f'{dn}({dmk_results[dn]["age"]})'
-            wonH = dmk_results[dn]['wonH_afterIV'][-1]
-            wonH_old_diff = dmk_results[dn]['wonH_old_diff']
-            sep_nfo = ' s' if dmk_results[dn]['separated_old'] else '  '
-            lifemark_nfo = f' {dmk_results[dn]["lifemark"]}'
-            res_nfo += f' > {pos:>2}({rank}) {nm_aged:15s} : {wonH:6.2f} :: {wonH_old_diff:6.2f}{sep_nfo}{lifemark_nfo}\n'
+            rank_smth_norm = f'{ranks_smooth[dn][-1] / cm.n_dmk_total:4.2f}' if ranks_smooth[dn] else '----'
+            name_aged = f'{dn}({dmk_results[dn]["age"]})'
+            wonH_afterIV = dmk_results[dn]['wonH_afterIV'][-1]
+            wonH_afterIV_old_diff = dmk_results[dn]['wonH_old_diff']
+            sep = ' s' if dmk_results[dn]['separated_old'] else '  '
+            lifemark = f' {dmk_results[dn]["lifemark"]}'
+            res_nfo += f' > {pos:>2}({rank_smth_norm}) {name_aged:15s} : {wonH_afterIV:6.2f} :: {wonH_afterIV_old_diff:6.2f}{sep}{lifemark}\n'
         logger.info(res_nfo)
 
         ### TB log
@@ -358,25 +379,25 @@ if __name__ == "__main__":
         significantly_learned = [dn for dn in dmk_ranked if dmk_results[dn]['lifemark'][-1] == '+']
         logger.info(f'got significantly_learned: {significantly_learned}')
 
-        # roll back some from _old
+        # eventually roll back some from _old
         roll_back_from_old = [dn for dn in dmk_ranked if dn not in significantly_learned]
-        logger.info(f'rolling back: {roll_back_from_old}')
-        copy_dmks(
-            names_src=  [f'{nm}_old' for nm in roll_back_from_old],
-            names_trg=  roll_back_from_old,
-            logger=     get_child(logger, change_level=10))
+        if roll_back_from_old:
 
-        # update dmk_results of rolled back, then remove all _old
-        for dn in roll_back_from_old:
-            dmk_results[dn]['wonH_IV'] = dmk_results[f'{dn}_old']['wonH_IV']
-            dmk_results[dn]['wonH_afterIV'] = dmk_results[f'{dn}_old']['wonH_afterIV']
-            dmk_results[dn]['age'] -= 1
+            logger.info(f'rolling back: {roll_back_from_old}')
+            copy_dmks(
+                names_src=  [f'{nm}_old' for nm in roll_back_from_old],
+                names_trg=  roll_back_from_old,
+                logger=     get_child(logger, change_level=10))
 
-        ### log again results after roll back
+            # update dmk_results of rolled back, then remove all _old
+            for dn in roll_back_from_old:
+                dmk_results[dn]['wonH_IV'] = dmk_results[f'{dn}_old']['wonH_IV']
+                dmk_results[dn]['wonH_afterIV'] = dmk_results[f'{dn}_old']['wonH_afterIV']
+                dmk_results[dn]['age'] -= 1
 
-        # prepare new rank(ed) again (with rolled back)
-        dmk_ranked = [(dn, dmk_results[dn]['wonH_afterIV'][-1]) for dn in dmk_ranked]
-        dmk_ranked = [e[0] for e in sorted(dmk_ranked, key=lambda x: x[1], reverse=True)]
+            # prepare new rank(ed) again (with rolled back)
+            dmk_rw = [(dn, dmk_results[dn]['wonH_afterIV'][-1]) for dn in dmk_ranked]
+            dmk_ranked = [e[0] for e in sorted(dmk_rw, key=lambda x: x[1], reverse=True)]
 
         # finally update all_results
         all_results['loops'][str(loop_ix)] = dmk_ranked
@@ -385,20 +406,21 @@ if __name__ == "__main__":
 
         ranks_smooth = get_ranks(all_results=all_results, mavg_factor=cm.rank_mavg_factor)['ranks_smooth']
 
-        res_nfo = f'DMKs train results after roll back:\n'
-        for pos,dn in enumerate(dmk_ranked):
-            rank = f'{ranks_smooth[dn][-1] / cm.n_dmk_total:4.2f}' if ranks_smooth[dn] else '----'
-            nm_aged = f'{dn}({dmk_results[dn]["age"]})'
-            wonH = dmk_results[dn]['wonH_afterIV'][-1]
-            res_nfo += f' > {pos:>2}({rank}) {nm_aged:15s} : {wonH:6.2f}\n'
-        logger.info(res_nfo)
+        # log again results if roll back has been done
+        if roll_back_from_old:
+            res_nfo = f'DMKs train results after roll back:\n'
+            for pos,dn in enumerate(dmk_ranked):
+                rank_smth_norm = f'{ranks_smooth[dn][-1] / cm.n_dmk_total:4.2f}' if ranks_smooth[dn] else '----'
+                name_aged = f'{dn}({dmk_results[dn]["age"]})'
+                wonH_afterIV = dmk_results[dn]['wonH_afterIV'][-1]
+                res_nfo += f' > {pos:>2}({rank_smth_norm}) {name_aged:15s} : {wonH_afterIV:6.2f}\n'
+            logger.info(res_nfo)
 
         ### 5. eventually remove poor and finally save all_results
 
         dmk_masters = dmk_ranked[:cm.n_dmk_master]
         dmk_poor = dmk_ranked[cm.n_dmk_master:]
 
-        ranks_smooth = get_ranks(all_results=all_results, mavg_factor=cm.rank_mavg_factor)['ranks_smooth']
         rank_candidates = [dn for dn in dmk_poor if ranks_smooth[dn][-1] > cm.n_dmk_total * cm.safe_rank]
         logger.info(f'rank_candidates: {rank_candidates}')
 
@@ -457,8 +479,8 @@ if __name__ == "__main__":
                 pmt_nfo = 'PMT results (wonH):\n'
                 pos = 1
                 for dn in pmt_ranked:
-                    nm_aged = f'{dn}({pmt_results[dn]["age"]}){pmt_results[dn]["family"]}'
-                    pmt_nfo += f' > {pos:>2} {nm_aged:25s} : {pmt_results[dn]["wonH_afterIV"][-1]:6.2f}\n'
+                    name_aged = f'{dn}({pmt_results[dn]["age"]}){pmt_results[dn]["family"]}'
+                    pmt_nfo += f' > {pos:>2} {name_aged:25s} : {pmt_results[dn]["wonH_afterIV"][-1]:6.2f}\n'
                     pos += 1
                 logger.info(pmt_nfo)
 

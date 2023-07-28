@@ -301,11 +301,11 @@ class GamesManager:
         # save of DMK results + additional DMK info
         dmk_results = {
             dn: {
-                'wonH_IV':      [],     # wonH of interval
-                'wonH_afterIV': [],     # wonH after interval
+                'wonH_IV':      [],     # wonH (won $ / hand) of interval
+                'wonH_afterIV': [],     # wonH (won $ / hand) after interval
                 'family':       self.dmkD[dn].family,
                 'trainable':    self.dmkD[dn].trainable,
-                'global_stats': None,
+                'global_stats': None,   # SM.global_stats, will be updated by DMK at the end of the game
             } for dn in self._get_dmk_focus_names()}
 
         # starts all subprocesses
@@ -420,13 +420,16 @@ class GamesManager:
             'dmk_results':  dmk_results,
             'loop_stats':   loop_stats}
 
-    # prepares list of DMK names GM is focused on
+    # prepares list of DMK names GM is focused on while preparing dmk_results
     def _get_dmk_focus_names(self) -> List[str]:
         return list(self.dmkD.keys())
 
-    # asks DMKs to prepare reports
-    def _get_reports(self, dmk_report_IV:Dict[str,int]) -> Dict[str, Dict]: # {dn: {n_hands, wonH_IV, wonH_afterIV}}
-        reports: Dict[str, Dict] = {}
+    # asks DMKs to send reports, but only form given IV
+    def _get_reports(
+            self,
+            dmk_report_IV:Dict[str,int] # {dn: from_IV}
+    ) -> Dict[str, Dict]:
+        reports: Dict[str, Dict] = {} # {dn: {n_hands, wonH_IV, wonH_afterIV}}
         for dn,from_IV in dmk_report_IV.items():
             message = QMessage(type='send_dmk_report', data=from_IV)
             self.dmkD[dn].que_from_gm.put(message)
@@ -554,7 +557,7 @@ class GamesManager_PTR(GamesManager):
             table_ques = []
         assert not ques_PL and not ques_TR
 
-    # adds age update
+    # adds age update to dmk_results
     def run_game(self, **kwargs) -> Dict:
 
         # update trainable age - needs to be done before game, cause after game DMKs are saved
@@ -567,7 +570,7 @@ class GamesManager_PTR(GamesManager):
             rgd['dmk_results'][dn]['age'] = self.dmkD[dn].age
         return rgd
 
-    # prepares list of DMK names we are focused in the game (with focus on TRL)
+    # at GamesManager_PTR we are focused on TRL (or PLL if not)
     def _get_dmk_focus_names(self) -> List[str]:
         return self.dmk_name_TRL or self.dmk_name_PLL
 

@@ -39,7 +39,7 @@ class StatsManager:
         # DMK poker stats (interval,global) - accumulated (average for all players of one DMK)
         self.stats = {
             'n_hands':  [0,0],  # n hands (clock)
-            'won':      [0,0],  # won $
+            'won':      [0,0],  # total won $
 
             'nVPIP':    [0,0],  # n hands VPIP
             'nPFR':     [0,0],  # n hands PFR
@@ -63,8 +63,8 @@ class StatsManager:
             'VPIP':     False,  # VPIP in current hand
             'PFR':      False,  # PFR  in current hand
             'HF':       False,  # folded in current hand
-            'nPM':      0,      # number of postflop moves in current hand
-            'nAGG':     0}      # number of aggressive moves in current hand
+            'nPM':      0,      # number of postflop moves for current hand
+            'nAGG':     0}      # number of aggressive moves for current hand
         self.is_BB[pid] = False
         self.is_preflop[pid] = True
 
@@ -78,15 +78,13 @@ class StatsManager:
             self.chsd[pid]['nPM'] += 1
             if 'BR' in move: self.chsd[pid]['nAGG'] += 1
 
-    def __push_interval_to_global(self):
+    # updates global values with interval, then resets interval
+    def __merge_interval_to_global(self):
         for k in self.stats:
             self.stats[k][1] += self.stats[k][0]
-
-    def __reset_interval(self):
-        for k in self.stats:
             self.stats[k][0] = 0
 
-    # builds stats from player states, returns dictionary with stats to publish (once every self.stats_iv)
+    # builds stats from player states, returns dictionary with stats to publish (but only once every self.stats_iv)
     def process_states(self, pid: str, states :List[list]) -> Optional[Dict]:
 
         statsD = None
@@ -125,15 +123,14 @@ class StatsManager:
                         'speed(H/s)':   self.speed,
                         'won':          self.stats['won'][0]}
 
-                    # reset interval values
-                    self.__push_interval_to_global()
-                    self.__reset_interval()
+                    self.__merge_interval_to_global()
 
         return statsD
 
     def get_global_nhands(self) -> int:
         return sum(self.stats['n_hands'])
 
+    # some poker DMK stats
     def get_global_stats(self) -> Dict:
         total_n_hands = self.get_global_nhands()
         total_nPM = sum(self.stats['nPM'])
