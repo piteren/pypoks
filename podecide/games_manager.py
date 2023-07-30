@@ -128,7 +128,7 @@ class GamesManager:
 
         self.que_to_gm = Que()  # here GM receives data from DMKs and Tables
 
-        dmk_pointL = copy.deepcopy(dmk_pointL) # copy not to modify original list
+        dmk_pointL = copy.deepcopy(dmk_pointL) # copy to not modify original list
         dmk_types = [point.pop('dmk_type',FolDMK) for point in dmk_pointL]
         dmk_logger = get_child(self.logger, name='dmks_logger', change_level=-10 if debug_dmks else 10)
         dmks = [dmk_type(logger=dmk_logger, **point) for dmk_type,point in zip(dmk_types, dmk_pointL)]
