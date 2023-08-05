@@ -353,22 +353,6 @@ if __name__ == "__main__":
         tbwr.add(value=cm.game_size_TR,         tag=f'loop/game_size_TR',           step=loop_ix)
         tbwr.add(value=sep_factor,              tag=f'loop/sep_factor',             step=loop_ix)
 
-        dmk_sets = {
-            'best':         [dmk_ranked[0]],
-            'masters_avg':  dmk_ranked[:cm.n_dmk_master]}
-        for dsn in dmk_sets:
-            gsL = [dmk_results[dn]['global_stats'] for dn in dmk_sets[dsn]]
-            gsa_avg = {k: [] for k in gsL[0]}
-            for e in gsL:
-                for k in e:
-                    gsa_avg[k].append(e[k])
-            for k in gsa_avg:
-                gsa_avg[k] = sum(gsa_avg[k]) / len(gsa_avg[k])
-                tbwr.add(
-                    value=  gsa_avg[k],
-                    tag=    f'loop_poker_stats_{dsn}/{k}',
-                    step=   loop_ix)
-
         # eventually increase game_size
         if sep_factor < cm.min_sep:
             cm.game_size_TS = cm.game_size_TS + cm.game_size_upd
@@ -398,6 +382,22 @@ if __name__ == "__main__":
             # prepare new rank(ed) again (with rolled back)
             dmk_rw = [(dn, dmk_results[dn]['wonH_afterIV'][-1]) for dn in dmk_ranked]
             dmk_ranked = [e[0] for e in sorted(dmk_rw, key=lambda x: x[1], reverse=True)]
+
+        dmk_sets = {
+            'best':         [dmk_ranked[0]],
+            'masters_avg':  dmk_ranked[:cm.n_dmk_master]}
+        for dsn in dmk_sets:
+            gsL = [dmk_results[dn]['global_stats'] for dn in dmk_sets[dsn]]
+            gsa_avg = {k: [] for k in gsL[0]}
+            for e in gsL:
+                for k in e:
+                    gsa_avg[k].append(e[k])
+            for k in gsa_avg:
+                gsa_avg[k] = sum(gsa_avg[k]) / len(gsa_avg[k])
+                tbwr.add(
+                    value=  gsa_avg[k],
+                    tag=    f'loop_poker_stats_{dsn}/{k}',
+                    step=   loop_ix)
 
         # finally update all_results
         all_results['loops'][str(loop_ix)] = dmk_ranked
