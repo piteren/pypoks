@@ -454,15 +454,20 @@ class GamesManager_PTR(GamesManager):
         """
         there are 3 possible scenarios:
         1.playable & trainable:
-            dmk_n_players - sets number of players per trainable DMK
-            number of players for each playable DMK is calculated
-            number of tables == dmk_n_players (each trainable has one table)
+            dmk_point_PLLa & dmk_point_PLLb are merged together into dmk_point_PLL
+            dmk_n_players - sets number of players of one trainable DMK (dmk_point_TRL)
+            number of players of each playable DMK is equal: dmk_n_players * (N_TABLE_PLAYERS - 1)
+            (each trainable has one table full of playable)
         2.only trainable:
-            dmk_n_players - sets number of players per trainable DMK
+            dmk_n_players - sets number of players of one trainable DMK
             number of tables = len(dmk)*dmk_n_players / N_TABLE_PLAYERS
         3.only playable
-            dmk_n_players - sets number of players per playable DMK
+            if there are dmk_point_PLLa AND dmk_point_PLLb...
+            otherwise dmk_point_PLLa & dmk_point_PLLb are merged together into dmk_point_PLL
+            ...
+            dmk_n_players - sets number of players of one playable DMK
             number of tables = len(dmk)*dmk_n_players / N_TABLE_PLAYERS
+        TODO: edit this doc
         """
 
         if not dmk_point_PLL: dmk_point_PLL =  []

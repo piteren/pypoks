@@ -1,21 +1,23 @@
 from pypaq.lipytools.pylogger import get_pylogger
 
-from envy import DMK_MODELS_FD
+from envy import DMK_MODELS_FD, PMT_FD
 from run.functions import get_saved_dmks_names, run_GM
 
 
 if __name__ == "__main__":
 
     # INFO: although game size is quite big, game will be broken as soon as DMKs become separated
-    sep_n_stdev = 1.0 # for deeper test use at least 2.0
-    game_size = 2000000
+    sep_n_stdev = 2.0 # for deeper test use at least 2.0
+    game_size = 200000#0
 
     logger = get_pylogger(
         name=   'run_play',
         folder= DMK_MODELS_FD,
         level=  20)
 
-    names = get_saved_dmks_names()
+    #names = get_saved_dmks_names(folder=PMT_FD)
+
+    names = ['dmk01b09_pmt004', 'dmk01b05_pmt005']
     logger.info(f'running play game for {len(names)} DMKs: {names}')
 
     pub = {
@@ -24,8 +26,15 @@ if __name__ == "__main__":
         'publish_update':       False,
         'publish_more':         False}
 
+    dmk_point_PLL = [{
+        'name':             dn,
+        'motorch_point':    {'device': n%2},
+        'save_topdir':      PMT_FD,
+        **pub
+    } for n, dn in enumerate(names)]
+
     rgd = run_GM(
-        dmk_point_PLL=  [{'name':dn, 'motorch_point':{'device':n%2}, **pub} for n,dn in enumerate(names)],
+        dmk_point_PLL=  dmk_point_PLL,
         game_size=      game_size,
         dmk_n_players=  (120 // len(names)) * 30,
         sep_all_break=  True,
