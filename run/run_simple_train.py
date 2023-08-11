@@ -7,10 +7,10 @@ from run.functions import run_GM, build_from_names
 
 if __name__ == "__main__":
 
-    # This script runs simple training of 2 DMKs on CPU
+    # sample training script
 
-    on_gpu = False
-    n_dmk = 2
+    on_gpu = True
+    n_dmk = 5
     game_size = 100000
 
     logger = get_pylogger(

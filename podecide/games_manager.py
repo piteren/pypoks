@@ -440,11 +440,12 @@ class GamesManager:
             reports[dmk_name] = report
         return reports
 
-# GamesManager for Play & TRain concept for FolDMKs (some DMKs may play, some DMKs may train)
+# GamesManager for "PLay & TRain With Ref" concept for FolDMKs (DMKs may play or train against ref)
 class GamesManager_PTR(GamesManager):
 
     def __init__(
             self,
+            dmk_point_ref: Optional[List[Dict]]=    None, # playable reference DMK list
             dmk_point_PLL: Optional[List[Dict]]=    None, # playable DMK list
             dmk_point_TRL: Optional[List[Dict]]=    None, # trainable DMK list
             dmk_n_players: int=                     60,
@@ -452,76 +453,71 @@ class GamesManager_PTR(GamesManager):
             **kwargs):
 
         """
-        there are 3 possible scenarios:
-        1.playable & trainable:
-            dmk_point_PLLa & dmk_point_PLLb are merged together into dmk_point_PLL
-            dmk_n_players - sets number of players of one trainable DMK (dmk_point_TRL)
-            number of players of each playable DMK is equal: dmk_n_players * (N_TABLE_PLAYERS - 1)
-            (each trainable has one table full of playable)
-        2.only trainable:
-            dmk_n_players - sets number of players of one trainable DMK
-            number of tables = len(dmk)*dmk_n_players / N_TABLE_PLAYERS
-        3.only playable
-            if there are dmk_point_PLLa AND dmk_point_PLLb...
-            otherwise dmk_point_PLLa & dmk_point_PLLb are merged together into dmk_point_PLL
-            ...
-            dmk_n_players - sets number of players of one playable DMK
-            number of tables = len(dmk)*dmk_n_players / N_TABLE_PLAYERS
-        TODO: edit this doc
+        there are 4 possible setups:
+        1. only dmk_point_TRL:
+            all DMKs are training (against each other)
+        2. only dmk_point_PLL
+            all DMKs are playing (against each other)
+        3. dmk_point_TRL & dmk_point_ref
+            DMKs_TRL are training against DMKs_ref
+        4. dmk_point_PLL & dmk_point_ref
+            DMKs_TRL are playing against DMKs_ref
         """
 
-        if not dmk_point_PLL: dmk_point_PLL =  []
+        if not dmk_point_ref: dmk_point_ref = []
+        if not dmk_point_PLL: dmk_point_PLL = []
         if not dmk_point_TRL: dmk_point_TRL = []
 
         if not (dmk_point_PLL or dmk_point_TRL):
             raise PyPoksException('playing OR training DMKs must be given')
 
-        n_tables = len(dmk_point_TRL) * dmk_n_players # default when there are both playable & trainable
-        if not dmk_point_PLL or not dmk_point_TRL:
+        if dmk_point_PLL and dmk_point_TRL:
+            raise PyPoksException('playing AND training DMKs cannot be given')
+
+        n_tables = (len(dmk_point_TRL) + len(dmk_point_PLL)) * dmk_n_players # default when there are _ref given
+        if not dmk_point_ref:
             dmk_dnaL = dmk_point_PLL or dmk_point_TRL
             if (len(dmk_dnaL) * dmk_n_players) % N_TABLE_PLAYERS != 0:
-                raise PyPoksException('Please correct number of DMK players: n DMKs * n players must be multiplication of N_TABLE_PLAYERS')
-            n_tables = int((len(dmk_dnaL) * dmk_n_players) / N_TABLE_PLAYERS)
+                raise PyPoksException('Please correct number of DMK players: len(DMKs) * dmk_n_players must be multiplication of N_TABLE_PLAYERS')
+            n_tables = (len(dmk_dnaL) * dmk_n_players) // N_TABLE_PLAYERS
 
-        # override to train (each DMK by default is saved as a trainable - we set also trainable to have this info here for later usage, it needs n_players to be set)
+        ### update points
+
         for dmk in dmk_point_TRL:
             dmk.update({
-                'n_players':    dmk_n_players,
-                'trainable':    True})
+                'n_players': dmk_n_players, # TODO: what for???
+                'trainable': True})
 
-        if dmk_point_PLL:
+        for dmk in dmk_point_PLL:
+            dmk.update({
+                'n_players': dmk_n_players, # TODO: what for???
+                'trainable': False})
 
-            # both
-            if dmk_point_TRL:
-                n_rest_players = n_tables * (N_TABLE_PLAYERS-1)
-                rest_names = [dna['name'] for dna in dmk_point_PLL]
-                rest_names = random.choices(rest_names, k=n_rest_players)
-                for point in dmk_point_PLL:
-                    point.update({
-                        'n_players': len([nm for nm in rest_names if nm == point['name']]),
-                        'trainable': False})
+        self.ref_pattern = []
+        if dmk_point_ref:
+            n_players_for_one = dmk_n_players * (N_TABLE_PLAYERS-1)
+            rest_names = [dna['name'] for dna in dmk_point_ref] * n_players_for_one
+            self.ref_pattern = rest_names[:n_players_for_one]
+            self.ref_pattern *= (len(dmk_point_TRL) + len(dmk_point_PLL))
+            for dmk in dmk_point_ref:
+                dmk.update({
+                    'n_players': len([nm for nm in self.ref_pattern if nm == dmk['name']]),
+                    'trainable': False})
 
-            # only playable
-            else:
-                play_dna = {
-                    'n_players': dmk_n_players,
-                    'trainable': False}
-                for dmk in dmk_point_PLL:
-                    dmk.update(play_dna)
-
+        self.dmk_name_ref = [dna['name'] for dna in dmk_point_ref]
         self.dmk_name_PLL = [dna['name'] for dna in dmk_point_PLL]
         self.dmk_name_TRL = [dna['name'] for dna in dmk_point_TRL]
 
         nm = 'PL' if self.dmk_name_PLL else 'TR'
-        if self.dmk_name_PLL and self.dmk_name_TRL:
-            nm = 'TR+PL'
+        if dmk_point_ref:
+            nm += '_ref'
         GamesManager.__init__(
             self,
-            dmk_pointL= dmk_point_PLL + dmk_point_TRL,
+            dmk_pointL= dmk_point_ref + dmk_point_PLL + dmk_point_TRL,
             name=       name or f'GM_{nm}_{stamp()}',
             **kwargs)
 
-        self.logger.info(f'*** GamesManager_PTR started with (PL:{len(dmk_point_PLL)} TR:{len(dmk_point_TRL)}) DMKs on {n_tables} tables')
+        self.logger.info(f'*** GamesManager_PTR started with (PL:{len(dmk_point_PLL)} TR:{len(dmk_point_TRL)} ref:{len(dmk_point_ref)}) DMKs on {n_tables} tables')
         for dna in dmk_point_PLL + dmk_point_TRL:
             self.logger.debug(f'> {dna["name"]} with {dna["n_players"]} players, trainable: {dna["trainable"]}')
 
@@ -529,38 +525,44 @@ class GamesManager_PTR(GamesManager):
     def _put_players_on_tables(self):
 
         # use previous policy
-        if not (self.dmk_name_PLL and self.dmk_name_TRL):
+        if not self.dmk_name_ref:
             return GamesManager._put_players_on_tables(self)
 
         self.logger.info('> puts players on tables with PTR policy..')
 
-        ques_PL = []
-        ques_TR = []
+        ques_refD = {}
+        ques_rest = []
 
-        for dmk in self.dmkD.values():
-            ques = ques_TR if dmk.trainable else ques_PL
+        for dmk_name in self.dmkD:
+
+            dmk = self.dmkD[dmk_name]
+
+            ques = ques_rest
+            if dmk_name in self.dmk_name_ref:
+                ques_refD[dmk_name] = []
+                ques = ques_refD[dmk_name]
+
             for k in dmk.queD_to_player: # {pid: que_to_pl}
                 ques.append((k, dmk.queD_to_player[k], dmk.que_from_player))
-
-        # shuffle players
-        random.shuffle(ques_PL)
-        random.shuffle(ques_TR)
 
         # put on tables
         self.tables = []
         table_ques =  []
         table_logger = get_child(self.logger, name='table_logger', change_level=-10) if self.debug_tables else None
-        while ques_TR:
-            table_ques.append(ques_TR.pop())
-            while len(table_ques) < N_TABLE_PLAYERS: table_ques.append(ques_PL.pop())
-            random.shuffle(table_ques)
+        rp_ix = 0
+        while ques_rest:
+
+            table_ques.append(ques_rest.pop())
+            while len(table_ques) < N_TABLE_PLAYERS:
+                table_ques.append(ques_refD[self.ref_pattern[rp_ix]].pop())
+                rp_ix += 1
+
             self.tables.append(QPTable(
                 name=       f'tbl{len(self.tables)}',
                 que_to_gm=  self.que_to_gm,
                 pl_ques=    {t[0]: (t[1], t[2]) for t in table_ques},
                 logger=     table_logger))
             table_ques = []
-        assert not ques_PL and not ques_TR
 
     # adds age update to dmk_results
     def run_game(self, **kwargs) -> Dict:

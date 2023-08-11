@@ -229,6 +229,7 @@ def set_all_to_family(family='a'):
 @proc_return # processes <- to clear mem
 def run_GM(
         logger,
+        dmk_point_ref: Optional[List[Dict]]=        None,
         dmk_point_PLL: Optional[List[Dict]]=        None,
         dmk_point_TRL: Optional[List[Dict]]=        None,
         game_size: int=                             100000,
@@ -240,6 +241,7 @@ def run_GM(
 ) -> Dict[str, Dict]:
 
     gm = GamesManager_PTR(
+        dmk_point_ref=  dmk_point_ref,
         dmk_point_PLL=  dmk_point_PLL,
         dmk_point_TRL=  dmk_point_TRL,
         dmk_n_players=  dmk_n_players,
