@@ -27,7 +27,7 @@ DMK_POINT_PFX =      'dmk_dna'
 ARCHIVE_FD =        f'{DMK_MODELS_FD}/_archive'     # here are stored DMKs removed from the loop (because of poor performance)
 PMT_FD =            f'{DMK_MODELS_FD}/_pmt'         # here are stored PMT
 CONFIG_FP =         f'{DMK_MODELS_FD}/pypoks.cfg'
-RESULTS_FP =        f'{DMK_MODELS_FD}/all_results.json'
+RESULTS_FP =        f'{DMK_MODELS_FD}/loops_results.json'
 
 DMK_STATS_IV = 1000 # DMK (player) stats interval size, it is quite important constant for DMK, StatsManager & GamesManager
 
