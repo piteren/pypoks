@@ -137,6 +137,17 @@ if __name__ == "__main__":
         all_results = {'loops': {}, 'lifemarks': {}}
 
     """
+    
+    f'dmk{loop_ix:02}{family}{cix:02}' -> f'dmk{loop_ix:02}{family}{cix:02}_{age:02}'
+    
+    there are two groups:
+    - refs (10)
+    - learners (20)
+    
+    learners are trained against refs
+    refs and learners are tested against refs
+    
+    
     1. eventually create missing (new / GX) -> fill dmk_ranked
     2. train
         duplicate dmk_ranked to _old
