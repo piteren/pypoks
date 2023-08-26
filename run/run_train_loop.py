@@ -574,6 +574,7 @@ if __name__ == "__main__":
 
             all_pmt = get_saved_dmks_names(PMT_FD)
             if len(all_pmt) > 2: # skips some
+                logger.info(f'PMT starts..')
 
                 pub = {
                     'publish_player_stats': True,
