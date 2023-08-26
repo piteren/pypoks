@@ -163,36 +163,36 @@ if __name__ == "__main__":
         loops_results = {'loop_ix': loop_ix, 'lifemarks': {}}
 
     """
-        DMKs are named with pattern: f'dmk{loop_ix:02}{family}{cix:02}_{age:02}' + optional '_ref'
-        where:
-            - cix   : index of DMK created in one loop
-            - _ref  : is added to DMKs i refs group
+    DMKs are named with pattern: f'dmk{loop_ix:02}{family}{cix:02}_{age:02}' + optional '_ref'
+    where:
+        - cix   : index of DMK created in one loop
+        - _ref  : is added to DMKs i refs group
 
-        1. eventually create DMKs
-            fill up dmk_learners (new / GX)
-            create dmk_refs <- only in the first loop
-                
-        2. train (learners)
-            copy learners to new age (+1)
-            split dmk_learners into groups of ndmk_TR
-            train each group against dmk_refs
-        
-        3. test (learners & refs)
-            prepare list of DMKs to test
-            split into groups of ndmk_TS
-            test may be broken with 'separated' condition
-        
-        4. report / analyse results of learners and refs
+    1. eventually create DMKs
+        fill up dmk_learners (new / GX)
+        create dmk_refs <- only in the first loop
             
-        5. manage / modify DMKs lists (learners & refs)
+    2. train (learners)
+        copy learners to new age (+1)
+        split dmk_learners into groups of ndmk_TR
+        train each group against dmk_refs
+    
+    3. test (learners & refs)
+        prepare list of DMKs to test
+        split into groups of ndmk_TS
+        test may be broken with 'separated' condition
+    
+    4. report / analyse results of learners and refs
         
-        
-        
-        
+    5. manage / modify DMKs lists (learners & refs)
+    
+    6. PMT evaluation
+    
+    
+    
+    
 
         adjust TR / TS parameters
-        
-        do PMT every N loop
     """
     while True:
 
@@ -211,10 +211,11 @@ if __name__ == "__main__":
 
             logger.info(f'building {cm.ndmk_learners - len(dmk_learners)} new DMKs (learners):')
 
-            ranked_families = {dn: FolDMK.load_point(name=dn)['family'] for dn in dmk_learners}
+            learners_families = {dn: FolDMK.load_point(name=dn)['family'] for dn in dmk_learners}
+            refs_families = {dn: FolDMK.load_point(name=dn)['family'] for dn in dmk_refs}
 
             # look for forced families
-            families_present = ''.join(list(ranked_families.values()))
+            families_present = ''.join(list(learners_families.values()))
             families_count = {fm: families_present.count(fm) for fm in cm.families}
             families_count = [(fm, families_count[fm]) for fm in families_count]
             families_forced = [fc[0] for fc in families_count if fc[1] < 1]
@@ -235,9 +236,8 @@ if __name__ == "__main__":
 
                 else:
 
-                    pa = None # TODO: <- temp: disables GX by now <- think about families..
-                    #pa = random.choice(dmk_refs) if dmk_refs else None
-                    family = ranked_families[pa] if pa is not None else random.choice(cm.families)
+                    pa = random.choice(dmk_refs) if dmk_refs else None
+                    family = refs_families[pa] if pa is not None else random.choice(cm.families)
                     name_child = f'dmk{loop_ix:02}{family}{cix:02}_00'
 
                     # 100% fresh DMK from selected family
@@ -248,10 +248,10 @@ if __name__ == "__main__":
                             family= family,
                             logger= get_child(logger, change_level=10))
 
-                    # TODO: check if it works with refs
+                    # TODO: check if it works now ..with refs
                     # GX from refs
                     else:
-                        other_fam = [dn for dn in dmk_refs if ranked_families[dn] == family]
+                        other_fam = [dn for dn in dmk_refs if refs_families[dn] == family]
                         if len(other_fam) > 1:
                             other_fam.remove(pa)
                         pb = random.choice(other_fam)
@@ -568,7 +568,7 @@ if __name__ == "__main__":
         logger.info(f'loop {loop_ix} finished, time taken: {loop_time:.1f}min')
         tbwr.add(value=loop_time, tag=f'loop/loop_time', step=loop_ix)
 
-        ### 6. PMT evaluation
+        #********************************************************************************************* 6. PMT evaluation
 
         if loop_ix % cm.n_loops_PMT == 0:
 
