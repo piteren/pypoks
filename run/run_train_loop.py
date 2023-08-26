@@ -109,14 +109,12 @@ CONFIG_INIT = {
     'prob_fresh_ckpt':          0.8,        # -> 0.5    probability of fresh checkpoint (child from GX of point only, without GX of ckpt)
         # PMT (Periodical Masters Test)
     'n_loops_PMT':              5,          # do PMT every N loops
-    'n_dmk_PMT':                20}         # max number of DMKs (masters) in PMT
+    'ndmk_PMT':                 10}         # max number of DMKs (masters) in PMT
 
 # TODO:
-#  - PMT against _ref in groups of ndmk_TS, PMT stddev
-#  - game_size_TS controlled by diff & stddev without outliers
 #  - lifemark -\/+
 #  - min num (10?) of wonH_IV for sep break
-#  - new grouping for TR
+#  - game_size_TS controlled by diff & stddev without outliers
 #  - age of GXed learner
 
 
@@ -307,12 +305,14 @@ if __name__ == "__main__":
             names_trg=  dmk_learners_aged,
             logger=     get_child(logger, change_level=10))
 
-        # create groups
-        tr_groups = []
-        dmk_learners_copy = [] + dmk_learners_aged
-        while dmk_learners_copy:
-            tr_groups.append(dmk_learners_copy[:cm.ndmk_TR])
-            dmk_learners_copy = dmk_learners_copy[cm.ndmk_TR:]
+        # create groups by evenly distributing DMKs
+        n_groups = math.ceil(len(dmk_learners_aged) / cm.ndmk_TR)
+        tr_groups = [[] for _ in range(n_groups)]
+        gix = 0
+        for dn in dmk_learners_aged:
+            fix = gix % n_groups
+            tr_groups[fix].append(dn)
+            gix += 1
 
         pub_ref = {
             'publish_player_stats': False,
@@ -354,10 +354,9 @@ if __name__ == "__main__":
                 names_trg=  dmk_refs_copied_to_test,
                 logger=     get_child(logger, change_level=10))
 
+        # create groups by evenly distributing DMKs
         ndmk_TS = len(sep_pairs) * 2 + len(dmk_refs_copied_to_test)
         n_groups = math.ceil(ndmk_TS / cm.ndmk_TS)
-
-        # create groups by evenly distributing DMKs
         ts_groups = [[] for _ in range(n_groups)]
         group_pairs = [[] for _ in range(n_groups)]
         gix = 0
@@ -576,31 +575,49 @@ if __name__ == "__main__":
             if len(all_pmt) > 2: # skips some
                 logger.info(f'PMT starts..')
 
+                # create groups by evenly distributing DMKs
+                n_groups = math.ceil(len(all_pmt) / cm.ndmk_TS)
+                ts_groups = [[] for _ in range(n_groups)]
+                gix = 0
+                for dn in all_pmt:
+                    fix = gix % n_groups
+                    ts_groups[fix].append(e)
+                    gix += 1
+
+                pub_ref = {
+                    'publish_player_stats': False,
+                    'publish_pex':          False,
+                    'publish_update':       False,
+                    'publish_more':         False}
                 pub = {
                     'publish_player_stats': True,
                     'publish_pex':          False,
                     'publish_update':       False,
                     'publish_more':         False}
-                pmt_results = run_GM(
-                    dmk_point_PLL=  [{'name':dn, 'motorch_point':{'device':n%2}, 'save_topdir':PMT_FD, **pub} for n,dn in enumerate(all_pmt)],
-                    game_size=      cm.game_size_TS * 2,
-                    dmk_n_players=  cm.dmk_n_players_TS,
-                    sep_all_break=  True,
-                    logger=         logger)['dmk_results']
+                pmt_results = {}
+                for tsg in ts_groups:
+                    rgd = run_GM(
+                        dmk_point_ref=  [{'name':dn, 'motorch_point':{'device':0}, **pub_ref} for dn in dmk_refs],
+                        dmk_point_PLL=  [{'name':dn, 'motorch_point':{'device':1}, 'save_topdir':PMT_FD, **pub} for dn in all_pmt],
+                        game_size=      cm.game_size_TS,
+                        dmk_n_players=  cm.dmk_n_players_TS,
+                        sep_all_break=  True,
+                        logger=         logger)
+                    pmt_results.update(rgd['dmk_results'])
 
-                pmt_ranked = [(dn, pmt_results[dn]['wonH_afterIV'][-1]) for dn in pmt_results]
-                pmt_ranked = [e[0] for e in sorted(pmt_ranked, key=lambda x: x[1], reverse=True)]
+                dmk_rw = [(dn, pmt_results[dn]['last_wonH_afterIV']) for dn in pmt_results]
+                pmt_ranked = [e[0] for e in sorted(dmk_rw, key=lambda x: x[1], reverse=True)]
 
-                pmt_nfo = 'PMT results (wonH):\n'
-                pos = 1
-                for dn in pmt_ranked:
-                    name_aged = f'{dn}({pmt_results[dn]["age"]}){pmt_results[dn]["family"]}'
-                    pmt_nfo += f' > {pos:>2} {name_aged:25s} : {pmt_results[dn]["wonH_afterIV"][-1]:6.2f}\n'
-                    pos += 1
+                pmt_nfo = 'PMT results:\n'
+                for pos,dn in enumerate(pmt_ranked):
+                    wonH = pmt_results[dn]['last_wonH_afterIV']
+                    wonH_mstd = pmt_results[dn]['wonH_IV_mean_stdev']
+                    wonH_mstd_str = f'[{wonH_mstd:.2f}]'
+                    pmt_nfo += f' > {pos:>2} {dn:25s} : {wonH:6.2f} {wonH_mstd_str:9}\n'
                 logger.info(pmt_nfo)
 
                 # remove worst
-                if len(all_pmt) == cm.n_dmk_PMT:
+                if len(all_pmt) == cm.ndmk_PMT:
                     dn = pmt_ranked[-1]["name"]
                     shutil.rmtree(f'{PMT_FD}/{dn}', ignore_errors=True)
                     logger.info(f'removed PMT: {dn}')
