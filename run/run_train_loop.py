@@ -55,7 +55,7 @@
         ..with this example dmk01b07 would be updated as separated +
 
 """
-
+import math
 from pypaq.lipytools.files import r_json, w_json
 from pypaq.lipytools.pylogger import get_pylogger, get_child
 from pypaq.lipytools.printout import stamp
@@ -98,7 +98,7 @@ CONFIG_INIT = {
     # TODO: temp set (300K)
     'game_size_TS':             100000,
     'dmk_n_players_TS':         150,        # number of players per DMK while TS
-    'sep_pairs_factor':         0.8,        # -> 1.0    pairs separation break value
+    'sep_pairs_factor':         0.8,        # pairs separation break value
     # TODO: temp set (2.0)
     'sep_n_stdev':              1.0,        # separation won IV mean stdev factor
         # replace / new
@@ -112,8 +112,11 @@ CONFIG_INIT = {
     'n_dmk_PMT':                20}         # max number of DMKs (masters) in PMT
 
 # TODO:
-#  - keep and display wonH + std
-#  - some ref may not be in learners, those need to be duplicated without _ref to test and then deleted
+#  - PMT against _ref in groups of ndmk_TS, PMT stddev
+#  - game_size_TS controlled by diff & stddev without outliers
+#  - lifemark -\/+
+#  - min num (10?) of wonH_IV for sep break
+#  - new grouping for TR
 #  - age of GXed learner
 
 
@@ -201,7 +204,7 @@ if __name__ == "__main__":
             cm.exit = False
             break
 
-        ### 1. eventually create DMKs
+        #************************************************************************************* 1. eventually create DMKs
 
         # fill up dmk_learners (new / GX)
         if len(dmk_learners) < cm.ndmk_learners:
@@ -292,10 +295,10 @@ if __name__ == "__main__":
             logger.info(f'created {len(dmk_refs)} refs DMKs: {dmk_refs}')
 
         logger.info(f'loop #{loop_ix} DMKs:')
-        logger.info(f' > learners: ({len(dmk_learners)}) {dmk_learners}')
-        logger.info(f' > refs:     ({len(dmk_refs)}) {dmk_refs}')
+        logger.info(f'> learners: ({len(dmk_learners)}) {" ".join(dmk_learners)}')
+        logger.info(f'> refs:     ({len(dmk_refs)}) {" ".join(dmk_refs)}')
 
-        ### 2. train (learners)
+        #******************************************************************************************* 2. train (learners)
 
         # copy dmk_learners to new age
         dmk_learners_aged = [f'{dn[:-2]}{int(dn[-2:])+1:02}' for dn in dmk_learners]
@@ -329,7 +332,7 @@ if __name__ == "__main__":
                 dmk_n_players=  cm.dmk_n_players_TR,
                 logger=         logger)
 
-        ### 3. test (learners & refs)
+        #************************************************************************************* 3. test (learners & refs)
         
         # TODO: if refs group has not changed since last loop -> some DMKs may not need to be tested
 
@@ -337,17 +340,11 @@ if __name__ == "__main__":
 
         sep_pairs = list(zip(dmk_learners, dmk_learners_aged))
 
-        dmks_PLL = []
-        # zipped to properly distribute pairs
-        for p in sep_pairs:
-            dmks_PLL.append(p[0])
-            dmks_PLL.append(p[1])
-
         # if there are refs that are not present in learners, those need to be tested also (and then deleted)
         dmk_refs_to_test = []
         for dn in dmk_refs:
             dn_test = dn[:-4]
-            if dn_test not in dmks_PLL:
+            if dn_test not in dmk_learners:
                 dmk_refs_to_test.append(dn)
         dmk_refs_copied_to_test = []
         if dmk_refs_to_test:
@@ -356,22 +353,23 @@ if __name__ == "__main__":
                 names_src=  dmk_refs_to_test,
                 names_trg=  dmk_refs_copied_to_test,
                 logger=     get_child(logger, change_level=10))
-            dmks_PLL += dmk_refs_copied_to_test
 
-        # create groups
-        ts_groups = []
-        group_pairs = []
-        while dmks_PLL:
+        ndmk_TS = len(sep_pairs) * 2 + len(dmk_refs_copied_to_test)
+        n_groups = math.ceil(ndmk_TS / cm.ndmk_TS)
 
-            group = dmks_PLL[:cm.ndmk_TS]
-            ts_groups.append(group)
-            dmks_PLL = dmks_PLL[cm.ndmk_TS:]
-
-            gp = []
-            for p in sep_pairs:
-                if p[0] in group and p[1] in group:
-                    gp.append(p)
-            group_pairs.append(gp)
+        # create groups by evenly distributing DMKs
+        ts_groups = [[] for _ in range(n_groups)]
+        group_pairs = [[] for _ in range(n_groups)]
+        gix = 0
+        for e in sep_pairs + dmk_refs_copied_to_test:
+            fix = gix % n_groups
+            if type(e) is tuple:
+                ts_groups[fix].append(e[0])
+                ts_groups[fix].append(e[1])
+                group_pairs[fix].append(e)
+            else:
+                ts_groups[fix].append(e)
+            gix += 1
 
         pub = {
             'publish_player_stats': True,
@@ -399,7 +397,7 @@ if __name__ == "__main__":
         for dn in dmk_refs_copied_to_test:
             shutil.rmtree(f'{DMK_MODELS_FD}/{dn}', ignore_errors=True)
 
-        ### 4. analyse results
+        #******************************************************************************************** 4. analyse results
 
         sr = separation_report(
             dmk_results=    dmk_results,
@@ -450,12 +448,12 @@ if __name__ == "__main__":
             res_nfo += f' > {pos:>2} {dn}_ref : {wonH:6.2f} {wonH_mstd_str:9}\n'
         logger.info(res_nfo)
 
-        ### 5. manage / modify DMKs lists
+        #********************************************************************************* 5. manage / modify DMKs lists
 
         ### prepare new list of learners
 
         dmk_learners_asi = [dn for dn in learners_ranked if dmk_results[dn]['separated'] and dmk_results[dn]['wonH_diff']>0]
-        logger.info(f'learners aged & separated & improved: {dmk_learners_asi}')
+        logger.info(f'learners aged & separated & improved: {" ".join(dmk_learners_asi)}')
 
         dmk_learners_updated = []
         for ix,dna in enumerate(dmk_learners_aged):
@@ -478,7 +476,7 @@ if __name__ == "__main__":
                 dmk_learners_bad_lifemark.append(dn)
 
         if dmk_learners_bad_lifemark:
-            logger.info(f'removing learners with bad lifemark: {dmk_learners_bad_lifemark}')
+            logger.info(f'removing learners with bad lifemark: {" ".join(dmk_learners_bad_lifemark)}')
             dmk_learners_updated = [dn for dn in dmk_learners_updated if dn not in dmk_learners_bad_lifemark]
 
         # clean out folder
@@ -525,18 +523,18 @@ if __name__ == "__main__":
                 if separated_factor(
                     a_wonH=             dmk_results[dn]['last_wonH_afterIV'],
                     a_wonH_mean_stdev=  dmk_results[dn]['wonH_IV_mean_stdev'],
-                    b_wonH=             dmk_results[dnr]['last_wonH_afterIV'],
-                    b_wonH_mean_stdev=  dmk_results[dnr]['wonH_IV_mean_stdev'],
+                    b_wonH=             dmk_results[dnr[:-4]]['last_wonH_afterIV'],
+                    b_wonH_mean_stdev=  dmk_results[dnr[:-4]]['wonH_IV_mean_stdev'],
                     n_stdev=            cm.sep_n_stdev,
                 ) >= 1:
                     dmk_add_to_refs.append(dn)
                     refs_ranked.remove(dnr)
 
-        refs_wonH_IV_stdev_avg = sum([dmk_results[dn]['wonH_IV_stdev'] for dn in dmk_refs]) / cm.ndmk_refs # save before updating refs
+        refs_wonH_IV_stdev_avg = sum([dmk_results[dn[:-4]]['wonH_IV_stdev'] for dn in dmk_refs]) / cm.ndmk_refs # save before updating refs
 
         if dmk_add_to_refs:
             dmk_add_to_refs = list(reversed(dmk_add_to_refs)) # reverse it back
-            logger.info(f'adding to refs: {dmk_add_to_refs}')
+            logger.info(f'adding to refs: {" ".join(dmk_add_to_refs)}')
 
             for dn in dmk_refs:
                 if dn not in refs_ranked:
@@ -550,8 +548,9 @@ if __name__ == "__main__":
 
             dmk_refs = refs_ranked + new_ref_names
 
-        refs_gain = [dmk_results[dn]['wonH_diff'] for dn in dmk_add_to_refs]
+        refs_gain = sum([dmk_results[dn]['wonH_diff'] for dn in dmk_add_to_refs])
 
+        # TODO: add refs diff (min-max)
         ### TB log
         tbwr.add(value=refs_gain,               tag=f'loop/refs_gain',              step=loop_ix)
         tbwr.add(value=refs_wonH_IV_stdev_avg,  tag=f'loop/refs_wonH_IV_stdev_avg', step=loop_ix)
