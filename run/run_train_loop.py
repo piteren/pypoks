@@ -8,7 +8,7 @@
         loops_results = {
             'loop_ix': 5 (int),                                 <- number of loops performed yet
             'lifemarks': {
-                'dmk01a00_03': '++-',
+                'dmk01a00_03': '+|/++',
                 'dmk01a02_01': '-',
                 ..
             }
@@ -112,8 +112,6 @@ CONFIG_INIT = {
     'ndmk_PMT':                 10}         # max number of DMKs (masters) in PMT
 
 # TODO:
-#  - lifemark -\/+
-#  - min num (10?) of wonH_IV for sep break
 #  - game_size_TS controlled by diff & stddev without outliers
 #  - age of GXed learner
 
@@ -409,14 +407,15 @@ if __name__ == "__main__":
             dn = dmk_learners[ix]
             dmk_results[dna]['separated'] = sr['sep_pairs_stat'][ix]
             dmk_results[dna]['wonH_diff'] = dmk_results[dna]['wonH_afterIV'][-1] - dmk_results[dn]['wonH_afterIV'][-1]
-            lifemark_upd = '|'
+            lifemark_upd = '/' if dmk_results[dna]['wonH_diff'] > 0 else '|'
             if dmk_results[dna]['separated']:
                 lifemark_upd = '+' if dmk_results[dna]['wonH_diff'] > 0 else '-'
             lifemark_prev = loops_results['lifemarks'][dn] if dn in loops_results['lifemarks'] else ''
             dmk_results[dna]['lifemark'] = lifemark_prev + lifemark_upd
             session_lifemarks += lifemark_upd
 
-        sep_factor = (len(session_lifemarks) - session_lifemarks.count('|')) / len(session_lifemarks)
+        not_sep_count = session_lifemarks.count('|') + session_lifemarks.count('/')
+        sep_factor = (len(session_lifemarks) - not_sep_count) / len(session_lifemarks)
 
         ### log results
 
@@ -471,7 +470,7 @@ if __name__ == "__main__":
         dmk_learners_bad_lifemark = []
         for dn in dmk_learners_updated:
             lifemark_ending = dmk_results[dn]['lifemark'][-sum(cm.remove_key):]
-            if lifemark_ending.count('-') + lifemark_ending.count('|') >= cm.remove_key[0] and lifemark_ending[-1] != '+':
+            if lifemark_ending.count('-') + lifemark_ending.count('|') >= cm.remove_key[0] and lifemark_ending[-1] not in '/+':
                 dmk_learners_bad_lifemark.append(dn)
 
         if dmk_learners_bad_lifemark:

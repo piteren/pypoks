@@ -283,6 +283,7 @@ class GamesManager:
             sep_pairs: Optional[List[Tuple[str,str]]]=  None,   # pairs of DMK names for separation condition
             sep_pairs_factor: float=                    0.9,    # factor of separated pairs needed to break the game
             sep_n_stdev: float=                         2.0,
+            sep_min_IV: int=                            10,     # minimal number of IV to enable any sep break
     ) -> Dict[str, Dict]:
         """
         By now, by design run_game() may be called only once,
@@ -319,6 +320,7 @@ class GamesManager:
             time.sleep(sleep)
 
             reports = self._get_reports({dn: len(dmk_results[dn]['wonH_IV']) for dn in dmk_results}) # actual DMK reports
+            num_IV = []
             for dn in reports:
                 dmk_results[dn]['wonH_IV'] += reports[dn]['wonH_IV']
                 dmk_results[dn]['wonH_afterIV'] += reports[dn]['wonH_afterIV']
@@ -326,6 +328,8 @@ class GamesManager:
                 dmk_results[dn]['wonH_IV_stdev'] = wonH_IV_stdev
                 dmk_results[dn]['wonH_IV_mean_stdev'] = wonH_IV_stdev / math.sqrt(len(dmk_results[dn]['wonH_IV'])) if wonH_IV_stdev is not None else None
                 dmk_results[dn]['last_wonH_afterIV'] = dmk_results[dn]['wonH_afterIV'][-1] if dmk_results[dn]['wonH_afterIV'] else None
+                num_IV.append(len(dmk_results[dn]['wonH_IV']))
+            num_IV = min(num_IV)
 
             # calculate game factor
             n_hands = sum([reports[dn]['n_hands'] for dn in reports])
@@ -381,12 +385,12 @@ class GamesManager:
                 break
 
             # games break - all DMKs separation condition
-            if sep_all_break and sep_nc == 1.0:
+            if sep_all_break and num_IV >= sep_min_IV and sep_nc == 1.0:
                 self.logger.info(f'> finished game (all DMKs separation condition), game factor: {game_factor:.2f})')
                 break
 
             # games break - pairs separation breaking value condition
-            if sep_pairs and sep_pairs_nc >= sep_pairs_factor:
+            if sep_pairs and num_IV >= sep_min_IV and sep_pairs_nc >= sep_pairs_factor:
                 self.logger.info(f'> finished game (pairs separation factor: {sep_pairs_factor:.2f}, game factor: {game_factor:.2f})')
                 break
 
