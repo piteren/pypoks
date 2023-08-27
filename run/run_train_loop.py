@@ -135,12 +135,11 @@ if __name__ == "__main__":
     dmk_refs = []
 
     # check for continuation
-    # TODO: check if it works now
     loops_results = r_json(RESULTS_FP)
     if loops_results:
 
         saved_n_loops = int(loops_results['loop_ix'])
-        logger.info(f'Do you want to continue with saved (in {DMK_MODELS_FD}) {saved_n_loops} loops? ..waiting 10 sec (y/n, y-default)')
+        logger.info(f'Do you want to continue with saved ({DMK_MODELS_FD}) {saved_n_loops} loops? ..waiting 10 sec (y/n, y-default)')
 
         i, o, e = select.select([sys.stdin], [], [], 10)
         if i and sys.stdin.readline().strip() == 'n':
@@ -177,7 +176,7 @@ if __name__ == "__main__":
         split into groups of ndmk_TS
         test may be broken with 'separated' condition
     
-    4. report / analyse results of learners and refs
+    4. analyse / report results of learners and refs
         
     5. manage / modify DMKs lists (learners & refs)
     
@@ -199,6 +198,9 @@ if __name__ == "__main__":
             break
 
         logger.info(f'\n ************** starts loop #{loop_ix} **************')
+
+        tbwr.add(value=cm.game_size_TS, tag=f'loop/game_size_TS', step=loop_ix)
+        tbwr.add(value=cm.game_size_TR, tag=f'loop/game_size_TR', step=loop_ix)
 
         #************************************************************************************* 1. eventually create DMKs
 
@@ -389,6 +391,7 @@ if __name__ == "__main__":
             dmk_results.update(rgd['dmk_results'])
 
         speed_TS = sum(speedL) / len(speedL)
+        tbwr.add(value=speed_TS, tag=f'loop/speed_Hs', step=loop_ix)
 
         # instantiate results of refs
         for dn in dmk_refs:
@@ -398,7 +401,7 @@ if __name__ == "__main__":
         for dn in dmk_refs_copied_to_test:
             shutil.rmtree(f'{DMK_MODELS_FD}/{dn}', ignore_errors=True)
 
-        #******************************************************************************************** 4. analyse results
+        #************************************************************************************** 4. analyse & log results
 
         sr = separation_report(
             dmk_results=    dmk_results,
@@ -420,8 +423,7 @@ if __name__ == "__main__":
 
         not_sep_count = session_lifemarks.count('|') + session_lifemarks.count('/')
         sep_factor = (len(session_lifemarks) - not_sep_count) / len(session_lifemarks)
-
-        ### log results
+        tbwr.add(value=sep_factor, tag=f'loop/sep_factor', step=loop_ix)
 
         # rank learners by last_wonH_afterIV
         dmk_rw = [(dn, dmk_results[dn]['last_wonH_afterIV']) for dn in dmk_learners_aged]
@@ -527,8 +529,6 @@ if __name__ == "__main__":
                     dmk_add_to_refs.append(dn)
                     refs_ranked.remove(dnr)
 
-        refs_wonH_IV_stdev_avg = sum([dmk_results[dn]['wonH_IV_stdev'] for dn in dmk_refs]) / cm.ndmk_refs # save before updating refs
-
         if dmk_add_to_refs:
             dmk_add_to_refs = list(reversed(dmk_add_to_refs)) # reverse it back
             logger.info(f'adding to refs: {", ".join(dmk_add_to_refs)}')
@@ -545,23 +545,36 @@ if __name__ == "__main__":
 
             dmk_refs = refs_ranked + new_ref_names
 
-        # save refs_ranked after all changes
+        # prepare refs_ranked after all changes and save
+        for dn in dmk_refs:
+            dmk_results[dn] = dmk_results[dn[:-4]] # copy again for new refs
         dmk_rw = [(dn, dmk_results[dn]['last_wonH_afterIV']) for dn in dmk_refs]
-        loops_results['refs_ranked'] = [e[0] for e in sorted(dmk_rw, key=lambda x: x[1], reverse=True)]
+        refs_ranked = [e[0] for e in sorted(dmk_rw, key=lambda x: x[1], reverse=True)]
+        loops_results['refs_ranked'] = refs_ranked
 
         refs_gain = sum([dmk_results[dn]['wonH_diff'] for dn in dmk_add_to_refs])
+        refs_diff = dmk_results[refs_ranked[0]]['last_wonH_afterIV'] - dmk_results[refs_ranked[-1]]['last_wonH_afterIV']
+        refs_wonH_IV_stdev_avg = sum([dmk_results[dn]['wonH_IV_stdev'] for dn in dmk_refs]) / cm.ndmk_refs
 
-        # TODO:
-        #  - add refs diff (min-max)
-        #  - refs avg stats
-        #  - refs best stats
-        ### TB log
         tbwr.add(value=refs_gain,               tag=f'loop/refs_gain',              step=loop_ix)
+        tbwr.add(value=refs_diff,               tag=f'loop/refs_diff',              step=loop_ix)
         tbwr.add(value=refs_wonH_IV_stdev_avg,  tag=f'loop/refs_wonH_IV_stdev_avg', step=loop_ix)
-        tbwr.add(value=speed_TS,                tag=f'loop/speed_Hs',               step=loop_ix)
-        tbwr.add(value=cm.game_size_TS,         tag=f'loop/game_size_TS',           step=loop_ix)
-        tbwr.add(value=cm.game_size_TR,         tag=f'loop/game_size_TR',           step=loop_ix)
-        tbwr.add(value=sep_factor,              tag=f'loop/sep_factor',             step=loop_ix)
+
+        dmk_sets = {
+            'refs_best':    [refs_ranked[0]],
+            'refs_avg':     refs_ranked}
+        for dsn in dmk_sets:
+            gsL = [dmk_results[dn]['global_stats'] for dn in dmk_sets[dsn]]
+            gsa_avg = {k: [] for k in gsL[0]}
+            for e in gsL:
+                for k in e:
+                    gsa_avg[k].append(e[k])
+            for k in gsa_avg:
+                gsa_avg[k] = sum(gsa_avg[k]) / len(gsa_avg[k])
+                tbwr.add(
+                    value=  gsa_avg[k],
+                    tag=    f'loop_poker_stats_{dsn}/{k}',
+                    step=   loop_ix)
 
         loops_results['loop_ix'] = loop_ix
         w_json(loops_results, RESULTS_FP)
@@ -628,21 +641,4 @@ if __name__ == "__main__":
             cm.game_size_TS = cm.game_size_TS + cm.game_size_upd
         if cm.game_size_TS > cm.game_size_TR * cm.factor_TS_TR:
             cm.game_size_TR = cm.game_size_TR + cm.game_size_upd
-
-
-        dmk_sets = {
-            'best':         [dmk_ranked[0]],
-            'masters_avg':  dmk_ranked[:cm.n_dmk_master]}
-        for dsn in dmk_sets:
-            gsL = [dmk_results[dn]['global_stats'] for dn in dmk_sets[dsn]]
-            gsa_avg = {k: [] for k in gsL[0]}
-            for e in gsL:
-                for k in e:
-                    gsa_avg[k].append(e[k])
-            for k in gsa_avg:
-                gsa_avg[k] = sum(gsa_avg[k]) / len(gsa_avg[k])
-                tbwr.add(
-                    value=  gsa_avg[k],
-                    tag=    f'loop_poker_stats_{dsn}/{k}',
-                    step=   loop_ix)
-"""
+        """
