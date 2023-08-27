@@ -112,8 +112,12 @@ CONFIG_INIT = {
     'ndmk_PMT':                 10}         # max number of DMKs (masters) in PMT
 
 # TODO:
+#  - add refs ranked to loop_results -> read by human_game
+#  - function for report
+#  - add stats to report
+#  - clean out TB
 #  - game_size_TS controlled by diff & stddev without outliers
-#  - age of GXed learner
+#  - age of GXed learner -> 0
 
 
 if __name__ == "__main__":
@@ -156,7 +160,7 @@ if __name__ == "__main__":
             dmk_learners = [dn for dn in saved_dmks if dn not in dmk_refs]
 
     else:
-        loops_results = {'loop_ix': loop_ix, 'lifemarks': {}}
+        loops_results = {'loop_ix': loop_ix, 'lifemarks': {}, 'refs_ranked': []}
 
     """
     DMKs are named with pattern: f'dmk{loop_ix:02}{family}{cix:02}_{age:02}' + optional '_ref'
@@ -492,6 +496,7 @@ if __name__ == "__main__":
 
         dmk_add_to_refs = []
         refs_ranked = [f'{dn}_ref' for dn in refs_ranked] # add _ref to names
+        loops_results['refs_ranked'] = refs_ranked # save
 
         # copy refs master before any update
         if loop_ix % cm.n_loops_PMT == 0:

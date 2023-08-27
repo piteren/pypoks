@@ -366,7 +366,7 @@ class GamesManager:
                 # speed
                 hdiff = n_hands-n_hands_last_report
                 hd_pp = int(hdiff / len(reports))
-                spd_report = f'{int(hdiff / (time.time()-time_last_report))}H/s (+{hd_pp}Hpp)'
+                spd_report = f'({num_IV}) {int(hdiff / (time.time()-time_last_report))}H/s (+{hd_pp}Hpp)'
                 n_hands_last_report = n_hands
                 time_last_report = time.time()
 
