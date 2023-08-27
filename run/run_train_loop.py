@@ -435,7 +435,7 @@ if __name__ == "__main__":
             for k in dmk_results[dn]["global_stats"]:
                 v = dmk_results[dn]["global_stats"][k]
                 stats_nfo += f'{k}:{v:4.1f} '
-            res_nfo += f' > {pos:>2} {dn} : {wonH:6.2f} {wonH_mstd_str:9} d: {wonH_diff:6.2f}{sep}{lifemark}    {stats_nfo}\n'
+            res_nfo += f' > {pos:>2} {dn} : {wonH:6.2f} {wonH_mstd_str:7} d: {wonH_diff:6.2f}{sep}{lifemark}    {stats_nfo}\n'
         logger.info(res_nfo)
 
         # rank refs by last_wonH_afterIV (names without _ref)
@@ -451,7 +451,7 @@ if __name__ == "__main__":
             for k in dmk_results[dn]["global_stats"]:
                 v = dmk_results[dn]["global_stats"][k]
                 stats_nfo += f'{k}:{v:4.1f} '
-            res_nfo += f' > {pos:>2} {dn}_ref : {wonH:6.2f} {wonH_mstd_str:9}    {stats_nfo}\n'
+            res_nfo += f' > {pos:>2} {dn}_ref : {wonH:6.2f} {wonH_mstd_str:7}    {stats_nfo}\n'
         logger.info(res_nfo)
 
         #********************************************************************************* 5. manage / modify DMKs lists
