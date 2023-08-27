@@ -253,3 +253,27 @@ def run_GM(
         sep_pairs=          sep_pairs,
         sep_pairs_factor=   sep_pairs_factor,
         sep_n_stdev=        sep_n_stdev)
+
+
+def results_report(
+        dmk_results: Dict[str, Dict],
+        dmks: Optional[List[str]]=  None
+) -> str:
+
+    if not dmks:
+        dmks = list(dmk_results.keys())
+    dmk_rw = [(dn, dmk_results[dn]['last_wonH_afterIV']) for dn in dmks]
+    dmk_ranked = [e[0] for e in sorted(dmk_rw, key=lambda x: x[1], reverse=True)]
+
+    res_nfo = ''
+    for dn in dmk_ranked:
+        wonH = dmk_results[dn]['last_wonH_afterIV']
+        wonH_mstd = dmk_results[dn]['wonH_IV_mean_stdev']
+        wonH_mstd_str = f'[{wonH_mstd:.2f}]'
+        stats_nfo = ''
+        for k in dmk_results[dn]["global_stats"]:
+            v = dmk_results[dn]["global_stats"][k]
+            stats_nfo += f'{k}: {v:4.1f} '
+        res_nfo += f'{dn} : {wonH:6.2f} {wonH_mstd_str:9}    {stats_nfo}\n'
+
+    return res_nfo

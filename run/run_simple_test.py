@@ -2,7 +2,7 @@ from pypaq.lipytools.pylogger import get_pylogger, get_child
 from pypaq.lipytools.files import r_json
 
 from envy import DMK_MODELS_FD, RESULTS_FP
-from run.functions import run_GM, copy_dmks
+from run.functions import run_GM, copy_dmks, results_report
 
 
 
@@ -44,15 +44,4 @@ if __name__ == "__main__":
             sep_n_stdev=    1.0,
             logger=         logger)
         dmk_results = rgd['dmk_results']
-
-        dmk_rw = [(dn, dmk_results[dn]['last_wonH_afterIV']) for dn in dmk_results]
-        dmk_ranked = [e[0] for e in sorted(dmk_rw, key=lambda x: x[1], reverse=True)]
-
-        res_nfo = ''
-        for dn in dmk_ranked:
-            stats_nfo = ''
-            for k in dmk_results[dn]["global_stats"]:
-                v = dmk_results[dn]["global_stats"][k]
-                stats_nfo += f'{k}: {v:4.1f} '
-            res_nfo += f'{dn:30} : {dmk_results[dn]["last_wonH_afterIV"]:6.2f}    {stats_nfo}\n'
-        logger.info(f'Test game results:\n{res_nfo}')
+        logger.info(f'Test game results:\n{results_report(dmk_results)}')

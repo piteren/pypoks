@@ -70,7 +70,7 @@ from torchness.tbwr import TBwr
 from envy import DMK_MODELS_FD, PMT_FD, CONFIG_FP, RESULTS_FP
 from podecide.dmk import FolDMK
 from podecide.games_manager import separation_report, separated_factor
-from run.functions import get_saved_dmks_names, run_GM, copy_dmks, build_single_foldmk
+from run.functions import get_saved_dmks_names, run_GM, copy_dmks, build_single_foldmk, results_report
 
 CONFIG_INIT = {
         # general
@@ -619,23 +619,12 @@ if __name__ == "__main__":
                         logger=         logger)
                     pmt_results.update(rgd['dmk_results'])
 
-                dmk_rw = [(dn, pmt_results[dn]['last_wonH_afterIV']) for dn in pmt_results]
-                pmt_ranked = [e[0] for e in sorted(dmk_rw, key=lambda x: x[1], reverse=True)]
-
-                pmt_nfo = 'PMT results:\n'
-                for pos,dn in enumerate(pmt_ranked):
-                    wonH = pmt_results[dn]['last_wonH_afterIV']
-                    wonH_mstd = pmt_results[dn]['wonH_IV_mean_stdev']
-                    wonH_mstd_str = f'[{wonH_mstd:.2f}]'
-                    stats_nfo = ''
-                    for k in pmt_results[dn]["global_stats"]:
-                        v = pmt_results[dn]["global_stats"][k]
-                        stats_nfo += f'{k}: {v:4.1f} '
-                    pmt_nfo += f' > {pos:>2} {dn:25s} : {wonH:6.2f} {wonH_mstd_str:9}    {stats_nfo}\n'
-                logger.info(pmt_nfo)
+                logger.info(f'PMT results:\n{results_report(pmt_results)}')
 
                 # remove worst
                 if len(all_pmt) == cm.ndmk_PMT:
+                    dmk_rw = [(dn, pmt_results[dn]['last_wonH_afterIV']) for dn in pmt_results]
+                    pmt_ranked = [e[0] for e in sorted(dmk_rw, key=lambda x: x[1], reverse=True)]
                     dn = pmt_ranked[-1]["name"]
                     shutil.rmtree(f'{PMT_FD}/{dn}', ignore_errors=True)
                     logger.info(f'removed PMT: {dn}')
