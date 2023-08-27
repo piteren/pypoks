@@ -238,6 +238,7 @@ def run_GM(
         sep_pairs: Optional[List[Tuple[str,str]]]=  None,
         sep_pairs_factor: float=                    0.9,
         sep_n_stdev: float=                         2.0,
+        publish_GM: bool=                           False,
 ) -> Dict[str, Dict]:
 
     gm = GamesManager_PTR(
@@ -248,7 +249,7 @@ def run_GM(
         logger=         logger)
     return gm.run_game(
         game_size=          game_size,
-        publish_GM=         not dmk_point_TRL,
+        publish_GM=         publish_GM,
         sep_all_break=      sep_all_break,
         sep_pairs=          sep_pairs,
         sep_pairs_factor=   sep_pairs_factor,

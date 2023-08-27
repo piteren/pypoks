@@ -390,6 +390,10 @@ if __name__ == "__main__":
 
         speed_TS = sum(speedL) / len(speedL)
 
+        # instantiate results of refs
+        for dn in dmk_refs:
+            dmk_results[dn] = dmk_results[dn[:-4]]
+
         # delete dmk_refs_copied_to_test
         for dn in dmk_refs_copied_to_test:
             shutil.rmtree(f'{DMK_MODELS_FD}/{dn}', ignore_errors=True)
@@ -438,21 +442,7 @@ if __name__ == "__main__":
             res_nfo += f' > {pos:>2} {dn} : {wonH:6.2f} {wonH_mstd_str:7} d: {wonH_diff:6.2f}{sep}{lifemark}    {stats_nfo}\n'
         logger.info(res_nfo)
 
-        # rank refs by last_wonH_afterIV (names without _ref)
-        dmk_rw = [(dn[:-4], dmk_results[dn[:-4]]['last_wonH_afterIV']) for dn in dmk_refs]
-        refs_ranked = [e[0] for e in sorted(dmk_rw, key=lambda x: x[1], reverse=True)]
-
-        res_nfo = f'refs results:\n'
-        for pos, dn in enumerate(refs_ranked):
-            wonH = dmk_results[dn]['last_wonH_afterIV']
-            wonH_mstd = dmk_results[dn]['wonH_IV_mean_stdev']
-            wonH_mstd_str = f'[{wonH_mstd:.2f}]'
-            stats_nfo = ''
-            for k in dmk_results[dn]["global_stats"]:
-                v = dmk_results[dn]["global_stats"][k]
-                stats_nfo += f'{k}:{v:4.1f} '
-            res_nfo += f' > {pos:>2} {dn}_ref : {wonH:6.2f} {wonH_mstd_str:7}    {stats_nfo}\n'
-        logger.info(res_nfo)
+        logger.info(f'refs results:\n{results_report(dmk_results, dmks=dmk_refs)}')
 
         #********************************************************************************* 5. manage / modify DMKs lists
 
@@ -499,7 +489,8 @@ if __name__ == "__main__":
         ### replace some refs by learners that improved
 
         dmk_add_to_refs = []
-        refs_ranked = [f'{dn}_ref' for dn in refs_ranked] # add _ref to names
+        dmk_rw = [(dn, dmk_results[dn]['last_wonH_afterIV']) for dn in dmk_refs]
+        refs_ranked = [e[0] for e in sorted(dmk_rw, key=lambda x: x[1], reverse=True)]
 
         # copy refs master before any update
         if loop_ix % cm.n_loops_PMT == 0:
@@ -529,14 +520,14 @@ if __name__ == "__main__":
                 if separated_factor(
                     a_wonH=             dmk_results[dn]['last_wonH_afterIV'],
                     a_wonH_mean_stdev=  dmk_results[dn]['wonH_IV_mean_stdev'],
-                    b_wonH=             dmk_results[dnr[:-4]]['last_wonH_afterIV'],
-                    b_wonH_mean_stdev=  dmk_results[dnr[:-4]]['wonH_IV_mean_stdev'],
+                    b_wonH=             dmk_results[dnr]['last_wonH_afterIV'],
+                    b_wonH_mean_stdev=  dmk_results[dnr]['wonH_IV_mean_stdev'],
                     n_stdev=            cm.sep_n_stdev,
                 ) >= 1:
                     dmk_add_to_refs.append(dn)
                     refs_ranked.remove(dnr)
 
-        refs_wonH_IV_stdev_avg = sum([dmk_results[dn[:-4]]['wonH_IV_stdev'] for dn in dmk_refs]) / cm.ndmk_refs # save before updating refs
+        refs_wonH_IV_stdev_avg = sum([dmk_results[dn]['wonH_IV_stdev'] for dn in dmk_refs]) / cm.ndmk_refs # save before updating refs
 
         if dmk_add_to_refs:
             dmk_add_to_refs = list(reversed(dmk_add_to_refs)) # reverse it back
@@ -555,7 +546,7 @@ if __name__ == "__main__":
             dmk_refs = refs_ranked + new_ref_names
 
         # save refs_ranked after all changes
-        dmk_rw = [(dn, dmk_results[dn[:-4]]['last_wonH_afterIV']) for dn in dmk_refs]
+        dmk_rw = [(dn, dmk_results[dn]['last_wonH_afterIV']) for dn in dmk_refs]
         loops_results['refs_ranked'] = [e[0] for e in sorted(dmk_rw, key=lambda x: x[1], reverse=True)]
 
         refs_gain = sum([dmk_results[dn]['wonH_diff'] for dn in dmk_add_to_refs])
