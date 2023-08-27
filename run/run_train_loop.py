@@ -66,11 +66,10 @@ import shutil
 import sys
 import time
 from torchness.tbwr import TBwr
-from typing import List
 
 from envy import DMK_MODELS_FD, PMT_FD, CONFIG_FP, RESULTS_FP
 from podecide.dmk import FolDMK
-from podecide.games_manager import stdev_with_none, separation_report, separated_factor
+from podecide.games_manager import separation_report, separated_factor
 from run.functions import get_saved_dmks_names, run_GM, copy_dmks, build_single_foldmk
 
 CONFIG_INIT = {
@@ -112,12 +111,8 @@ CONFIG_INIT = {
     'ndmk_PMT':                 10}         # max number of DMKs (masters) in PMT
 
 # TODO:
-#  - add refs ranked to loop_results -> read by human_game
-#  - function for report
-#  - add stats to report
 #  - clean out TB
 #  - game_size_TS controlled by diff & stddev without outliers
-#  - age of GXed learner -> 0
 
 
 if __name__ == "__main__":
@@ -196,13 +191,14 @@ if __name__ == "__main__":
     """
     while True:
 
-        logger.info(f'\n ************** starts loop #{loop_ix} **************')
         loop_stime = time.time()
 
         if cm.exit:
             logger.info('train loop exits')
             cm.exit = False
             break
+
+        logger.info(f'\n ************** starts loop #{loop_ix} **************')
 
         #************************************************************************************* 1. eventually create DMKs
 
@@ -435,7 +431,11 @@ if __name__ == "__main__":
             wonH_mstd_str = f'[{wonH_mstd:.2f}]'
             sep = ' s' if dmk_results[dn]['separated'] else '  '
             lifemark = f' {dmk_results[dn]["lifemark"]}'
-            res_nfo += f' > {pos:>2} {dn} : {wonH:6.2f} {wonH_mstd_str:9} d: {wonH_diff:6.2f}{sep}{lifemark}\n'
+            stats_nfo = ''
+            for k in dmk_results[dn]["global_stats"]:
+                v = dmk_results[dn]["global_stats"][k]
+                stats_nfo += f'{k}: {v:4.1f} '
+            res_nfo += f' > {pos:>2} {dn} : {wonH:6.2f} {wonH_mstd_str:9} d: {wonH_diff:6.2f}{sep}{lifemark}    {stats_nfo}\n'
         logger.info(res_nfo)
 
         # rank refs by last_wonH_afterIV (names without _ref)
@@ -447,7 +447,11 @@ if __name__ == "__main__":
             wonH = dmk_results[dn]['last_wonH_afterIV']
             wonH_mstd = dmk_results[dn]['wonH_IV_mean_stdev']
             wonH_mstd_str = f'[{wonH_mstd:.2f}]'
-            res_nfo += f' > {pos:>2} {dn}_ref : {wonH:6.2f} {wonH_mstd_str:9}\n'
+            stats_nfo = ''
+            for k in dmk_results[dn]["global_stats"]:
+                v = dmk_results[dn]["global_stats"][k]
+                stats_nfo += f'{k}: {v:4.1f} '
+            res_nfo += f' > {pos:>2} {dn}_ref : {wonH:6.2f} {wonH_mstd_str:9}    {stats_nfo}\n'
         logger.info(res_nfo)
 
         #********************************************************************************* 5. manage / modify DMKs lists
@@ -496,7 +500,6 @@ if __name__ == "__main__":
 
         dmk_add_to_refs = []
         refs_ranked = [f'{dn}_ref' for dn in refs_ranked] # add _ref to names
-        loops_results['refs_ranked'] = refs_ranked # save
 
         # copy refs master before any update
         if loop_ix % cm.n_loops_PMT == 0:
@@ -551,9 +554,16 @@ if __name__ == "__main__":
 
             dmk_refs = refs_ranked + new_ref_names
 
+        # save refs_ranked after all changes
+        dmk_rw = [(dn, dmk_results[dn[:-4]]['last_wonH_afterIV']) for dn in dmk_refs]
+        loops_results['refs_ranked'] = [e[0] for e in sorted(dmk_rw, key=lambda x: x[1], reverse=True)]
+
         refs_gain = sum([dmk_results[dn]['wonH_diff'] for dn in dmk_add_to_refs])
 
-        # TODO: add refs diff (min-max)
+        # TODO:
+        #  - add refs diff (min-max)
+        #  - refs avg stats
+        #  - refs best stats
         ### TB log
         tbwr.add(value=refs_gain,               tag=f'loop/refs_gain',              step=loop_ix)
         tbwr.add(value=refs_wonH_IV_stdev_avg,  tag=f'loop/refs_wonH_IV_stdev_avg', step=loop_ix)
@@ -585,7 +595,7 @@ if __name__ == "__main__":
                 gix = 0
                 for dn in all_pmt:
                     fix = gix % n_groups
-                    ts_groups[fix].append(e)
+                    ts_groups[fix].append(dn)
                     gix += 1
 
                 pub_ref = {
@@ -617,7 +627,11 @@ if __name__ == "__main__":
                     wonH = pmt_results[dn]['last_wonH_afterIV']
                     wonH_mstd = pmt_results[dn]['wonH_IV_mean_stdev']
                     wonH_mstd_str = f'[{wonH_mstd:.2f}]'
-                    pmt_nfo += f' > {pos:>2} {dn:25s} : {wonH:6.2f} {wonH_mstd_str:9}\n'
+                    stats_nfo = ''
+                    for k in pmt_results[dn]["global_stats"]:
+                        v = pmt_results[dn]["global_stats"][k]
+                        stats_nfo += f'{k}: {v:4.1f} '
+                    pmt_nfo += f' > {pos:>2} {dn:25s} : {wonH:6.2f} {wonH_mstd_str:9}    {stats_nfo}\n'
                 logger.info(pmt_nfo)
 
                 # remove worst

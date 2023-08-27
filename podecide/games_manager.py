@@ -320,7 +320,7 @@ class GamesManager:
             time.sleep(sleep)
 
             reports = self._get_reports({dn: len(dmk_results[dn]['wonH_IV']) for dn in dmk_results}) # actual DMK reports
-            num_IV = []
+            num_IV = [] # number of IV reports, for each DMK
             for dn in reports:
                 dmk_results[dn]['wonH_IV'] += reports[dn]['wonH_IV']
                 dmk_results[dn]['wonH_afterIV'] += reports[dn]['wonH_afterIV']
