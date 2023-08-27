@@ -291,8 +291,8 @@ if __name__ == "__main__":
             logger.info(f'created {len(dmk_refs)} refs DMKs: {dmk_refs}')
 
         logger.info(f'loop #{loop_ix} DMKs:')
-        logger.info(f'> learners: ({len(dmk_learners)}) {" ".join(dmk_learners)}')
-        logger.info(f'> refs:     ({len(dmk_refs)}) {" ".join(dmk_refs)}')
+        logger.info(f'> learners: ({len(dmk_learners)}) {", ".join(dmk_learners)}')
+        logger.info(f'> refs:     ({len(dmk_refs)}) {", ".join(dmk_refs)}')
 
         #******************************************************************************************* 2. train (learners)
 
@@ -434,7 +434,7 @@ if __name__ == "__main__":
             stats_nfo = ''
             for k in dmk_results[dn]["global_stats"]:
                 v = dmk_results[dn]["global_stats"][k]
-                stats_nfo += f'{k}: {v:4.1f} '
+                stats_nfo += f'{k}:{v:4.1f} '
             res_nfo += f' > {pos:>2} {dn} : {wonH:6.2f} {wonH_mstd_str:9} d: {wonH_diff:6.2f}{sep}{lifemark}    {stats_nfo}\n'
         logger.info(res_nfo)
 
@@ -450,7 +450,7 @@ if __name__ == "__main__":
             stats_nfo = ''
             for k in dmk_results[dn]["global_stats"]:
                 v = dmk_results[dn]["global_stats"][k]
-                stats_nfo += f'{k}: {v:4.1f} '
+                stats_nfo += f'{k}:{v:4.1f} '
             res_nfo += f' > {pos:>2} {dn}_ref : {wonH:6.2f} {wonH_mstd_str:9}    {stats_nfo}\n'
         logger.info(res_nfo)
 
@@ -459,7 +459,7 @@ if __name__ == "__main__":
         ### prepare new list of learners
 
         dmk_learners_asi = [dn for dn in learners_ranked if dmk_results[dn]['separated'] and dmk_results[dn]['wonH_diff']>0]
-        logger.info(f'learners aged & separated & improved: {" ".join(dmk_learners_asi)}')
+        logger.info(f'learners aged & separated & improved: {", ".join(dmk_learners_asi)}')
 
         dmk_learners_updated = []
         for ix,dna in enumerate(dmk_learners_aged):
@@ -482,7 +482,7 @@ if __name__ == "__main__":
                 dmk_learners_bad_lifemark.append(dn)
 
         if dmk_learners_bad_lifemark:
-            logger.info(f'removing learners with bad lifemark: {" ".join(dmk_learners_bad_lifemark)}')
+            logger.info(f'removing learners with bad lifemark: {", ".join(dmk_learners_bad_lifemark)}')
             dmk_learners_updated = [dn for dn in dmk_learners_updated if dn not in dmk_learners_bad_lifemark]
 
         # clean out folder
@@ -540,7 +540,7 @@ if __name__ == "__main__":
 
         if dmk_add_to_refs:
             dmk_add_to_refs = list(reversed(dmk_add_to_refs)) # reverse it back
-            logger.info(f'adding to refs: {" ".join(dmk_add_to_refs)}')
+            logger.info(f'adding to refs: {", ".join(dmk_add_to_refs)}')
 
             for dn in dmk_refs:
                 if dn not in refs_ranked:

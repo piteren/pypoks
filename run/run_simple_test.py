@@ -19,7 +19,7 @@ if __name__ == "__main__":
 
     loop_results = r_json(RESULTS_FP)
     refs_ranked = loop_results['refs_ranked']
-    logger.info(f'Starting test game for {" ".join(refs_ranked)}')
+    logger.info(f'Starting test game for: {", ".join(refs_ranked)}')
 
     names = [nm[:-4] for nm in refs_ranked]
     copy_dmks(

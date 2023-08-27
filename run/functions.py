@@ -273,7 +273,7 @@ def results_report(
         stats_nfo = ''
         for k in dmk_results[dn]["global_stats"]:
             v = dmk_results[dn]["global_stats"][k]
-            stats_nfo += f'{k}: {v:4.1f} '
+            stats_nfo += f'{k}:{v:4.1f} '
         res_nfo += f'{dn} : {wonH:6.2f} {wonH_mstd_str:9}    {stats_nfo}\n'
 
     return res_nfo
