@@ -105,46 +105,59 @@ CONFIG_INIT = {
 
 if __name__ == "__main__":
 
+    # check for continuation
+    continuation = False
+    loops_results = r_json(RESULTS_FP)
+    if loops_results:
+        saved_n_loops = int(loops_results['loop_ix'])
+        print(f'Do you want to continue with saved ({DMK_MODELS_FD}) {saved_n_loops} loops? ..waiting 10 sec (y/n, y-default)')
+        i, o, e = select.select([sys.stdin], [], [], 10)
+        if i and sys.stdin.readline().strip() == 'n':
+            pass
+        else:
+            continuation = True
+
+    # clean out dmk folder
+    if not continuation:
+        shutil.rmtree(f'{DMK_MODELS_FD}', ignore_errors=True)
+        print(f'cleaned out {DMK_MODELS_FD}')
+
     tl_name = f'run_train_loop_{stamp()}'
     logger = get_pylogger(
         name=       tl_name,
         add_stamp=  False,
         folder=     DMK_MODELS_FD,
         level=      20)
-
     logger.info(f'train_loop {tl_name} starts..')
 
     cm = ConfigManager(file_FP=CONFIG_FP, config_init=CONFIG_INIT, logger=logger)
     tbwr = TBwr(logdir=f'{DMK_MODELS_FD}/{tl_name}')
 
-    # initial values
-    loop_ix = 1
-    dmk_learners = []
-    dmk_refs = []
-
-    # check for continuation
-    loops_results = r_json(RESULTS_FP)
-    if loops_results:
+    if continuation:
 
         saved_n_loops = int(loops_results['loop_ix'])
-        logger.info(f'Do you want to continue with saved ({DMK_MODELS_FD}) {saved_n_loops} loops? ..waiting 10 sec (y/n, y-default)')
+        logger.info(f'> continuing with saved {saved_n_loops} loops')
 
-        i, o, e = select.select([sys.stdin], [], [], 10)
-        if i and sys.stdin.readline().strip() == 'n':
-            pass
-        else:
-            logger.info(f'> continuing with saved {saved_n_loops} loops')
+        loop_ix = saved_n_loops + 1
+        since_last_update = int(loops_results['since_last_update'])
 
-            loop_ix = saved_n_loops + 1
-
-            saved_dmks = get_saved_dmks_names()
-            dmk_refs = [dn for dn in saved_dmks if dn.endswith('_ref')]
-            dmk_learners = [dn for dn in saved_dmks if dn not in dmk_refs]
+        saved_dmks = get_saved_dmks_names()
+        dmk_refs = [dn for dn in saved_dmks if dn.endswith('_ref')]
+        dmk_learners = [dn for dn in saved_dmks if dn not in dmk_refs]
 
     else:
-        loops_results = {'loop_ix': loop_ix, 'lifemarks': {}, 'refs_ranked': []}
 
-    since_last_update = cm.update_interval
+        loop_ix = 1
+        since_last_update = cm.update_interval
+
+        dmk_refs = []
+        dmk_learners = []
+
+        loops_results = {
+            'loop_ix':              loop_ix,
+            'lifemarks':            {},
+            'refs_ranked':          [],
+            'since_last_update':    since_last_update}
 
     """
     DMKs are named with pattern: f'dmk{loop_ix:02}{family}{cix:02}_{age:02}' + optional '_ref'
@@ -510,7 +523,7 @@ if __name__ == "__main__":
 
         if dmk_add_to_refs:
             dmk_add_to_refs = list(reversed(dmk_add_to_refs)) # reverse it back
-            logger.info(f'adding to refs: {", ".join(dmk_add_to_refs)};  refs_gain: {refs_gain:.2f}')
+            logger.info(f'adding to refs: {", ".join(dmk_add_to_refs)}; +refs_gain: {refs_gain:.2f}')
 
             for dn in dmk_refs:
                 if dn not in refs_ranked:
