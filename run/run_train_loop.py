@@ -161,29 +161,29 @@ if __name__ == "__main__":
 
     """
     DMKs are named with pattern: f'dmk{loop_ix:02}{family}{cix:02}_{age:02}' + optional '_ref'
-    where:
-        - cix   : index of DMK created in one loop
-        - _ref  : is added to DMKs i refs group
+        where:
+            - cix   : index of DMK created in one loop
+            - _ref  : is added to DMKs i refs group
 
-    1. eventually create DMKs
+    1. Create DMKs
         fill up dmk_learners (new / GX)
         create dmk_refs <- only in the first loop
             
-    2. train (learners)
+    2. Train (learners)
         copy learners to new age (+1)
         split dmk_learners into groups of ndmk_TR
         train each group against dmk_refs
     
-    3. test (learners & refs)
+    3. Test (learners & refs)
         prepare list of DMKs to test
         split into groups of ndmk_TS
         test may be broken with 'separated' condition
     
-    4. analyse / report results of learners and refs
+    4. Analyse & report results of learners and refs
         
-    5. manage / modify DMKs lists (learners & refs)
+    5. Manage (modify) DMKs lists (learners & refs)
     
-    6. adjust TS game size
+    6. Adjust TS game size
     
     7. PMT evaluation
     """
@@ -201,7 +201,7 @@ if __name__ == "__main__":
         tbwr.add(value=cm.game_size_TS, tag=f'loop/game_size_TS', step=loop_ix)
         tbwr.add(value=cm.game_size_TR, tag=f'loop/game_size_TR', step=loop_ix)
 
-        #************************************************************************************* 1. eventually create DMKs
+        #************************************************************************************************ 1. create DMKs
 
         # fill up dmk_learners (new / GX)
         if len(dmk_learners) < cm.ndmk_learners:
