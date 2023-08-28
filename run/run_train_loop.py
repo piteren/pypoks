@@ -82,37 +82,25 @@ CONFIG_INIT = {
     'ndmk_refs':                5,         # number of refs DMKs (should fit on one GPU)
     # TODO: temp set (10)
     'ndmk_learners':            5,         # number of learners DMKs
-
     'ndmk_TR':                  5,          # learners are trained against refs in groups of this size
     'ndmk_TS':                  10,         # learners and refs are tested against refs in groups of this size
-
-    'game_size_upd':            100000,     # how much increase TR or TS game size when needed
-    'min_sep':                  0.4,        # -> 0.7    min factor of DMKs separated, if lower TS game is increased
-    'factor_TS_TR':             2,          # max factor TS_game_size/TR_game_size, if higher TR is increased
+    'update_size':              100000,     # how much increase TS game size when needed
+    'update_interval':          5,          # interval of TS game size update
         # train
-    # TODO: temp set (300K)
     'game_size_TR':             100000,
     'dmk_n_players_TR':         150,        # number of players per DMK while TR
         # test
-    # TODO: temp set (300K)
     'game_size_TS':             100000,
     'dmk_n_players_TS':         150,        # number of players per DMK while TS
-    'sep_pairs_factor':         0.8,        # pairs separation break value
-    # TODO: temp set (2.0)
+    'sep_pairs_factor':         1.1,        # pairs separation break value, value > 1 disables break
     'sep_n_stdev':              1.0,        # separation won IV mean stdev factor
         # replace / new
-    'rank_mavg_factor':         0.3,        # mavg_factor of rank_smooth calculation
-    'safe_rank':                0.5,        # <0.0;1.0> factor of rank_smooth that is safe (not considered to be replaced, 0.6 means that top 60% of rank is safe)
     'remove_key':               [4,1],      # [A,B] remove DMK if in last A+B life marks there are A -|
-    'prob_fresh_dmk':           0.8,        # -> 0.5    probability of 100% fresh DMK
-    'prob_fresh_ckpt':          0.8,        # -> 0.5    probability of fresh checkpoint (child from GX of point only, without GX of ckpt)
+    'prob_fresh_dmk':           0.8,        # probability of 100% fresh DMK
+    'prob_fresh_ckpt':          0.8,        # probability of fresh checkpoint (child from GX of point only, without GX of ckpt)
         # PMT (Periodical Masters Test)
     'n_loops_PMT':              5,          # do PMT every N loops
     'ndmk_PMT':                 10}         # max number of DMKs (masters) in PMT
-
-# TODO:
-#  - clean out TB
-#  - game_size_TS controlled by diff & stddev without outliers
 
 
 if __name__ == "__main__":
@@ -156,6 +144,8 @@ if __name__ == "__main__":
     else:
         loops_results = {'loop_ix': loop_ix, 'lifemarks': {}, 'refs_ranked': []}
 
+    since_last_update = cm.update_interval
+
     """
     DMKs are named with pattern: f'dmk{loop_ix:02}{family}{cix:02}_{age:02}' + optional '_ref'
     where:
@@ -180,13 +170,9 @@ if __name__ == "__main__":
         
     5. manage / modify DMKs lists (learners & refs)
     
-    6. PMT evaluation
+    6. adjust TS game size
     
-    
-    
-    
-
-        adjust TR / TS parameters
+    7. PMT evaluation
     """
     while True:
 
@@ -430,18 +416,19 @@ if __name__ == "__main__":
         learners_ranked = [e[0] for e in sorted(dmk_rw, key=lambda x:x[1], reverse=True)]
 
         res_nfo = f'learners results:\n'
-        for pos,dn in enumerate(learners_ranked):
+        for dn in learners_ranked:
             wonH = dmk_results[dn]['last_wonH_afterIV']
             wonH_diff = dmk_results[dn]['wonH_diff']
+            wonH_IV_std = dmk_results[dn]['wonH_IV_stdev']
             wonH_mstd = dmk_results[dn]['wonH_IV_mean_stdev']
-            wonH_mstd_str = f'[{wonH_mstd:.2f}]'
+            wonH_mstd_str = f'[{wonH_IV_std:.2f}/{wonH_mstd:.2f}]'
             sep = ' s' if dmk_results[dn]['separated'] else '  '
             lifemark = f' {dmk_results[dn]["lifemark"]}'
             stats_nfo = ''
             for k in dmk_results[dn]["global_stats"]:
                 v = dmk_results[dn]["global_stats"][k]
                 stats_nfo += f'{k}:{v:4.1f} '
-            res_nfo += f' > {pos:>2} {dn} : {wonH:6.2f} {wonH_mstd_str:7} d: {wonH_diff:6.2f}{sep}{lifemark}    {stats_nfo}\n'
+            res_nfo += f'{dn:18} : {wonH:6.2f} {wonH_mstd_str:>12}  {stats_nfo}  d: {wonH_diff:6.2f}{sep}{lifemark}\n'
         logger.info(res_nfo)
 
         logger.info(f'refs results:\n{results_report(dmk_results, dmks=dmk_refs)}')
@@ -490,20 +477,10 @@ if __name__ == "__main__":
 
         ### replace some refs by learners that improved
 
-        dmk_add_to_refs = []
         dmk_rw = [(dn, dmk_results[dn]['last_wonH_afterIV']) for dn in dmk_refs]
         refs_ranked = [e[0] for e in sorted(dmk_rw, key=lambda x: x[1], reverse=True)]
 
-        # copy refs master before any update
-        if loop_ix % cm.n_loops_PMT == 0:
-            new_master = refs_ranked[0]
-            copy_dmks(
-                names_src=          [new_master],
-                names_trg=          [f'{new_master[:-4]}_pmt{loop_ix // cm.n_loops_PMT:03}'],
-                save_topdir_trg=    PMT_FD,
-                logger=             get_child(logger, change_level=10))
-            logger.info(f'copied {new_master} to PMT (before updating refs)')
-
+        dmk_add_to_refs = []
         for dn in reversed(dmk_learners_asi[:cm.ndmk_refs]): # reversed to start from worst
 
             replaced_by_age = None
@@ -529,9 +506,11 @@ if __name__ == "__main__":
                     dmk_add_to_refs.append(dn)
                     refs_ranked.remove(dnr)
 
+        refs_gain = sum([dmk_results[dn]['wonH_diff'] for dn in dmk_add_to_refs])
+
         if dmk_add_to_refs:
             dmk_add_to_refs = list(reversed(dmk_add_to_refs)) # reverse it back
-            logger.info(f'adding to refs: {", ".join(dmk_add_to_refs)}')
+            logger.info(f'adding to refs: {", ".join(dmk_add_to_refs)};  refs_gain: {refs_gain:.2f}')
 
             for dn in dmk_refs:
                 if dn not in refs_ranked:
@@ -552,7 +531,6 @@ if __name__ == "__main__":
         refs_ranked = [e[0] for e in sorted(dmk_rw, key=lambda x: x[1], reverse=True)]
         loops_results['refs_ranked'] = refs_ranked
 
-        refs_gain = sum([dmk_results[dn]['wonH_diff'] for dn in dmk_add_to_refs])
         refs_diff = dmk_results[refs_ranked[0]]['last_wonH_afterIV'] - dmk_results[refs_ranked[-1]]['last_wonH_afterIV']
         refs_wonH_IV_stdev_avg = sum([dmk_results[dn]['wonH_IV_stdev'] for dn in dmk_refs]) / cm.ndmk_refs
 
@@ -579,15 +557,43 @@ if __name__ == "__main__":
         loops_results['loop_ix'] = loop_ix
         w_json(loops_results, RESULTS_FP)
 
+        # *************************************************************************************** 6. adjust TS game size
+
+        print('since_last_update:',since_last_update)
+        if since_last_update > 0:
+            since_last_update -= 1
+
+        if since_last_update == 0:
+
+            lifemarks_str = ''
+            for dn in loops_results['lifemarks']:
+                lifemarks_str += loops_results['lifemarks'][dn][-cm.update_interval:]
+            print('lifemarks:', lifemarks_str)
+
+            not_sep_count = lifemarks_str.count('|') + lifemarks_str.count('/')
+            print(f'not_sep_count: {not_sep_count} / {len(lifemarks_str)}')
+            if not_sep_count / len(lifemarks_str) >= 0.5:
+                cm.game_size_TS += cm.update_size
+                since_last_update = cm.update_interval
+                logger.info(f'increased game_size_TS to {cm.game_size_TS}')
+
+
         if cm.pause: input("press Enter to continue..")
 
         loop_time = (time.time() - loop_stime) / 60
         logger.info(f'loop {loop_ix} finished, time taken: {loop_time:.1f}min')
         tbwr.add(value=loop_time, tag=f'loop/loop_time', step=loop_ix)
 
-        #********************************************************************************************* 6. PMT evaluation
+        #********************************************************************************************* 7. PMT evaluation
 
         if loop_ix % cm.n_loops_PMT == 0:
+            new_master = refs_ranked[0]
+            copy_dmks(
+                names_src=          [new_master],
+                names_trg=          [f'{new_master[:-4]}_pmt{loop_ix // cm.n_loops_PMT:02}'],
+                save_topdir_trg=    PMT_FD,
+                logger=             get_child(logger, change_level=10))
+            logger.info(f'copied {new_master} to PMT')
 
             all_pmt = get_saved_dmks_names(PMT_FD)
             if len(all_pmt) > 2: # skips some
@@ -629,16 +635,8 @@ if __name__ == "__main__":
                 if len(all_pmt) == cm.ndmk_PMT:
                     dmk_rw = [(dn, pmt_results[dn]['last_wonH_afterIV']) for dn in pmt_results]
                     pmt_ranked = [e[0] for e in sorted(dmk_rw, key=lambda x: x[1], reverse=True)]
-                    dn = pmt_ranked[-1]["name"]
+                    dn = pmt_ranked[-1]
                     shutil.rmtree(f'{PMT_FD}/{dn}', ignore_errors=True)
                     logger.info(f'removed PMT: {dn}')
 
         loop_ix += 1
-
-        """
-        # eventually increase game_size
-        if sep_factor < cm.min_sep:
-            cm.game_size_TS = cm.game_size_TS + cm.game_size_upd
-        if cm.game_size_TS > cm.game_size_TR * cm.factor_TS_TR:
-            cm.game_size_TR = cm.game_size_TR + cm.game_size_upd
-        """

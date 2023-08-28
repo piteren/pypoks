@@ -269,12 +269,13 @@ def results_report(
     res_nfo = ''
     for dn in dmk_ranked:
         wonH = dmk_results[dn]['last_wonH_afterIV']
+        wonH_IV_std = dmk_results[dn]['wonH_IV_stdev']
         wonH_mstd = dmk_results[dn]['wonH_IV_mean_stdev']
-        wonH_mstd_str = f'[{wonH_mstd:.2f}]'
+        wonH_mstd_str = f'[{wonH_IV_std:.2f}/{wonH_mstd:.2f}]'
         stats_nfo = ''
         for k in dmk_results[dn]["global_stats"]:
             v = dmk_results[dn]["global_stats"][k]
             stats_nfo += f'{k}:{v:4.1f} '
-        res_nfo += f'{dn} : {wonH:6.2f} {wonH_mstd_str:7}    {stats_nfo}\n'
+        res_nfo += f'{dn:18} : {wonH:6.2f} {wonH_mstd_str:>12}    {stats_nfo}\n'
 
     return res_nfo

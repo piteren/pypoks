@@ -282,7 +282,7 @@ class GamesManager:
             sep_all_break: bool=                        False,  # breaks game when all DMKs are separated
             sep_pairs: Optional[List[Tuple[str,str]]]=  None,   # pairs of DMK names for separation condition
             sep_pairs_factor: float=                    0.9,    # factor of separated pairs needed to break the game
-            sep_n_stdev: float=                         2.0,
+            sep_n_stdev: float=                         1.0,
             sep_min_IV: int=                            10,     # minimal number of IV to enable any sep break
     ) -> Dict[str, Dict]:
         """
