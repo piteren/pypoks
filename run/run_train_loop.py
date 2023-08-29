@@ -93,8 +93,6 @@ CONFIG_INIT = {
         # test
     'game_size_TS':             100000,
     'dmk_n_players_TS':         150,        # number of players per DMK while TS
-    'sep_pairs_factor':         1.1,        # pairs separation break value, value > 1 disables break
-    'sep_n_stdev':              1.0,        # separation won IV mean stdev factor
         # replace / new
     'remove_key':               [4,1],      # [A,B] remove DMK if in last A+B life marks there are A -|
     'prob_fresh_dmk':           0.8,        # probability of 100% fresh DMK
@@ -143,7 +141,7 @@ if __name__ == "__main__":
         since_last_update = int(loops_results['since_last_update'])
 
         saved_dmks = get_saved_dmks_names()
-        dmk_refs = [dn for dn in saved_dmks if dn.endswith('_ref')]
+        dmk_refs = [dn for dn in saved_dmks if dn.endswith('R')]
         dmk_learners = [dn for dn in saved_dmks if dn not in dmk_refs]
 
     else:
@@ -161,10 +159,10 @@ if __name__ == "__main__":
             'since_last_update':    since_last_update}
 
     """
-    DMKs are named with pattern: f'dmk{loop_ix:02}{family}{cix:02}_{age:02}' + optional '_ref'
+    DMKs are named with pattern: f'dmk{loop_ix:03}{family}{cix:02}_{age:03}' + optional 'R'
         where:
-            - cix   : index of DMK created in one loop
-            - _ref  : is added to DMKs i refs group
+            - cix : index of DMK created in one loop
+            - R   : is added to DMKs in refs group
 
     1. Create DMKs
         fill up dmk_learners (new / GX)
@@ -225,7 +223,7 @@ if __name__ == "__main__":
                 # build new one from forced
                 if families_forced:
                     family = families_forced.pop()
-                    name_child = f'dmk{loop_ix:02}{family}{cix:02}_00'
+                    name_child = f'dmk{loop_ix:03}{family}{cix:02}_000'
                     logger.info(f'> {name_child} <- fresh, forced from family {family}')
                     build_single_foldmk(
                         name=   name_child,
@@ -236,7 +234,7 @@ if __name__ == "__main__":
 
                     pa = random.choice(dmk_refs) if dmk_refs else None
                     family = refs_families[pa] if pa is not None else random.choice(cm.families)
-                    name_child = f'dmk{loop_ix:02}{family}{cix:02}_00'
+                    name_child = f'dmk{loop_ix:03}{family}{cix:02}_000'
 
                     # 100% fresh DMK from selected family
                     if random.random() < cm.prob_fresh_dmk or pa is None:
@@ -256,7 +254,6 @@ if __name__ == "__main__":
 
                         ckpt_fresh = random.random() < cm.prob_fresh_ckpt
                         ckpt_fresh_info = ' (fresh ckpt)' if ckpt_fresh else ''
-                        name_child = f'dmk{loop_ix:02}{family}{cix:02}'
                         logger.info(f'> {name_child} = {pa} + {pb}{ckpt_fresh_info}')
                         FolDMK.gx_saved(
                             name_parent_main=           pa,
@@ -273,7 +270,7 @@ if __name__ == "__main__":
         if loop_ix == 1:
 
             dmk_refs_from_learners = dmk_learners[:cm.ndmk_refs]
-            dmk_refs = [f'{dn}_ref' for dn in dmk_refs_from_learners]
+            dmk_refs = [f'{dn}R' for dn in dmk_refs_from_learners]
             copy_dmks(
                 names_src=  dmk_refs_from_learners,
                 names_trg=  dmk_refs,
@@ -282,7 +279,7 @@ if __name__ == "__main__":
             cix = len(dmk_learners)
             while len(dmk_refs) < cm.ndmk_refs:
                 family = random.choice(cm.families)
-                name_child = f'dmk{loop_ix:02}{family}{cix:02}_00_ref'
+                name_child = f'dmk{loop_ix:03}{family}{cix:02}_000R'
                 cix += 1
                 build_single_foldmk(
                     name=   name_child,
@@ -299,7 +296,7 @@ if __name__ == "__main__":
         #******************************************************************************************* 2. train (learners)
 
         # copy dmk_learners to new age
-        dmk_learners_aged = [f'{dn[:-2]}{int(dn[-2:])+1:02}' for dn in dmk_learners]
+        dmk_learners_aged = [f'{dn[:-3]}{int(dn[-3:])+1:03}' for dn in dmk_learners]
         copy_dmks(
             names_src=  dmk_learners,
             names_trg=  dmk_learners_aged,
@@ -342,13 +339,12 @@ if __name__ == "__main__":
 
         # if there are refs that are not present in learners, those need to be tested also (and then deleted)
         dmk_refs_to_test = []
-        for dn in dmk_refs:
-            dn_test = dn[:-4]
-            if dn_test not in dmk_learners:
-                dmk_refs_to_test.append(dn)
+        for dnr in dmk_refs:
+            if dnr[:-1] not in dmk_learners:
+                dmk_refs_to_test.append(dnr)
         dmk_refs_copied_to_test = []
         if dmk_refs_to_test:
-            dmk_refs_copied_to_test = [dn[:-4] for dn in dmk_refs_to_test]
+            dmk_refs_copied_to_test = [dn[:-1] for dn in dmk_refs_to_test]
             copy_dmks(
                 names_src=  dmk_refs_to_test,
                 names_trg=  dmk_refs_copied_to_test,
@@ -384,8 +380,8 @@ if __name__ == "__main__":
                 game_size=          cm.game_size_TS,
                 dmk_n_players=      cm.dmk_n_players_TS,
                 sep_pairs=          pairs,
-                sep_pairs_factor=   cm.sep_pairs_factor,
-                sep_n_stdev=        cm.sep_n_stdev,
+                sep_pairs_factor=   1.1, # disables sep pairs break
+                sep_n_stdev=        1.0,
                 logger=             logger)
             speedL.append(rgd['loop_stats']['speed'])
             dmk_results.update(rgd['dmk_results'])
@@ -395,7 +391,7 @@ if __name__ == "__main__":
 
         # instantiate results of refs
         for dn in dmk_refs:
-            dmk_results[dn] = dmk_results[dn[:-4]]
+            dmk_results[dn] = dmk_results[dn[:-1]]
 
         # delete dmk_refs_copied_to_test
         for dn in dmk_refs_copied_to_test:
@@ -454,36 +450,36 @@ if __name__ == "__main__":
         dmk_learners_asi = [dn for dn in learners_ranked if dmk_results[dn]['separated'] and dmk_results[dn]['wonH_diff']>0]
         logger.info(f'learners aged & separated & improved: {", ".join(dmk_learners_asi)}')
 
-        dmk_learners_updated = []
+        dmk_learners_NEW = []
         for ix,dna in enumerate(dmk_learners_aged):
             dn = dmk_learners[ix]
 
             # replace learner by aged & separated & improved
             if dna in dmk_learners_asi:
-                dmk_learners_updated.append(dna)
+                dmk_learners_NEW.append(dna)
             # save lifemark of not improved
             else:
                 dmk_results[dn]['lifemark'] = dmk_results[dna]['lifemark']
-                dmk_learners_updated.append(dn)
+                dmk_learners_NEW.append(dn)
 
         ### remove bad lifemarks from learners
 
         dmk_learners_bad_lifemark = []
-        for dn in dmk_learners_updated:
+        for dn in dmk_learners_NEW:
             lifemark_ending = dmk_results[dn]['lifemark'][-sum(cm.remove_key):]
             if lifemark_ending.count('-') + lifemark_ending.count('|') >= cm.remove_key[0] and lifemark_ending[-1] not in '/+':
                 dmk_learners_bad_lifemark.append(dn)
 
         if dmk_learners_bad_lifemark:
             logger.info(f'removing learners with bad lifemark: {", ".join(dmk_learners_bad_lifemark)}')
-            dmk_learners_updated = [dn for dn in dmk_learners_updated if dn not in dmk_learners_bad_lifemark]
+            dmk_learners_NEW = [dn for dn in dmk_learners_NEW if dn not in dmk_learners_bad_lifemark]
 
         # clean out folder
         for dn in dmk_learners + dmk_learners_aged:
-            if dn not in dmk_learners_updated:
+            if dn not in dmk_learners_NEW:
                 shutil.rmtree(f'{DMK_MODELS_FD}/{dn}', ignore_errors=True)
 
-        dmk_learners = dmk_learners_updated
+        dmk_learners = dmk_learners_NEW
 
         loops_results['lifemarks'] = {}
         for dn in dmk_learners:
@@ -503,7 +499,7 @@ if __name__ == "__main__":
 
             replaced_by_age = None
             for dnr in refs_ranked:
-                if dnr[:-7] == dn[:-3]:
+                if dnr[:-4] == dn[:-3]:
                     replaced_by_age = dnr
                     break
 
@@ -538,14 +534,13 @@ if __name__ == "__main__":
                 refs_gain += dmk_results[dn]['last_wonH_afterIV'] - dmk_results[replaced_by_sep]['last_wonH_afterIV']
 
         if dmk_add_to_refs:
-            dmk_add_to_refs = list(reversed(dmk_add_to_refs)) # reverse it back
             logger.info(f'adding to refs: {", ".join(dmk_add_to_refs)}; +refs_gain: {refs_gain:.2f}')
 
             for dn in dmk_refs:
                 if dn not in refs_ranked:
                     shutil.rmtree(f'{DMK_MODELS_FD}/{dn}', ignore_errors=True)
 
-            new_ref_names = [f'{dn}_ref' for dn in dmk_add_to_refs]
+            new_ref_names = [f'{dn}R' for dn in dmk_add_to_refs]
             copy_dmks(
                 names_src=  dmk_add_to_refs,
                 names_trg=  new_ref_names,
@@ -555,7 +550,7 @@ if __name__ == "__main__":
 
         # prepare refs_ranked after all changes and save
         for dn in dmk_refs:
-            dmk_results[dn] = dmk_results[dn[:-4]] # copy again for new refs
+            dmk_results[dn] = dmk_results[dn[:-1]] # copy again for new refs
         dmk_rw = [(dn, dmk_results[dn]['last_wonH_afterIV']) for dn in dmk_refs]
         refs_ranked = [e[0] for e in sorted(dmk_rw, key=lambda x: x[1], reverse=True)]
         loops_results['refs_ranked'] = refs_ranked
@@ -620,7 +615,7 @@ if __name__ == "__main__":
             new_master = refs_ranked[0]
             copy_dmks(
                 names_src=          [new_master],
-                names_trg=          [f'{new_master[:-4]}_pmt{loop_ix // cm.n_loops_PMT:02}'],
+                names_trg=          [f'{new_master[:-1]}_pmt{loop_ix // cm.n_loops_PMT:02}'],
                 save_topdir_trg=    PMT_FD,
                 logger=             get_child(logger, change_level=10))
             logger.info(f'copied {new_master} to PMT')
