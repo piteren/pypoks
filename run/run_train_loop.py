@@ -77,7 +77,7 @@ CONFIG_INIT = {
     'exit':                     False,      # exits loop (after train)
     'pause':                    False,      # pauses loop after test till Enter pressed
     # TODO: temp set ('b')
-    'families':                 'a',        # active families (at least one DMK should be present)
+    'families':                 'a',        # active families (forced to be present in learners)
     # TODO: temp set (10)
     'ndmk_refs':                5,         # number of refs DMKs (should fit on one GPU)
     # TODO: temp set (10)
@@ -86,6 +86,7 @@ CONFIG_INIT = {
     'ndmk_TS':                  10,         # learners and refs are tested against refs in groups of this size
     'update_size':              100000,     # how much increase TS game size when needed
     'update_interval':          5,          # interval of TS game size update
+    'sep_factor_iv':            0.25,       # update trigger - min factor of sep in interval lifemarks
         # train
     'game_size_TR':             100000,
     'dmk_n_players_TR':         150,        # number of players per DMK while TR
@@ -494,32 +495,47 @@ if __name__ == "__main__":
         refs_ranked = [e[0] for e in sorted(dmk_rw, key=lambda x: x[1], reverse=True)]
 
         dmk_add_to_refs = []
-        for dn in reversed(dmk_learners_asi[:cm.ndmk_refs]): # reversed to start from worst
+        refs_gain = 0
+
+        # first by age
+        dmk_learners_asi_not_by_age = []
+        for dn in dmk_learners_asi:
 
             replaced_by_age = None
             for dnr in refs_ranked:
                 if dnr[:-7] == dn[:-3]:
-                    dmk_add_to_refs.append(dn)
                     replaced_by_age = dnr
                     break
 
             if replaced_by_age:
+                dmk_add_to_refs.append(dn)
                 refs_ranked.remove(replaced_by_age)
+                refs_gain += dmk_results[dn]['last_wonH_afterIV'] - dmk_results[replaced_by_age]['last_wonH_afterIV']
+
             else:
+                dmk_learners_asi_not_by_age.append(dn)
 
-                dnr = refs_ranked[-1]
+        # then by sep
+        for dn in dmk_learners_asi_not_by_age: # from top
 
-                if separated_factor(
-                    a_wonH=             dmk_results[dn]['last_wonH_afterIV'],
+            replaced_by_sep = None
+            for dnr in reversed(refs_ranked): # from bottom
+                a_wonH = dmk_results[dn]['last_wonH_afterIV']
+                b_wonH = dmk_results[dnr]['last_wonH_afterIV']
+                if a_wonH > b_wonH and separated_factor(
+                    a_wonH=             a_wonH,
                     a_wonH_mean_stdev=  dmk_results[dn]['wonH_IV_mean_stdev'],
-                    b_wonH=             dmk_results[dnr]['last_wonH_afterIV'],
+                    b_wonH=             b_wonH,
                     b_wonH_mean_stdev=  dmk_results[dnr]['wonH_IV_mean_stdev'],
                     n_stdev=            cm.sep_n_stdev,
                 ) >= 1:
-                    dmk_add_to_refs.append(dn)
-                    refs_ranked.remove(dnr)
+                    replaced_by_sep = dnr
+                    break
 
-        refs_gain = sum([dmk_results[dn]['wonH_diff'] for dn in dmk_add_to_refs])
+            if replaced_by_sep:
+                dmk_add_to_refs.append(dn)
+                refs_ranked.remove(replaced_by_sep)
+                refs_gain += dmk_results[dn]['last_wonH_afterIV'] - dmk_results[replaced_by_sep]['last_wonH_afterIV']
 
         if dmk_add_to_refs:
             dmk_add_to_refs = list(reversed(dmk_add_to_refs)) # reverse it back
@@ -568,27 +584,26 @@ if __name__ == "__main__":
                     step=   loop_ix)
 
         loops_results['loop_ix'] = loop_ix
-        w_json(loops_results, RESULTS_FP)
 
         # *************************************************************************************** 6. adjust TS game size
 
-        print('since_last_update:',since_last_update)
         if since_last_update > 0:
             since_last_update -= 1
 
-        if since_last_update == 0:
+        lifemarks_str = ''
+        for dn in loops_results['lifemarks']:
+            lifemarks_str += loops_results['lifemarks'][dn][-cm.update_interval:]
+        sep_count = lifemarks_str.count('+') + lifemarks_str.count('-')
+        sfi = sep_count / len(lifemarks_str)
+        logger.info(f'since last TS game size update: {since_last_update}; sep_factor_interval: {sfi:.2f} ({sep_count}/{len(lifemarks_str)}) {lifemarks_str}')
+        tbwr.add(value=sfi, tag=f'loop/sep_factor_interval', step=loop_ix)
 
-            lifemarks_str = ''
-            for dn in loops_results['lifemarks']:
-                lifemarks_str += loops_results['lifemarks'][dn][-cm.update_interval:]
-            print('lifemarks:', lifemarks_str)
+        if since_last_update == 0 and sfi < cm.sep_factor_iv:
+            cm.game_size_TS += cm.update_size
+            since_last_update = cm.update_interval
+            logger.info(f'increased game_size_TS to {cm.game_size_TS}')
 
-            not_sep_count = lifemarks_str.count('|') + lifemarks_str.count('/')
-            print(f'not_sep_count: {not_sep_count} / {len(lifemarks_str)}')
-            if not_sep_count / len(lifemarks_str) >= 0.5:
-                cm.game_size_TS += cm.update_size
-                since_last_update = cm.update_interval
-                logger.info(f'increased game_size_TS to {cm.game_size_TS}')
+        loops_results['since_last_update'] = since_last_update
 
 
         if cm.pause: input("press Enter to continue..")
@@ -596,6 +611,8 @@ if __name__ == "__main__":
         loop_time = (time.time() - loop_stime) / 60
         logger.info(f'loop {loop_ix} finished, time taken: {loop_time:.1f}min')
         tbwr.add(value=loop_time, tag=f'loop/loop_time', step=loop_ix)
+
+        w_json(loops_results, RESULTS_FP)
 
         #********************************************************************************************* 7. PMT evaluation
 

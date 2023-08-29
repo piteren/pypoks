@@ -332,9 +332,12 @@ class GamesManager:
             num_IV = min(num_IV)
 
             # calculate game factor
-            n_hands = sum([reports[dn]['n_hands'] for dn in reports])
-            game_factor = n_hands / len(reports) / game_size
-            if game_factor >= 1: game_factor = 1
+            nhL = [reports[dn]['n_hands'] for dn in reports]
+            n_hands = sum(nhL)
+            n_hands_min = min(nhL)
+            game_factor = n_hands_min / game_size
+            if game_factor >= 1:
+                game_factor = 1
 
             sr = separation_report(
                 dmk_results=    dmk_results,
