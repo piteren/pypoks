@@ -78,17 +78,15 @@ CONFIG_INIT = {
     'pause':                    False,      # pauses loop after test till Enter pressed
     # TODO: temp set ('b')
     'families':                 'a',        # active families (forced to be present in learners)
-    # TODO: temp set (10)
-    'ndmk_refs':                5,         # number of refs DMKs (should fit on one GPU)
-    # TODO: temp set (10)
-    'ndmk_learners':            5,         # number of learners DMKs
+    'ndmk_refs':                10,         # number of refs DMKs (should fit on one GPU)
+    'ndmk_learners':            7,          # number of learners DMKs
     'ndmk_TR':                  5,          # learners are trained against refs in groups of this size
     'ndmk_TS':                  10,         # learners and refs are tested against refs in groups of this size
     'update_size':              100000,     # how much increase TS game size when needed
     'update_interval':          5,          # interval of TS game size update
     'sep_factor_iv':            0.25,       # update trigger - min factor of sep in interval lifemarks
         # train
-    'game_size_TR':             100000,
+    'game_size_TR':             300000,
     'dmk_n_players_TR':         150,        # number of players per DMK while TR
         # test
     'game_size_TS':             100000,
@@ -112,14 +110,11 @@ if __name__ == "__main__":
         print(f'Do you want to continue with saved ({DMK_MODELS_FD}) {saved_n_loops} loops? ..waiting 10 sec (y/n, y-default)')
         i, o, e = select.select([sys.stdin], [], [], 10)
         if i and sys.stdin.readline().strip() == 'n':
-            pass
+            # clean out dmk folder
+            shutil.rmtree(f'{DMK_MODELS_FD}', ignore_errors=True)
+            print(f'cleaned out {DMK_MODELS_FD}')
         else:
             continuation = True
-
-    # clean out dmk folder
-    if not continuation:
-        shutil.rmtree(f'{DMK_MODELS_FD}', ignore_errors=True)
-        print(f'cleaned out {DMK_MODELS_FD}')
 
     tl_name = f'run_train_loop_{stamp()}'
     logger = get_pylogger(
@@ -287,7 +282,7 @@ if __name__ == "__main__":
                     logger= get_child(logger, change_level=10))
                 dmk_refs.append(name_child)
 
-            logger.info(f'created {len(dmk_refs)} refs DMKs: {dmk_refs}')
+            logger.info(f'created {len(dmk_refs)} refs DMKs: {", ".join(dmk_refs)}')
 
         logger.info(f'loop #{loop_ix} DMKs:')
         logger.info(f'> learners: ({len(dmk_learners)}) {", ".join(dmk_learners)}')
@@ -401,7 +396,7 @@ if __name__ == "__main__":
 
         sr = separation_report(
             dmk_results=    dmk_results,
-            n_stdev=        cm.sep_n_stdev,
+            n_stdev=        1.0,
             sep_pairs=      sep_pairs)
 
         # update dmk_results
@@ -493,45 +488,37 @@ if __name__ == "__main__":
         dmk_add_to_refs = []
         refs_gain = 0
 
-        # first by age
+        # iterate from the best
         dmk_learners_asi_not_by_age = []
         for dn in dmk_learners_asi:
 
-            replaced_by_age = None
+            replaces = None
+
+            # first by age
             for dnr in refs_ranked:
                 if dnr[:-4] == dn[:-3]:
-                    replaced_by_age = dnr
+                    replaces = dnr
                     break
 
-            if replaced_by_age:
+            # then by sep
+            if not replaces:
+                for dnr in reversed(refs_ranked): # from bottom
+                    a_wonH = dmk_results[dn]['last_wonH_afterIV']
+                    b_wonH = dmk_results[dnr]['last_wonH_afterIV']
+                    if a_wonH > b_wonH and separated_factor(
+                        a_wonH=             a_wonH,
+                        a_wonH_mean_stdev=  dmk_results[dn]['wonH_IV_mean_stdev'],
+                        b_wonH=             b_wonH,
+                        b_wonH_mean_stdev=  dmk_results[dnr]['wonH_IV_mean_stdev'],
+                        n_stdev=            1.0,
+                    ) >= 1:
+                        replaces = dnr
+                        break
+
+            if replaces:
                 dmk_add_to_refs.append(dn)
-                refs_ranked.remove(replaced_by_age)
-                refs_gain += dmk_results[dn]['last_wonH_afterIV'] - dmk_results[replaced_by_age]['last_wonH_afterIV']
-
-            else:
-                dmk_learners_asi_not_by_age.append(dn)
-
-        # then by sep
-        for dn in dmk_learners_asi_not_by_age: # from top
-
-            replaced_by_sep = None
-            for dnr in reversed(refs_ranked): # from bottom
-                a_wonH = dmk_results[dn]['last_wonH_afterIV']
-                b_wonH = dmk_results[dnr]['last_wonH_afterIV']
-                if a_wonH > b_wonH and separated_factor(
-                    a_wonH=             a_wonH,
-                    a_wonH_mean_stdev=  dmk_results[dn]['wonH_IV_mean_stdev'],
-                    b_wonH=             b_wonH,
-                    b_wonH_mean_stdev=  dmk_results[dnr]['wonH_IV_mean_stdev'],
-                    n_stdev=            cm.sep_n_stdev,
-                ) >= 1:
-                    replaced_by_sep = dnr
-                    break
-
-            if replaced_by_sep:
-                dmk_add_to_refs.append(dn)
-                refs_ranked.remove(replaced_by_sep)
-                refs_gain += dmk_results[dn]['last_wonH_afterIV'] - dmk_results[replaced_by_sep]['last_wonH_afterIV']
+                refs_ranked.remove(replaces)
+                refs_gain += dmk_results[dn]['last_wonH_afterIV'] - dmk_results[replaces]['last_wonH_afterIV']
 
         if dmk_add_to_refs:
             logger.info(f'adding to refs: {", ".join(dmk_add_to_refs)}; +refs_gain: {refs_gain:.2f}')
