@@ -78,8 +78,8 @@ CONFIG_INIT = {
     'pause':                    False,      # pauses loop after test till Enter pressed
     # TODO: temp set ('b')
     'families':                 'a',        # active families (forced to be present in learners)
-    'ndmk_refs':                10,         # number of refs DMKs (should fit on one GPU)
-    'ndmk_learners':            7,          # number of learners DMKs
+    'ndmk_refs':                10,         # number of refs DMKs (should fit one GPU)
+    'ndmk_learners':            10,         # number of learners DMKs
     'ndmk_TR':                  5,          # learners are trained against refs in groups of this size
     'ndmk_TS':                  10,         # learners and refs are tested against refs in groups of this size
     'update_size':              100000,     # how much increase TS game size when needed
@@ -133,7 +133,7 @@ if __name__ == "__main__":
         logger.info(f'> continuing with saved {saved_n_loops} loops')
 
         loop_ix = saved_n_loops + 1
-        since_last_update = int(loops_results['since_last_update'])
+        update_idle = int(loops_results['update_idle'])
 
         saved_dmks = get_saved_dmks_names()
         dmk_refs = [dn for dn in saved_dmks if dn.endswith('R')]
@@ -142,16 +142,16 @@ if __name__ == "__main__":
     else:
 
         loop_ix = 1
-        since_last_update = cm.update_interval
+        update_idle = cm.update_interval
 
         dmk_refs = []
         dmk_learners = []
 
         loops_results = {
-            'loop_ix':              loop_ix,
-            'lifemarks':            {},
-            'refs_ranked':          [],
-            'since_last_update':    since_last_update}
+            'loop_ix':      loop_ix,
+            'lifemarks':    {},
+            'refs_ranked':  [],
+            'update_idle':  update_idle}
 
     """
     DMKs are named with pattern: f'dmk{loop_ix:03}{family}{cix:02}_{age:03}' + optional 'R'
@@ -569,23 +569,23 @@ if __name__ == "__main__":
 
         # *************************************************************************************** 6. adjust TS game size
 
-        if since_last_update > 0:
-            since_last_update -= 1
+        if update_idle > 0:
+            update_idle -= 1
 
         lifemarks_str = ''
         for dn in loops_results['lifemarks']:
             lifemarks_str += loops_results['lifemarks'][dn][-cm.update_interval:]
         sep_count = lifemarks_str.count('+') + lifemarks_str.count('-')
         sfi = sep_count / len(lifemarks_str)
-        logger.info(f'since last TS game size update: {since_last_update}; sep_factor_interval: {sfi:.2f} ({sep_count}/{len(lifemarks_str)}) {lifemarks_str}')
+        logger.info(f'TS game size update idle: {update_idle}; sep_factor_interval: {sfi:.2f} ({sep_count}/{len(lifemarks_str)}) {lifemarks_str}')
         tbwr.add(value=sfi, tag=f'loop/sep_factor_interval', step=loop_ix)
 
-        if since_last_update == 0 and sfi < cm.sep_factor_iv:
+        if update_idle == 0 and sfi < cm.sep_factor_iv:
             cm.game_size_TS += cm.update_size
-            since_last_update = cm.update_interval
+            update_idle = cm.update_interval
             logger.info(f'increased game_size_TS to {cm.game_size_TS}')
 
-        loops_results['since_last_update'] = since_last_update
+        loops_results['update_idle'] = update_idle
 
 
         if cm.pause: input("press Enter to continue..")
