@@ -238,6 +238,7 @@ def run_GM(
         sep_pairs: Optional[List[Tuple[str,str]]]=  None,
         sep_pairs_factor: float=                    0.9,
         sep_n_stdev: float=                         2.0,
+        publish_GM: bool=                           False,
 ) -> Dict[str, Dict]:
 
     gm = GamesManager_PTR(
@@ -248,8 +249,33 @@ def run_GM(
         logger=         logger)
     return gm.run_game(
         game_size=          game_size,
-        publish_GM=         not dmk_point_TRL,
+        publish_GM=         publish_GM,
         sep_all_break=      sep_all_break,
         sep_pairs=          sep_pairs,
         sep_pairs_factor=   sep_pairs_factor,
         sep_n_stdev=        sep_n_stdev)
+
+
+def results_report(
+        dmk_results: Dict[str, Dict],
+        dmks: Optional[List[str]]=  None
+) -> str:
+
+    if not dmks:
+        dmks = list(dmk_results.keys())
+    dmk_rw = [(dn, dmk_results[dn]['last_wonH_afterIV']) for dn in dmks]
+    dmk_ranked = [e[0] for e in sorted(dmk_rw, key=lambda x: x[1], reverse=True)]
+
+    res_nfo = ''
+    for dn in dmk_ranked:
+        wonH = dmk_results[dn]['last_wonH_afterIV']
+        wonH_IV_std = dmk_results[dn]['wonH_IV_stdev']
+        wonH_mstd = dmk_results[dn]['wonH_IV_mean_stdev']
+        wonH_mstd_str = f'[{wonH_IV_std:.2f}/{wonH_mstd:.2f}]'
+        stats_nfo = ''
+        for k in dmk_results[dn]["global_stats"]:
+            v = dmk_results[dn]["global_stats"][k]
+            stats_nfo += f'{k}:{v:4.1f} '
+        res_nfo += f'{dn:18} : {wonH:6.2f} {wonH_mstd_str:>12}    {stats_nfo}\n'
+
+    return res_nfo

@@ -51,30 +51,22 @@ def separation_report(
 
     n_dmk = len(dmk_results)
 
-    # prepare separation data
-    dmk_sep = {}
-    for dn in dmk_results:
-        wonH_IV_stdev = stdev_with_none(dmk_results[dn]['wonH_IV'])
-        dmk_sep[dn] = {
-            'wonH_IV_stdev':        wonH_IV_stdev,
-            'wonH_IV_mean_stdev':   wonH_IV_stdev / math.sqrt(len(dmk_results[dn]['wonH_IV'])) if wonH_IV_stdev is not None else None,
-            'last_wonH_afterIV':    dmk_results[dn]['wonH_afterIV'][-1] if dmk_results[dn]['wonH_afterIV'] else None}
-
     # compute separated normalized count & normalized factor
-    for dn_a in dmk_sep:
-        dmk_sep[dn_a]['separated'] = n_dmk - 1
-        for dn_b in dmk_sep:
+    sep = {}
+    for dn_a in dmk_results:
+        sep[dn_a] = n_dmk - 1
+        for dn_b in dmk_results:
             if dn_a != dn_b:
                 sf = separated_factor(
-                    a_wonH=             dmk_sep[dn_a]['last_wonH_afterIV'],
-                    a_wonH_mean_stdev=  dmk_sep[dn_a]['wonH_IV_mean_stdev'],
-                    b_wonH=             dmk_sep[dn_b]['last_wonH_afterIV'],
-                    b_wonH_mean_stdev=  dmk_sep[dn_b]['wonH_IV_mean_stdev'],
+                    a_wonH=             dmk_results[dn_a]['last_wonH_afterIV'],
+                    a_wonH_mean_stdev=  dmk_results[dn_a]['wonH_IV_mean_stdev'],
+                    b_wonH=             dmk_results[dn_b]['last_wonH_afterIV'],
+                    b_wonH_mean_stdev=  dmk_results[dn_b]['wonH_IV_mean_stdev'],
                     n_stdev=            n_stdev)
                 if sf < 1:
-                    dmk_sep[dn_a]['separated'] -= 1
+                    sep[dn_a] -= 1
                 sep_nf += min(sf, max_nf)
-        sep_nc += dmk_sep[dn_a]['separated']
+        sep_nc += sep[dn_a]
     n_max = (n_dmk - 1) * n_dmk
     sep_nc /= n_max
     sep_nf /= n_max
@@ -83,10 +75,10 @@ def separation_report(
     if sep_pairs:
         for sp in sep_pairs:
             sf = separated_factor(
-                a_wonH=             dmk_sep[sp[0]]['last_wonH_afterIV'],
-                a_wonH_mean_stdev=  dmk_sep[sp[0]]['wonH_IV_mean_stdev'],
-                b_wonH=             dmk_sep[sp[1]]['last_wonH_afterIV'],
-                b_wonH_mean_stdev=  dmk_sep[sp[1]]['wonH_IV_mean_stdev'],
+                a_wonH=             dmk_results[sp[0]]['last_wonH_afterIV'],
+                a_wonH_mean_stdev=  dmk_results[sp[0]]['wonH_IV_mean_stdev'],
+                b_wonH=             dmk_results[sp[1]]['last_wonH_afterIV'],
+                b_wonH_mean_stdev=  dmk_results[sp[1]]['wonH_IV_mean_stdev'],
                 n_stdev=            n_stdev)
             sep_pairs_stat.append(0 if sf<1 else 1)
             if sf>=1: sep_pairs_nc += 1
@@ -290,7 +282,8 @@ class GamesManager:
             sep_all_break: bool=                        False,  # breaks game when all DMKs are separated
             sep_pairs: Optional[List[Tuple[str,str]]]=  None,   # pairs of DMK names for separation condition
             sep_pairs_factor: float=                    0.9,    # factor of separated pairs needed to break the game
-            sep_n_stdev: float=                         2.0,
+            sep_n_stdev: float=                         1.0,
+            sep_min_IV: int=                            10,     # minimal number of IV to enable any sep break
     ) -> Dict[str, Dict]:
         """
         By now, by design run_game() may be called only once,
@@ -301,11 +294,14 @@ class GamesManager:
         # save of DMK results + additional DMK info
         dmk_results = {
             dn: {
-                'wonH_IV':      [],     # wonH (won $ / hand) of interval
-                'wonH_afterIV': [],     # wonH (won $ / hand) after interval
-                'family':       self.dmkD[dn].family,
-                'trainable':    self.dmkD[dn].trainable,
-                'global_stats': None,   # SM.global_stats, will be updated by DMK at the end of the game
+                'wonH_IV':              [],     # wonH (won $ / hand) of interval
+                'wonH_afterIV':         [],     # wonH (won $ / hand) after interval
+                'last_wonH_afterIV':    None,
+                'wonH_IV_stdev':        None,
+                'wonH_IV_mean_stdev':   None,
+                'family':               self.dmkD[dn].family,
+                'trainable':            self.dmkD[dn].trainable,
+                'global_stats':         None,   # SM.global_stats, will be updated at the end of the game
             } for dn in self._get_dmk_focus_names()}
 
         # starts all subprocesses
@@ -324,14 +320,24 @@ class GamesManager:
             time.sleep(sleep)
 
             reports = self._get_reports({dn: len(dmk_results[dn]['wonH_IV']) for dn in dmk_results}) # actual DMK reports
+            num_IV = [] # number of IV reports, for each DMK
             for dn in reports:
                 dmk_results[dn]['wonH_IV'] += reports[dn]['wonH_IV']
                 dmk_results[dn]['wonH_afterIV'] += reports[dn]['wonH_afterIV']
+                wonH_IV_stdev = stdev_with_none(dmk_results[dn]['wonH_IV'])
+                dmk_results[dn]['wonH_IV_stdev'] = wonH_IV_stdev
+                dmk_results[dn]['wonH_IV_mean_stdev'] = wonH_IV_stdev / math.sqrt(len(dmk_results[dn]['wonH_IV'])) if wonH_IV_stdev is not None else None
+                dmk_results[dn]['last_wonH_afterIV'] = dmk_results[dn]['wonH_afterIV'][-1] if dmk_results[dn]['wonH_afterIV'] else None
+                num_IV.append(len(dmk_results[dn]['wonH_IV']))
+            num_IV = min(num_IV)
 
             # calculate game factor
-            n_hands = sum([reports[dn]['n_hands'] for dn in reports])
-            game_factor = n_hands / len(reports) / game_size
-            if game_factor >= 1: game_factor = 1
+            nhL = [reports[dn]['n_hands'] for dn in reports]
+            n_hands = sum(nhL)
+            n_hands_min = min(nhL)
+            game_factor = n_hands_min / game_size
+            if game_factor >= 1:
+                game_factor = 1
 
             sr = separation_report(
                 dmk_results=    dmk_results,
@@ -363,7 +369,7 @@ class GamesManager:
                 # speed
                 hdiff = n_hands-n_hands_last_report
                 hd_pp = int(hdiff / len(reports))
-                spd_report = f'{int(hdiff / (time.time()-time_last_report))}H/s (+{hd_pp}Hpp)'
+                spd_report = f'({num_IV}) {int(hdiff / (time.time()-time_last_report))}H/s (+{hd_pp}Hpp)'
                 n_hands_last_report = n_hands
                 time_last_report = time.time()
 
@@ -382,12 +388,12 @@ class GamesManager:
                 break
 
             # games break - all DMKs separation condition
-            if sep_all_break and sep_nc == 1.0:
+            if sep_all_break and num_IV >= sep_min_IV and sep_nc == 1.0:
                 self.logger.info(f'> finished game (all DMKs separation condition), game factor: {game_factor:.2f})')
                 break
 
             # games break - pairs separation breaking value condition
-            if sep_pairs and sep_pairs_nc >= sep_pairs_factor:
+            if sep_pairs and num_IV >= sep_min_IV and sep_pairs_nc >= sep_pairs_factor:
                 self.logger.info(f'> finished game (pairs separation factor: {sep_pairs_factor:.2f}, game factor: {game_factor:.2f})')
                 break
 
