@@ -145,9 +145,9 @@ class PTable:
         self.cash =         0   # table cash (pot)
         self.cash_cr =      0   # cash of current river
         self.cash_tc =      0   # cash to call by player (on current river) = highest bet on river
-        self.cash_raise =   0   # recent raise size, TODO: should be updated after bet / raise / all-in
+        self.cash_rs =      0   # recent raise size, TODO: should be updated after bet / raise / all-in
             # minbet = BB
-            # minraise = cash_tc + cash_raise
+            # minraise = cash_tc + cash_rs
 
         self.hand_ID =      0   # hand counter
 
