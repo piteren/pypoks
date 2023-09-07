@@ -64,7 +64,7 @@ class HHistory:
 
         return trns
 
-    # extracts moves and hands from HH or list[readable_events]
+    # extracts moves and hands from HH or list[readable_events] <- those events are needed to run the table same hand again
     @staticmethod
     def extract_mvh(hh:Union["HHistory",List[str]]) -> List[Tuple]:
         if type(hh) is HHistory:
