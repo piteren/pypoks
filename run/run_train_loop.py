@@ -92,13 +92,15 @@ CONFIG_INIT = {
     'game_size_TS':             100000,
     'dmk_n_players_TS':         150,        # number of players per DMK while TS
         # replace / new
-    'remove_key':               [4,1],      # [A,B] remove DMK if in last A+B life marks there are A -|
+    'remove_key':               [4,1],      # [A,B] (remove DMK if in last A+B life marks there are A -| and last is not +/) OR (in last 2A+2B there is no +)
     'prob_fresh_dmk':           0.8,        # probability of 100% fresh DMK
     'prob_fresh_ckpt':          0.8,        # probability of fresh checkpoint (child from GX of point only, without GX of ckpt)
         # PMT (Periodical Masters Test)
     'n_loops_PMT':              5,          # do PMT every N loops
     'ndmk_PMT':                 10}         # max number of DMKs (masters) in PMT
 
+
+#TODO: sep pairs when no pairs given
 
 if __name__ == "__main__":
 
@@ -239,7 +241,6 @@ if __name__ == "__main__":
                             family= family,
                             logger= get_child(logger, change_level=10))
 
-                    # TODO: check if it works now ..with refs
                     # GX from refs
                     else:
                         other_fam = [dn for dn in dmk_refs if refs_families[dn] == family]
@@ -461,8 +462,12 @@ if __name__ == "__main__":
 
         dmk_learners_bad_lifemark = []
         for dn in dmk_learners_NEW:
-            lifemark_ending = dmk_results[dn]['lifemark'][-sum(cm.remove_key):]
-            if lifemark_ending.count('-') + lifemark_ending.count('|') >= cm.remove_key[0] and lifemark_ending[-1] not in '/+':
+            elen = sum(cm.remove_key)
+            lifemark_ending = dmk_results[dn]['lifemark'][-elen:]
+            lifemark_ending2 = dmk_results[dn]['lifemark'][-2*elen:]
+            cond_1 = lifemark_ending.count('-') + lifemark_ending.count('|') >= cm.remove_key[0] and lifemark_ending[-1] not in '/+'
+            cond_2 = len(lifemark_ending2) >= 2*elen and '+' not in lifemark_ending2
+            if cond_1 or cond_2:
                 dmk_learners_bad_lifemark.append(dn)
 
         if dmk_learners_bad_lifemark:

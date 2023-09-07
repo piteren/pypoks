@@ -3,7 +3,7 @@ from ompr.runner import RunningWorker, OMPRunner
 from pypaq.lipytools.files import r_pickle, w_pickle
 import random
 import time
-from typing import Any
+from typing import Any, Union, Tuple, Optional, List
 from tqdm import tqdm
 
 
@@ -88,12 +88,13 @@ class PDeck:
         self.cards = [] + self.__full_init_deck
         random.shuffle(self.cards)
 
-    # returns one card from deck, returns int
-    def get_card(self): return self.cards.pop()
+    # returns one card from deck
+    def get_card(self) -> int:
+        return self.cards.pop()
 
     # returns exact card from deck, if id not present >> return None
-    def getex_card(self, card: tuple or int):
-        if type(card) is int: card = PDeck.ctt(card)
+    def getex_card(self, card:Union[int,tuple,str]) -> Optional[int]:
+        if type(card) is int or type(card) is str: card = PDeck.ctt(card)
         if card in self.cards:
             self.cards.remove(card)
             return card
@@ -187,37 +188,35 @@ class PDeck:
 
     # card(str) >> tuple
     @staticmethod
-    def _stt(card :str):
+    def _stt(card:str) -> Tuple[int,int]:
         return CF_I[card[0]],CC_I[card[1]]
 
     # card(any) >> int
     @staticmethod
-    def cti(card :int or tuple or str):
+    def cti(card:Union[int,tuple,str]) -> int:
         if type(card) is str: card = PDeck._stt(card) # to tuple
         if type(card) is tuple: return card[0]*4+card[1]
         return card
 
     # card(any) >> tuple
     @staticmethod
-    def ctt(card :int or tuple or str):
+    def ctt(card:Union[int,tuple,str]) -> Tuple[int,int]:
         if type(card) is str: return PDeck._stt(card)
         if type(card) is int: return int(card/4), card%4
         return card
 
     # card(any) >> str
     @staticmethod
-    def cts(card :int or tuple or str):
+    def cts(card:Union[int,tuple,str]) -> str:
         if type(card) is int: card = PDeck.ctt(card) # to tuple
         if type(card) is tuple: return CRD_FIG[card[0]] + CRD_COL[card[1]]
         return card
 
     # returns rank of 5 from 7 given cards (evaluates about 68K * 7cards/sec)
     @staticmethod
-    def cards_rank(cards: list):
+    def cards_rank(cards:List[Union[int,tuple,str]]):
 
-        # to tuplesL
-        if type(cards[0]) is int: cards = [PDeck.ctt(c) for c in cards]
-        if type(cards[0]) is str: cards = [PDeck._stt(c) for c in cards]
+        cards = [PDeck.ctt(c) for c in cards] # to tuplesL
         cards = sorted(cards)
 
         # calc possible multiFig and colours
@@ -366,7 +365,7 @@ class ASC(dict):
                     def process(self, **kwargs) -> Any:
                         return [(t,PDeck.cards_rank(t)[1]) for t in kwargs['tasks']]
 
-                omp = OMPRunner(rw_class=CRW, verb=1)
+                omp = OMPRunner(rw_class=CRW)
 
                 print(f' > preparing tasks..')
                 tasks = []

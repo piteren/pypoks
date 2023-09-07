@@ -27,7 +27,7 @@ from pypaq.mpython.mptools import Que, QMessage
 
 from pologic.hand_history import HHistory
 from pologic.podeck import PDeck
-from envy import TABLE_CASH_START, TABLE_CASH_SB, TABLE_CASH_BB, TBL_MOV, get_pos_names
+from envy import TABLE_CASH_START, TABLE_CASH_SB, TABLE_CASH_BB, TBL_MOV, TBL_MOV_R, get_pos_names
 
 # table states
 TBL_STT = {
@@ -177,10 +177,20 @@ class PTable:
                 nm = pl.pls.pop(0)
                 pl.pls.append(nm)
 
+    # rotates table players (moves BTN right)
+    def rotate_players(self):
+        self.players.append(self.players.pop(0))
+
     # runs single hand
-    def run_hand(self):
+    def run_hand(
+            self,
+            hh_given: Optional[Union["HHistory",List[str]]]=    None,   # if given, runs hand with given moves and cards
+    ):
 
         if self.logger: self.logger.debug(f'{self.name} starts hand {self.hand_ID}')
+
+        hh_mvh = HHistory.extract_mvh(hh_given) if hh_given else None
+        #print(hh_mvh)
 
         hh = HHistory()
         hh.add('HST', (self.name, self.hand_ID))
@@ -205,9 +215,19 @@ class PTable:
 
         self.state = 1
 
-        h_pls = [] + self.players # original order of players for current hand (SB, BB, ..) ..every hand players are rotated
+        # rotate table to match mvh, remove SB move
+        if hh_mvh:
+            sb_pl_name = hh_mvh.pop(0)[0]
+            while sb_pl_name != self.players[0].name:
+                self.rotate_players()
+        # remove also BB move
+        if hh_mvh:
+            hh_mvh.pop(0)
 
-        for ix in range(len(h_pls)): hh.add('POS', (h_pls[ix].name, self.p_names[ix]))
+        h_pls = [] + self.players  # copy order of players for current hand (SB, BB, ..)
+
+        for ix in range(len(h_pls)):
+            hh.add('POS', (h_pls[ix].name, self.p_names[ix]))
 
         # put blinds on table
         h_pls[0].cash -= self.SB
@@ -230,8 +250,14 @@ class PTable:
 
         # hand cards
         for pl in h_pls:
-            ca, cb = self.deck.get_card(), self.deck.get_card()
-            pl.hand = PDeck.cts(ca), PDeck.cts(cb)
+            if hh_mvh:
+                cas, cbs = hh_mvh.pop(0)[1:]
+                self.deck.getex_card(cas)
+                self.deck.getex_card(cbs)
+                pl.hand = cas, cbs
+            else:
+                ca, cb = self.deck.get_card(), self.deck.get_card()
+                pl.hand = PDeck.cts(ca), PDeck.cts(cb)
             hh.add('PLH', (pl.name, pl.hand[0], pl.hand[1]))
 
         # rivers loop
@@ -242,27 +268,51 @@ class PTable:
 
             # manage table cards
             new_table_cards = []
-            if self.state == 2: new_table_cards = [self.deck.get_card(), self.deck.get_card(), self.deck.get_card()]
-            if self.state in [3,4]: new_table_cards = [self.deck.get_card()]
+            if self.state == 2:
+                # get table cards from mvh
+                for _ in range(3):
+                    if hh_mvh:
+                        c = hh_mvh.pop(0)[1]
+                        self.deck.getex_card(c)
+                        new_table_cards.append(c)
+                # eventually fill with random
+                while len(new_table_cards) < 3:
+                    new_table_cards.append(PDeck.cts(self.deck.get_card()))
+            if self.state in [3,4]:
+                if hh_mvh:
+                    c = hh_mvh.pop(0)[1]
+                    self.deck.getex_card(c)
+                    new_table_cards = [c]
+                else:
+                    new_table_cards = [PDeck.cts(self.deck.get_card())]
             if new_table_cards:
-                new_table_cards = [PDeck.cts(c) for c in new_table_cards]
                 self.cards += new_table_cards
                 hh.add('TCD', tuple(new_table_cards))
 
             # ask players for moves
             while len(h_pls)>1: # game end breaks in the loop
 
-                if cmv_pIX == len(h_pls): cmv_pIX = 0 # next loop
+                # next loop
+                if cmv_pIX == len(h_pls):
+                    cmv_pIX = 0
 
+                pl = h_pls[cmv_pIX]
                 player_folded = False
                 player_raised = False
-                pl = h_pls[cmv_pIX]
                 if pl.cash: # player has cash (not all-in-ed yet)
 
+                    # move is taken from mvh
+                    if hh_mvh:
+                        mv = hh_mvh.pop(0)
+                        mv_name = mv[1]
+                        mv_cash = mv[2]
+                        mv_id = TBL_MOV_R[mv_name]
                     # player makes move
-                    pl.take_hh(hh) # takes actual hh from table
-                    mv_id, mv_cash = pl.select_move()  # makes move
-                    hh.add('MOV', (pl.name, TBL_MOV[mv_id][0], mv_cash, (pl.cash, pl.cash_ch, pl.cash_cr)))
+                    else:
+                        pl.take_hh(hh)  # takes actual hh from table
+                        mv_id, mv_cash = pl.select_move()
+                        mv_name = TBL_MOV[mv_id][0]
+                    hh.add('MOV', (pl.name, mv_name, mv_cash, (pl.cash, pl.cash_ch, pl.cash_cr)))
 
                     pl.cash -= mv_cash
                     pl.cash_ch += mv_cash
@@ -345,7 +395,7 @@ class PTable:
         for pl in self.players:
             pl.take_hh(hh)
 
-        self.players.append(self.players.pop(0)) # rotate table players for next hand
+        self.rotate_players() # rotate table players for next hand
 
         self.hand_ID += 1
 

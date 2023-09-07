@@ -1,28 +1,25 @@
+from typing import List, Tuple, Optional, Union
+
+from envy import DEBUG_MODE
+
+STATE = Tuple[str,Tuple] # type
+NAMED_EVENTS = ('POS','PSB','PBB','PLH','MOV','PRS') # events where player name
+
 """
+    Hand History is build by the table, while playing a hand, below are implemented states:
 
-    2020 (c) piteren
-
-    hand history is build by the table, while playing a hand, below are implemented states:
-
-        HST:    (table_name:str, hand_id:int)                           hand starts - maybe later add game info (table size, SB,BB.. )
+        HST:    (table_name:str, hand_id:int)                           hand starts
         TST:    (state:str,)                                            table state
         POS:    (pln:str, pos:str)                                      player position
         PSB:    (pln:str, SB:int)                                       player puts small blind
         PBB:    (pln:str, BB:int)                                       player puts big blind
         T$$:    (cash:int, cash_cr:int, cash_tc:int)                    table cash (on table, current river, to call(river))
         PLH:    (pln:str, ca:str, cb:str)                               player hand (PDeck.cts)
-        TCD:    (c0,c1,c2..:int)                                        table cards dealt, only new cards are shown
+        TCD:    (c0,c1,c2..:str)                                        table cards dealt, only new cards are shown
         MOV:    (pln:str, move:str, mv_$:int, (pl.$, pl.$_ch, pl.$_cr)) player move (TBL_MOV.values()[0]), pl.cashes BEFORE move!
         PRS:    (pln:str, won:int, full_rank)                           player result, full_rank is a tuple returned by PDeck.cards_rank
         HFN:    (table_name:str, hand_id:int)                           hand finished
-
 """
-from typing import List, Tuple, Optional
-
-from envy import DEBUG_MODE
-
-STATE = Tuple[str,Tuple] # type
-NAMED_EVENTS = ('POS','PSB','PBB','PLH','MOV','PRS') # events where player name
 
 
 # poker hand history
@@ -66,6 +63,55 @@ class HHistory:
             trns.append(tuple(state))
 
         return trns
+
+    # extracts moves and hands from HH or list[readable_events]
+    @staticmethod
+    def extract_mvh(hh:Union["HHistory",List[str]]) -> List[Tuple]:
+        if type(hh) is HHistory:
+            mvh = []
+            for e in hh.events:
+                if e[0] in ['PSB','PBB']:
+                    mvh.append((e[1][0], e[0][1:], e[1][1]))
+                if e[0] in ['MOV','PLH']:
+                    mvh.append((e[1][0], e[1][1], e[1][2]))
+                if e[0] == 'TCD':
+                    for c in e[1]:
+                        mvh.append(('tc',c))
+            return mvh
+        else:
+            mvh = [e.split() for e in hh if e.startswith('pl')]
+            print(mvh)
+            return [
+                (e[0], e[1], int(e[2])) if e[1] != 'cards:' else (e[0], e[2], e[3])
+                for e in mvh
+            ]
+
+    # extracts simple readable events
+    @staticmethod
+    def readable_event(st:STATE) -> Optional[str]:
+
+        if st[0] == 'HST':
+            return '***** hand starts'
+
+        if st[0] in ['PSB','PBB']:
+            return f'{st[1][0]} {st[0][1:]} {st[1][1]}'
+
+        if st[0] == 'PLH':
+            return f'{st[1][0]} cards: {st[1][1]} {st[1][2]}'
+
+        if st[0] == 'TST':
+            if st[1][0] != 'idle':
+                return f'** {st[1][0]}'
+
+        if st[0] == 'TCD':
+            return f'table cards: {" ".join(st[1])}'
+
+        if st[0] == 'MOV':
+            return f'{st[1][0]} {st[1][1]} {st[1][2]}'
+
+        if st[0] == 'PRS':
+            r = st[1][2] if type(st[1][2]) is str else st[1][2][-1]
+            return f'$$$: {st[1][0]} {st[1][1]} {r}'
 
     # history to str
     def __str__(self):

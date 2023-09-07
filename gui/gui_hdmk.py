@@ -7,6 +7,7 @@ from typing import List, Optional
 
 from envy import DEBUG_MODE, TABLE_CASH_START, TABLE_CASH_SB, TABLE_CASH_BB, TBL_MOV
 from pologic.podeck import CRD_FIG, CRD_COL
+from pologic.hand_history import HHistory, STATE
 
 GUI_DELAY = 0.1 # seconds of delay for every message
 
@@ -194,12 +195,17 @@ class GUI_HDMK:
                 self.__set_dec_lbl_val(cv)
                 self.__set_dec_btn_act(data['possible_moves'])
             if message.type == 'state':
-                self.__proc_message(message.data)
+                self.__proc_state(message.data)
         self.__afterloop()
 
-    # processes incomming states
-    def __proc_message(self, state: tuple):
-        prn = True
+    # processes incoming state
+    def __proc_state(self, state:STATE):
+
+        prn = True # to catch unhandled states below
+
+        prn_event = HHistory.readable_event(state)
+        if prn_event and state[0] != 'PLH':
+            print(prn_event)
 
         if state[0] == 'HST':
             self.n_hands += 1
@@ -207,22 +213,18 @@ class GUI_HDMK:
             prn = False
 
         if state[0] in ['PSB', 'PBB']:
-            print(f'  pl{state[1][0]} {state[0][1:]} {state[1][1]}')
             prn = False
 
         if state[0] == 'TST':
-            st = state[1][0]
-            if st == 'idle':
-                print('\n ***** hand starts')
+            if state[1][0] == 'idle':
                 self.__upd_myc()
                 self.__upd_tblc()
                 self.__upd_tcsh()
                 for plix in self.plx_elD:
                     self.__upd_plcsh(plix, TABLE_CASH_START)
                     self.__set_pl_active(plix)
-            else: print(f' ** {st}')
             self.tcsh_tc = 0
-            if st != 'preflop':
+            if state[1][0] != 'preflop':
                 for plix in self.plx_elD:
                     self.__upd_plcsh(plix, True, None)
             prn = False
@@ -240,7 +242,7 @@ class GUI_HDMK:
             prn = False
 
         if state[0] == 'TCD':
-            self.__upd_tblc(state[1])
+            self.__upd_tblc(list(state[1]))
             prn = False
 
         if state[0] == 'T$$':
@@ -255,12 +257,9 @@ class GUI_HDMK:
                 self.__set_pl_active(state[1][0], False)
             else:
                 self.__upd_plcsh(state[1][0], state[1][3][0] - state[1][2], state[1][3][2] + state[1][2])
-            print(f'  pl{state[1][0]} {state[1][1]} {state[1][2]}')
             prn = False
 
         if state[0] == 'PRS':
-            r = state[1][2] if type(state[1][2]) is str else state[1][2][-1]
-            print(f' $$$: pl{state[1][0]} {state[1][1]} {r}')
             self.__upd_pl_won(state[1][0], state[1][1])
             prn = False
 
@@ -321,11 +320,13 @@ class GUI_HDMK:
     # table frame methods ********************************************************************************** table frame
 
     # updates self.tcards list
-    def __upd_tblc(self, cl :list=None):
+    def __upd_tblc(self, cl:Optional[List]=None):
 
         # update list
-        if not cl: self.tcards = []
-        else: self.tcards += cl
+        if not cl:
+            self.tcards = []
+        else:
+            self.tcards += cl
 
         # update GUI
         cl = [] + self.tcards # copy (!)
