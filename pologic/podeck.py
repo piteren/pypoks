@@ -472,5 +472,3 @@ if __name__ == "__main__":
 
     asc = ASC('_cache/asc.dict')
     print(len(asc))
-
-
