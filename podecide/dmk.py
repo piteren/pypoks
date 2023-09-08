@@ -61,6 +61,7 @@ import math
 from abc import abstractmethod, ABC
 from multiprocessing import Process
 import numpy as np
+from pypaq.pytypes import NPL
 from pypaq.lipytools.stats import mam
 from pypaq.lipytools.pylogger import get_pylogger, get_child
 from pypaq.lipytools.files import prep_folder
@@ -124,27 +125,17 @@ class DMK(ABC):
             player_states: List[Any]):
         pass
 
-    # makes decisions [(player_id,move)..] for one/some/all players with possible moves
+    # makes decisions [(player_id,move,probs)..] for one/some/all players with possible moves
     @abstractmethod
-    def make_decisions(self) -> List[Tuple[str,int]]:
+    def make_decisions(self) -> List[Tuple[str,int,NPL]]:
         pass
 
 # Methods DMK extends DMK baseline with methods and data structures
 class MethDMK(DMK, ABC):
 
-    def __init__(
-            self,
-            # _sample_move parameters
-            argmax_prob: float=     0.9,    # probability of argmax
-            sample_nmax: int=       2,      # samples from N max probabilities, for 1 it is argmax
-            sample_maxdist: float=  0.05,   # probabilities distanced more than F are removed from nmax
-            **kwargs):
+    def __init__(self, **kwargs):
 
         DMK.__init__(self, **kwargs)
-
-        self.argmax_prob = argmax_prob
-        self.sample_nmax = sample_nmax
-        self.sample_maxdist = sample_maxdist
 
         # variables below store states data
         self._states_new: Dict[str,List[GameState]] = {pid: [] for pid in self._player_ids} # dict of new states lists
@@ -182,19 +173,19 @@ class MethDMK(DMK, ABC):
         last_state.moves_cash = moves_cash
 
     # makes decisions then flushes states
-    def make_decisions(self) -> List[Tuple[str,int]]:
+    def make_decisions(self) -> List[Tuple[str,int,NPL]]:
 
         decL = self._decisions_from_new_states()  # get decisions list
 
         # flush new states using decisions list
         for dec in decL:
-            pid, move = dec
+            pid, _, _ = dec
             self._states_new[pid] = []  # reset
 
         return decL
 
     # makes decisions & returns list of decisions using data from _states_new
-    def _decisions_from_new_states(self) -> List[Tuple[str,int]]:
+    def _decisions_from_new_states(self) -> List[Tuple[str,int,NPL]]:
         self._calc_probs()
         decL = self._sample_moves_for_ready_players()
         return decL
@@ -204,7 +195,7 @@ class MethDMK(DMK, ABC):
     def _calc_probs(self) -> None: pass
 
     # samples moves for players with ready data (possible_moves and probs)
-    def _sample_moves_for_ready_players(self) -> List[Tuple[str,int]]:
+    def _sample_moves_for_ready_players(self) -> List[Tuple[str,int,NPL]]:
         decL = []
         for pid in self._states_new:
             if self._states_new[pid]: # not empty
@@ -214,10 +205,10 @@ class MethDMK(DMK, ABC):
                         probs=              last_state.probs,
                         possible_moves =    last_state.possible_moves,
                         pid=                pid)
-                    decL.append((pid, move))
+                    decL.append((pid, move, last_state.probs))
         return decL
 
-    # policy of move selection form possible_moves and given probabilities (argmax VS sampling from probability)
+    # samples move form possible_moves using given probabilities
     def _sample_move(
             self,
             probs: np.ndarray,
@@ -225,32 +216,15 @@ class MethDMK(DMK, ABC):
             pid: str        # pid to be used by inherited implementations
     ) -> int:
 
-        # mask probs by possible_moves
-        prob_mask = np.asarray(possible_moves).astype(int)                      # cast bool to int
-        probs = probs * prob_mask                                               # mask probs
-        if np.sum(probs) == 0: probs = prob_mask                                # take mask if no intersection
+        probs = probs * possible_moves                      # mask probs
 
-        # argmax
-        if random.random() < self.argmax_prob:
-            move_ix = np.argmax(probs)
+        # take mask if no intersection
+        if sum(probs) == 0:
+            probs = np.asarray(possible_moves).astype(float)
 
-        # sample from probs
-        else:
-            pix = [(p,ix) for ix,p in enumerate(probs)]     # probability and its ix (move_ix)
-            pix.sort(key=lambda x:x[0], reverse=True)       # sort from max prob
+        probs /= sum(probs)                                 # normalize
 
-            # put into probs_new self.sample_nmax probs but only if distance between two is small enough
-            probs_new = np.zeros(self.n_moves)
-            probs_new[pix[0][1]] = pix[0][0]                # put first
-            last_prob = pix[0][0]
-            for eix in range(1,self.sample_nmax):
-                if pix[eix][0] + self.sample_maxdist >= last_prob:
-                    probs_new[pix[eix][1]] = pix[eix][0]    # put next
-                    last_prob = pix[eix][0]                 # new last_prob
-                else: break
-            probs = probs_new
-
-        return int(np.random.choice(self.n_moves, p=probs/np.sum(probs))) # choice (with probs sum==1)
+        return int(np.random.choice(self.n_moves, p=probs)) # choice
 
 # Methods Trainable DMK adds training methods and data structures
 class MeTrainDMK(MethDMK, ABC):
@@ -273,21 +247,21 @@ class MeTrainDMK(MethDMK, ABC):
         self._n_states_dec = 0  # cache, number of all _states_dec == sum([len(l) for l in self._states_dec.values()])
 
     # makes decisions > moves states > trains policy - overrides MethDMK method, which does not train
-    def make_decisions(self) -> List[Tuple[str,int]]:
+    def make_decisions(self) -> List[Tuple[str,int,NPL]]:
         decL = self._decisions_from_new_states()    # get decisions list
         self.__move_states(decL)                    # move states from new to dec
         self.__train_policy()                       # learn/train policy,..it is called here but triggered inside
         return decL
 
     # moves states (from _new to _dec) having decisions list
-    def __move_states(self, decL :List[Tuple[str,int]]):
+    def __move_states(self, decL :List[Tuple[str,int,NPL]]):
         for dec in decL:
-            pid, move = dec
-            states = self._states_new[pid]  # take all new states
-            self._states_new[pid] = []      # reset
+            pid, move, _ = dec
+            states = self._states_new[pid]      # take all new states
+            self._states_new[pid] = []          # reset
             self._n_states_new -= len(states)
-            states[-1].move = move          # add move to last state
-            self._states_dec[pid] += states # put states to dec
+            states[-1].move = move              # add move to last state
+            self._states_dec[pid] += states     # put states to dec
             self._n_states_dec += len(states)
 
     # trains DMK (policy)
@@ -441,8 +415,12 @@ class QueDMK(MeTrainDMK, ABC):
                 self._processFWD_stats['3.unlocked'].append(len(decL) / n_waiting)
                 n_waiting -= len(decL)
                 for d in decL:
-                    pid, move = d
-                    message = QMessage(type='move', data=move)
+                    pid, move, probs = d
+                    message = QMessage(
+                        type=   'move',
+                        data=   {
+                            'selected_move':    move,
+                            'probs':            probs})
                     self.queD_to_player[pid].put(message)
 
             # eventually get data from GM, ..way to exit game_loop
@@ -456,7 +434,7 @@ class QueDMK(MeTrainDMK, ABC):
         self.que_to_gm.put(message)
 
     # adds histogram
-    def _decisions_from_new_states(self) -> List[Tuple[str,int]]:
+    def _decisions_from_new_states(self) -> List[Tuple[str,int,NPL]]:
 
         ### add histogram data to _process_stats
 

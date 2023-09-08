@@ -1,28 +1,8 @@
-"""
-
- 2019 (c) piteren
-
-    PTable is an object that runs single poker game (with players)
-
-        During single hand table builds hand history (hh) (past events)
-        Each PPlayer makes decisions/moves and may use history data:
-            > history is translated to player perspective:
-                > does not see other player cards
-                > players are replaced with ints: 0-this player, 1-next..
-
-    QPTable (qued PTable) is a PTable process to run hands with QPPlayers
-
-        QPPlayer (qued PPlayer) sends hh with que o_que and asks i_que for decisions
-            > o_que is common for all game players, i_que is one for player
-        QPPlayer sends with que_from_player QMessages of two types:
-        - 'make_decision' with data needed to make a decision (move)
-        - 'state_changes' with new state changes
-"""
-
 from multiprocessing import Process
-import random
+import numpy as np
 from typing import List, Dict, Tuple, Optional, Union
 
+from pypaq.pytypes import NPL
 from pypaq.mpython.mptools import Que, QMessage
 
 from pologic.hand_history import HHistory
@@ -74,7 +54,7 @@ class PPlayer:
                 if self.table.state == 1:
                     val = round(TBL_MOV[mIX][1] * self.table.cash_tc)
                 else:
-                    val = round(TBL_MOV[mIX][2] * self.table.cash)
+                    val = round(TBL_MOV[mIX][2] * self.table.pot)
                     if val < 2 * self.table.cash_tc: val = 2 * self.table.cash_tc
                 val -= self.cash_cr # TODO: why???
 
@@ -94,15 +74,18 @@ class PPlayer:
 
         return possible_moves, moves_cash
 
-    # makes decision for possible moves (base implementation with random)
+    # makes decision for possible moves (baseline implementation with random), returns move IX + list of probs
     def _make_decision(
             self,
             possible_moves :List[bool],
-            moves_cash: List[int]) -> int:
-        decision = self.table.moves
-        pm_probs = [int(pm) for pm in possible_moves]
-        dec = random.choices(decision, weights=pm_probs)[0] # decision returned as int from TBL_MOV
-        return dec
+            moves_cash: List[int],
+    ) -> Tuple[int, NPL]:
+        n_moves = len(self.table.moves)
+        probs = np.random.rand(n_moves)
+        probs *= possible_moves
+        probs /= sum(probs)
+        dec = np.random.choice(n_moves, p=probs)
+        return dec, probs
 
     # prepares list of new & translated events from table hh
     def _prepare_nt_states(self, hh: HHistory):
@@ -115,13 +98,22 @@ class PPlayer:
     def take_hh(self, hh: HHistory): pass
 
     # makes move (based on hand history), called by table in a hand loop
-    def select_move(self) -> Tuple[int,int]:
+    def select_move(self) -> Tuple[int,int,NPL]:
         possible_moves, moves_cash = self._pmc()
-        selected_move = self._make_decision(possible_moves, moves_cash)
-        return selected_move, moves_cash[selected_move]
+        selected_move, probs = self._make_decision(possible_moves, moves_cash)
+        return selected_move, moves_cash[selected_move], probs
 
-# Table of (single) Poker game
+
 class PTable:
+    """
+    PTable is an object that runs single poker game (with players)
+
+        During single hand table builds hand history (hh) (past events)
+        Each PPlayer makes decisions/moves and may use history data:
+            > history is translated to player perspective:
+                > does not see other player cards
+                > players are replaced with ints: 0-this player, 1-next..
+    """
 
     def __init__(
             self,
@@ -140,12 +132,12 @@ class PTable:
 
         self.deck =     PDeck()
 
-        self.state =        0   # table state while running hand (int)
-        self.cards =        []  # table cards (max 5)
-        self.cash =         0   # table cash (pot)
-        self.cash_cr =      0   # cash of current river
-        self.cash_tc =      0   # cash to call by player (on current river) = highest bet on river
-        self.cash_rs =      0   # recent raise size, TODO: should be updated after bet / raise / all-in
+        self.state =    0   # table state while running hand (int)
+        self.cards =    []  # table cards (max 5)
+        self.pot =      0   # table pot (main)
+        self.cash_cr =  0   # cash of current river
+        self.cash_tc =  0   # cash to call by player (on current river) = highest bet on river
+        self.cash_rs =  0   # recent raise size, TODO: should be updated after bet / raise / all-in
             # minbet = BB
             # minraise = cash_tc + cash_rs
 
@@ -195,8 +187,8 @@ class PTable:
         hh = HHistory()
         hh.add('HST', (self.name, self.hand_ID))
 
-        self.cash, self.cash_cr, self.cash_tc = 0, 0, 0
-        hh.add('T$$', (self.cash, self.cash_cr, self.cash_tc))
+        self.pot, self.cash_cr, self.cash_tc = 0, 0, 0
+        hh.add('T$$', (self.pot, self.cash_cr, self.cash_tc))
 
         self.state = 0
         hh.add('TST', (TBL_STT[self.state],))
@@ -240,10 +232,10 @@ class PTable:
         h_pls[1].cash_cr = self.BB
         hh.add('PBB', (h_pls[1].name, self.BB))
 
-        self.cash = self.SB + self.BB
-        self.cash_cr = self.cash
+        self.pot = self.SB + self.BB
+        self.cash_cr = self.pot
         self.cash_tc = self.BB
-        hh.add('T$$', (self.cash,self.cash_cr,self.cash_tc))
+        hh.add('T$$', (self.pot, self.cash_cr, self.cash_tc))
 
         clc_pIX = 1 # current loop closing player index
         cmv_pIX = 2 # currently moving player index (for 2 players not valid but validated at first river loop)
@@ -264,7 +256,7 @@ class PTable:
         while self.state < 5 and len(h_pls) > 1:
 
             hh.add('TST', (TBL_STT[self.state],))
-            hh.add('T$$', (self.cash, self.cash_cr, self.cash_tc))
+            hh.add('T$$', (self.pot, self.cash_cr, self.cash_tc))
 
             # manage table cards
             new_table_cards = []
@@ -310,14 +302,15 @@ class PTable:
                     # player makes move
                     else:
                         pl.take_hh(hh)  # takes actual hh from table
-                        mv_id, mv_cash = pl.select_move()
+                        mv_id, mv_cash, probs = pl.select_move()
+                        if self.logger: self.logger.info(f'player: {pl.name} selected move: {mv_id} from probs: {probs}')
                         mv_name = TBL_MOV[mv_id][0]
                     hh.add('MOV', (pl.name, mv_name, mv_cash, (pl.cash, pl.cash_ch, pl.cash_cr)))
 
                     pl.cash -= mv_cash
                     pl.cash_ch += mv_cash
                     pl.cash_cr += mv_cash
-                    self.cash += mv_cash
+                    self.pot += mv_cash
                     self.cash_cr += mv_cash
 
                     if mv_id == 0 and self.cash_tc > pl.cash_cr:
@@ -329,7 +322,7 @@ class PTable:
                         self.cash_tc = pl.cash_cr
                         clc_pIX = cmv_pIX-1 if cmv_pIX>0 else len(h_pls) - 1 # player before in loop
 
-                    hh.add('T$$', (self.cash, self.cash_cr, self.cash_tc))
+                    hh.add('T$$', (self.pot, self.cash_cr, self.cash_tc))
 
                 if clc_pIX == cmv_pIX and not player_raised: break # player closing loop made decision (without raise)
 
@@ -381,7 +374,7 @@ class PTable:
                         winnersD[pln]['full_rank'] = 'not_shown'
 
         # manage cash and information about
-        prize = self.cash / n_winners
+        prize = self.pot / n_winners
         for pl in self.players:
             my_won = -pl.cash_ch  # netto lost
             if winnersD[pl.name]['winner']: my_won += prize  # add netto winning
@@ -403,6 +396,13 @@ class PTable:
 
 # PPlayer that uses Ques
 class QPPlayer(PPlayer):
+    """
+        QPPlayer (qued PPlayer) sends hh with que o_que and asks i_que for decisions
+            > o_que is common for all game players, i_que is one for player
+        QPPlayer sends with que_from_player QMessages of two types:
+        - 'make_decision' with data needed to make a decision (move)
+        - 'state_changes' with new state changes
+    """
 
     def __init__(
             self,
@@ -413,11 +413,12 @@ class QPPlayer(PPlayer):
         self.que_to_player = que_to_player
         self.que_from_player = que_from_player
 
-    # makes decision (communicates with ques), sends via que data with state before move and gets decision from incoming que
+    # makes decision (communicates with ques), sends via que data with state before move and gets decision & probs from incoming que
     def _make_decision(
             self,
             possible_moves :List[bool],
-            moves_cash :List[int]):
+            moves_cash :List[int],
+    ) -> Tuple[int, NPL]:
 
         message = QMessage(
             type = 'make_decision',
@@ -428,9 +429,8 @@ class QPPlayer(PPlayer):
         self.que_from_player.put(message)
 
         message = self.que_to_player.get()  # get move from DMK
-        selected_move = message.data
 
-        return selected_move
+        return message.data['selected_move'], message.data['probs']
 
     # takes actual hh from table, puts new & translated states to DMK
     def take_hh(self, hh: HHistory):

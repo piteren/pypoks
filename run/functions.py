@@ -8,7 +8,7 @@ from pypaq.pms.paspa import PaSpa
 import shutil
 from typing import List, Optional, Dict, Tuple, Union
 
-from envy import DMK_MODELS_FD, PyPoksException
+from envy import DMK_MODELS_FD, PyPoksException, TBL_MOV
 from podecide.dmk import FolDMK
 from podecide.dmk_module_pg import ProCNN_DMK_PG
 from podecide.dmk_module_a2c import ProCNN_DMK_A2C
@@ -35,10 +35,6 @@ def get_fresh_dna(name:str, family:str) -> Dict[str,POINT]:
         'psdd':                     motorch_psdd}
 
     foldmk_psdd: PSDD = {
-        'argmax_prob':      [0.0,   1.0],
-        'sample_nmax':      [1,     4],
-        'sample_maxdist':   [0.0,   0.2],
-
         'upd_trigger':      [20000, 40000],
 
         'enable_pex':       (True,  False),

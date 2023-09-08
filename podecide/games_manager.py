@@ -593,8 +593,9 @@ class HuGamesManager(GamesManager):
     def __init__(
             self,
             dmk_names: Union[List[str],str],
-            logger=     None,
-            loglevel=   20):
+            logger=         None,
+            loglevel=       20,
+            debug_tables=   True):
 
         if not logger:
             logger = get_pylogger(level=loglevel)
@@ -630,7 +631,7 @@ class HuGamesManager(GamesManager):
             #'publish':          False,
             'fwd_stats_step':   10} for nm in dmk_names]
 
-        GamesManager.__init__(self, dmk_pointL=ddL, logger=logger)
+        GamesManager.__init__(self, dmk_pointL=ddL, logger=logger, debug_tables=debug_tables)
 
         # update/override with HuDMK
         self.dmkD[hdna['name']] = hdmk

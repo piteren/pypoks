@@ -8,8 +8,7 @@ TABLE_CASH_SB =     2
 TABLE_CASH_BB =     5
 
 
-# possible table moves
-# {IX: (name, check: potable.py ~#64)}
+# possible table moves 0..N-1 {IX: (name, ..)}
 TBL_MOV = {
     0:  ('C/F', None),      # check/fold
     1:  ('CLL', None),      # call
