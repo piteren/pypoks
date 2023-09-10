@@ -550,7 +550,7 @@ class StaMaDMK(QueDMK, ABC):
     def _encode_states(
             self,
             player_id,
-            player_stateL: List[tuple]) -> List[GameState]:
+            player_stateL: List[Tuple]) -> List[GameState]:
 
         statsD = self._sm.process_states(player_id, player_stateL) # send states to SM
 
@@ -732,7 +732,7 @@ class NeurDMK(ExaDMK):
     def _encode_states(
             self,
             player_id,
-            player_stateL: list):
+            player_stateL: List[Tuple]):
 
         es = super()._encode_states(player_id, player_stateL)
         news = [] # newly encoded states
