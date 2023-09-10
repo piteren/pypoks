@@ -724,7 +724,7 @@ class NeurDMK(ExaDMK):
         self._pos_names = get_pos_names()
 
     # prepares state data into form accepted by NN input
-    #  - encodes only selection of states: [POS,PLH,TCD,MOV,PRS] ..does not use: HST,TST,PSB,PBB,T$$
+    #  - encodes only selection of states: [POS,PLH,TCD,MOV,PRS] ..does not use: HST,TST,PSB,PBB,T$$,HFN
     #  - each event has values (ids):
     #       0                                                       : pad (..for cards factually)
     #       1,2,3..N_TABLE_PLAYERS                                  : my positions SB,BB,BTN..
@@ -765,10 +765,12 @@ class NeurDMK(ExaDMK):
 
             if val[0] == 'PRS' and val[1][0] == 0: # my result
                 reward = val[1][1]
-                if self._states_dec[player_id]: self._states_dec[player_id][-1].reward = reward # we can append reward to last state in _done_states (reward is for moves, moves are only there)
+                if self._states_dec[player_id]:
+                    self._states_dec[player_id][-1].reward = reward # we can append reward to last state in _done_states (reward is for moves, moves are only there)
                 self._my_cards[player_id] = [] # reset my cards
 
-            if nval: news.append(GameState(nval))
+            if nval:
+                news.append(GameState(nval))
 
         self._logger.debug('>> states to encode:')
         for s in es:
@@ -1277,9 +1279,12 @@ class HuDMK(StaMaDMK):
         self.tk_IQ = tk_gui.tk_que
         self.tk_OQ = tk_gui.out_que
 
+    # TODO: delete
+    """
     def _pre_process(self):
-        self.my_cards = {pa: [] for pa in self._player_ids}  # current cards of player, updated while encoding states
+        # self.my_cards = {pa: [] for pa in self._player_ids} <- TODO: delete # current cards of player, updated while encoding states
         super()._pre_process()
+    """
 
     # send incoming states to tk
     def _encode_states(
