@@ -158,8 +158,10 @@ if __name__ == "__main__":
     """
     DMKs are named with pattern: f'dmk{loop_ix:03}{family}{cix:02}_{age:03}' + optional 'R'
         where:
-            - cix : index of DMK created in one loop
-            - R   : is added to DMKs in refs group
+            - loop_ix   : index of a loop DMK was created
+            - family    ; DMK family  
+            - cix       : index of DMK created in one loop
+            - R         : is added to DMKs in refs group
 
     1. Create DMKs
         fill up dmk_learners (new / GX)
