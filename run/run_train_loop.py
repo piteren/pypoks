@@ -76,8 +76,7 @@ CONFIG_INIT = {
         # general
     'exit':                     False,      # exits loop (after train)
     'pause':                    False,      # pauses loop after test till Enter pressed
-    # TODO: temp set ('b')
-    'families':                 'a',        # active families (forced to be present in learners)
+    'families':                 'abcd',     # active families (forced to be present in learners)
     'ndmk_refs':                10,         # number of refs DMKs (should fit one GPU)
     'ndmk_learners':            10,         # number of learners DMKs
     'ndmk_TR':                  5,          # learners are trained against refs in groups of this size

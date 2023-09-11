@@ -89,7 +89,7 @@ class GUI_HDMK:
             lbl.grid(row=2, column=0)
             plx_lblL.append(lbl)
             set_image(lbl, self.nodealer_img)
-            lbl = Label(plx_frm, text=f'{ix}:{players[ix][:9]}', font=('Helvetica bold', 9), width=10, pady=1) # player name
+            lbl = Label(plx_frm, text=f'{ix}:{players[ix][:9]}', font=('Helvetica bold', 9), width=11, pady=1) # player name
             lbl.grid(row=3, column=0)
             plx_lblL.append(lbl)
             lbl = Label(plx_frm, font=('Helvetica bold', 12), width=5)
