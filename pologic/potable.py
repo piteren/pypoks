@@ -7,16 +7,7 @@ from pypaq.mpython.mptools import Que, QMessage
 
 from pologic.hand_history import HHistory
 from pologic.podeck import PDeck
-from envy import TABLE_CASH_START, TABLE_CASH_SB, TABLE_CASH_BB, TBL_MOV, TBL_MOV_R, get_pos_names
-
-# table states
-TBL_STT = {
-    0:  'idle',
-    1:  'preflop',
-    2:  'flop',
-    3:  'turn',
-    4:  'river',
-    5:  'fin'}
+from envy import TABLE_CASH_START, TABLE_CASH_SB, TABLE_CASH_BB, TBL_MOV
 
 
 # PPlayer is an interface of player @table (used by deciding class like DMK)
@@ -149,8 +140,6 @@ class PTable:
             self.players = [PPlayer(id) for id in pl_ids]
             self._early_update_players()
 
-        self.p_names = get_pos_names()
-
         if self.logger: self.logger.info(f'*** PTable *** {self.name} initialized')
 
     # update some players info since their position on table is known
@@ -191,7 +180,7 @@ class PTable:
         hh.add('T$$', (self.pot, self.cash_cr, self.cash_tc))
 
         self.state = 0
-        hh.add('TST', (TBL_STT[self.state],))
+        hh.add('TST', (self.state,))
 
         # reset player data (cash, cards)
         for pl in self.players:
@@ -219,7 +208,7 @@ class PTable:
         h_pls = [] + self.players  # copy order of players for current hand (SB, BB, ..)
 
         for ix in range(len(h_pls)):
-            hh.add('POS', (h_pls[ix].name, self.p_names[ix]))
+            hh.add('POS', (h_pls[ix].name, ix))
 
         # put blinds on table
         h_pls[0].cash -= self.SB
@@ -255,7 +244,7 @@ class PTable:
         # rivers loop
         while self.state < 5 and len(h_pls) > 1:
 
-            hh.add('TST', (TBL_STT[self.state],))
+            hh.add('TST', (self.state,))
             hh.add('T$$', (self.pot, self.cash_cr, self.cash_tc))
 
             # manage table cards
@@ -296,17 +285,15 @@ class PTable:
                     # move is taken from mvh
                     if hh_mvh:
                         mv = hh_mvh.pop(0)
-                        mv_name = mv[1]
+                        mv_id = mv[1]
                         mv_cash = mv[2]
-                        mv_id = TBL_MOV_R[mv_name]
                     # player makes move
                     else:
                         pl.take_hh(hh)  # takes actual hh from table
                         mv_id, mv_cash, probs = pl.select_move()
                         prs = f'[{" ".join([f"{p:.4f}" for p in probs])}]'
                         if self.logger: self.logger.debug(f'player: {pl.name} selected move #{mv_id} from probs: {prs}')
-                        mv_name = TBL_MOV[mv_id][0]
-                    hh.add('MOV', (pl.name, mv_name, mv_cash, (pl.cash, pl.cash_ch, pl.cash_cr)))
+                    hh.add('MOV', (pl.name, mv_id, mv_cash, (pl.cash, pl.cash_ch, pl.cash_cr)))
 
                     pl.cash -= mv_cash
                     pl.cash_ch += mv_cash

@@ -75,7 +75,7 @@ from torchness.tbwr import TBwr
 from torchness.comoneural.zeroes_processor import ZeroesProcessor
 from typing import List, Tuple, Optional, Dict, Any
 
-from envy import DMK_MODELS_FD, DMK_POINT_PFX, N_TABLE_PLAYERS, TABLE_CASH_START, TBL_MOV_R, DMK_STATS_IV, get_pos_names
+from envy import DMK_MODELS_FD, DMK_POINT_PFX, N_TABLE_PLAYERS, TABLE_CASH_START, TBL_MOV, DMK_STATS_IV
 from pologic.podeck import PDeck
 from podecide.game_state import GameState
 from podecide.dmk_motorch import DMK_MOTorch
@@ -92,7 +92,7 @@ class DMK(ABC):
             self,
             name: str,                      # name should be unique (@table)
             n_players: int= 100,            # number of players managed by one DMK
-            n_moves: int=   len(TBL_MOV_R), # number of (all) moves supported by DMK, has to match the table
+            n_moves: int=   len(TBL_MOV),   # number of (all) moves supported by DMK, has to match the table
             family: str=    'a',            # family (type) used to group DMKs and manage together
             save_topdir=    DMK_MODELS_FD,
             logger=         None,
@@ -722,7 +722,6 @@ class NeurDMK(ExaDMK):
         self._mdl = None
         self.motorch_point = motorch_point or {}
         self.publish_update = publish_update
-        self._pos_names = get_pos_names()
 
     # prepares state data into form accepted by NN input
     #  - encodes only selection of states: [POS,PLH,TCD,MOV,PRS] ..does not use: HST,TST,PSB,PBB,T$$,HFN
@@ -757,12 +756,12 @@ class NeurDMK(ExaDMK):
             if val[0] == 'POS' and val[1][0] == 0: # my position
                 nval = {
                     'cards':    None,
-                    'event':    1 + self._pos_names.index(val[1][1])}
+                    'event':    1 + val[1][1]}
 
             if val[0] == 'MOV' and val[1][0] != 0: # moves, all but mine
                 nval = {
                     'cards':    None,
-                    'event':    1 + N_TABLE_PLAYERS + TBL_MOV_R[val[1][1]] + len(TBL_MOV_R)*(val[1][0]-1)}
+                    'event':    1 + N_TABLE_PLAYERS + val[1][1] + len(TBL_MOV)*(val[1][0]-1)}
 
             if val[0] == 'PRS' and val[1][0] == 0: # my result
                 reward = val[1][1]

@@ -1,29 +1,28 @@
 from typing import List, Tuple, Optional, Union
 
-from envy import DEBUG_MODE
+from envy import TBL_STT, TBL_MOV, DEBUG_MODE
 
 STATE = Tuple[str,Tuple] # type
-NAMED_EVENTS = ('POS','PSB','PBB','PLH','MOV','PRS') # events where player name
-
-"""
-    Hand History is build by the table, while playing a hand, below are implemented states:
-
-        HST:    (table_name:str, hand_id:int)                           hand starts
-        TST:    (state:str,)                                            table state
-        POS:    (pln:str, pos:str)                                      player position
-        PSB:    (pln:str, SB:int)                                       player puts small blind
-        PBB:    (pln:str, BB:int)                                       player puts big blind
-        T$$:    (cash:int, cash_cr:int, cash_tc:int)                    table cash (on table, current river, to call(river))
-        PLH:    (pln:str, ca:str, cb:str)                               player hand (PDeck.cts)
-        TCD:    (c0,c1,c2..:str)                                        table cards dealt, only new cards are shown
-        MOV:    (pln:str, move:str, mv_$:int, (pl.$, pl.$_ch, pl.$_cr)) player move (TBL_MOV.values()[0]), pl.cashes BEFORE move!
-        PRS:    (pln:str, won:int, full_rank)                           player result, full_rank is a tuple returned by PDeck.cards_rank
-        HFN:    (table_name:str, hand_id:int)                           hand finished
-"""
 
 
 # poker hand history
 class HHistory:
+
+    """
+    Hand History is build by the table, while playing a hand, below are implemented states:
+
+    HST: (table_name:str, hand_id:int)                                      hand starts
+    TST: (state:int,)                                                       table state
+    POS: (pln:str, pos:int)                                                 player position
+    PSB: (pln:str, SB$:int)                                                 player puts SB
+    PBB: (pln:str, BB$:int)                                                 player puts BB
+    T$$: (pot:int, cash_cr:int, cash_tc:int)                                table cash
+    PLH: (pln:str, ca:str, cb:str)                                          player hand
+    TCD: (c0,c1,c2..:str)                                                   table cards dealt, only new cards are shown
+    MOV: (pln:str, mv:int, mv_cash:int, (pl.cash, pl.cash_ch, pl.cash_cr))  player move (pl.cashes BEFORE move)
+    PRS: (pln:str, won:int, full_rank)                                      player result (full_rank is a tuple returned by PDeck.cards_rank)
+    HFN: (table_name:str, hand_id:int)                                      hand finished
+    """
 
     def __init__(self):
         self.events: List[STATE] = []
@@ -49,7 +48,7 @@ class HHistory:
             state = list(st)
 
             # replace pl.names with indexes
-            if state[0] in NAMED_EVENTS:
+            if state[0] in ('POS','PSB','PBB','PLH','MOV','PRS'):
                 sd = list(state[1])
                 sd[0] = pls.index(sd[0])
 
@@ -100,14 +99,14 @@ class HHistory:
             return f'{st[1][0]} cards: {st[1][1]} {st[1][2]}'
 
         if st[0] == 'TST':
-            if st[1][0] != 'idle':
-                return f'** {st[1][0]}'
+            if st[1][0] != 0: # not idle
+                return f'** {TBL_STT[st[1][0]]}'
 
         if st[0] == 'TCD':
             return f'table cards: {" ".join(st[1])}'
 
         if st[0] == 'MOV':
-            return f'{st[1][0]} {st[1][1]} {st[1][2]}'
+            return f'{st[1][0]} {TBL_MOV[st[1][1]]} {st[1][2]}'
 
         if st[0] == 'PRS':
             r = st[1][2] if type(st[1][2]) is str else st[1][2][-1]

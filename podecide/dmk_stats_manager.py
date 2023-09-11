@@ -22,6 +22,8 @@
 import time
 from typing import List, Dict, Optional
 
+from envy import TBL_MOV
+
 
 # StatsManager (for DMK), manages / builds stats, publishes
 class StatsManager:
@@ -69,14 +71,18 @@ class StatsManager:
         self.is_preflop[pid] = True
 
     # updates self.chsd with given player move
-    def __upd_chsd(self, pid:str, move:str):
-        if move == 'C/F': self.chsd[pid]['HF'] = True
+    def __upd_chsd(self, pid:str, move:int):
+        move_name = TBL_MOV[move][0]
+        if move_name == 'C/F': self.chsd[pid]['HF'] = True
         if self.is_preflop[pid]:
-            if move == 'CLL' and not self.is_BB[pid] or 'BR' in move: self.chsd[pid]['VPIP'] = True
-            if 'BR' in move: self.chsd[pid]['PFR'] = True
+            if move_name == 'CLL' and not self.is_BB[pid] or 'BR' in move_name:
+                self.chsd[pid]['VPIP'] = True
+            if 'BR' in move_name:
+                self.chsd[pid]['PFR'] = True
         else:
             self.chsd[pid]['nPM'] += 1
-            if 'BR' in move: self.chsd[pid]['nAGG'] += 1
+            if 'BR' in move_name:
+                self.chsd[pid]['nAGG'] += 1
 
     # updates global values with interval, then resets interval
     def __merge_interval_to_global(self):
@@ -90,9 +96,9 @@ class StatsManager:
         statsD = None
         for s in states:
             if s[0] == 'TST':                                                       # table state changed
-                if s[1][0] == 'preflop':        self.is_preflop[pid] = True
-                if s[1][0] == 'flop':           self.is_preflop[pid] = False
-            if s[0] == 'POS' and s[1][0] == 0:  self.is_BB[pid] = s[1][1] == 'BB'   # position
+                if s[1][0] == 1:                self.is_preflop[pid] = True         # preflop
+                if s[1][0] == 2:                self.is_preflop[pid] = False        # flop
+            if s[0] == 'POS' and s[1][0] == 0:  self.is_BB[pid] = s[1][1] == 1      # BB position
             if s[0] == 'MOV' and s[1][0] == 0:  self.__upd_chsd(pid, s[1][1])       # move received
             if s[0] == 'PRS' and s[1][0] == 0:                                      # final hand results
 

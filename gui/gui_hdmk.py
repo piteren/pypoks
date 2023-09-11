@@ -67,6 +67,8 @@ class GUI_HDMK:
 
         # players frame ************************************************************************************************
 
+        self.__btn_pos = get_pos_names().index('BTN') # where is BTN position
+
         pl_frm = Frame(self.tk, padx=5, pady=5)
         pl_frm.grid(row=1, column=0)
         self.plx_elD = {}
@@ -219,7 +221,7 @@ class GUI_HDMK:
             prn = False
 
         if state[0] == 'TST':
-            if state[1][0] == 'idle':
+            if state[1][0] == 0: # idle
                 self.__upd_myc()
                 self.__upd_tblc()
                 self.__upd_tcsh()
@@ -227,15 +229,21 @@ class GUI_HDMK:
                     self.__upd_plcsh(plix, TABLE_CASH_START)
                     self.__set_pl_active(plix)
             self.tcsh_tc = 0
-            if state[1][0] != 'preflop':
+            if state[1][0] != 1: # not preflop
                 for plix in self.plx_elD:
                     self.__upd_plcsh(plix, True, None)
             prn = False
 
         if state[0] == 'POS':
-            if state[1][1] == 'SB': self.__upd_plcsh(state[1][0], TABLE_CASH_START - TABLE_CASH_SB, TABLE_CASH_SB)
-            if state[1][1] == 'BB': self.__upd_plcsh(state[1][0], TABLE_CASH_START - TABLE_CASH_BB, TABLE_CASH_BB)
-            if state[1][1] == 'BTN': self.__set_button(state[1][0])
+            # SB
+            if state[1][1] == 0:
+                self.__upd_plcsh(state[1][0], TABLE_CASH_START - TABLE_CASH_SB, TABLE_CASH_SB)
+            # BB
+            if state[1][1] == 1:
+                self.__upd_plcsh(state[1][0], TABLE_CASH_START - TABLE_CASH_BB, TABLE_CASH_BB)
+            # is BTN
+            if state[1][1] == self.__btn_pos:
+                self.__set_button(state[1][0])
             prn = False
 
         if state[0] == 'PLH':
@@ -255,7 +263,7 @@ class GUI_HDMK:
 
         if state[0] == 'MOV':
             # fold case
-            if state[1][1] == 'C/F' and state[1][2] < self.tcsh_tc - state[1][3][2]:
+            if TBL_MOV[state[1][1]] == 'C/F' and state[1][2] < self.tcsh_tc - state[1][3][2]:
                 self.__upd_plcsh(state[1][0], state[1][3][0])
                 self.__set_pl_active(state[1][0], False)
             else:

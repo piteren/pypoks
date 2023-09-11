@@ -7,15 +7,22 @@ TABLE_CASH_START =  500     # player starts every hand with 500
 TABLE_CASH_SB =     2
 TABLE_CASH_BB =     5
 
+# table states names
+TBL_STT = {
+    0:  'idle',
+    1:  'preflop',
+    2:  'flop',
+    3:  'turn',
+    4:  'river',
+    5:  'fin'}
 
-# possible table moves 0..N-1 {IX: (name, ..)}
+# possible table moves {IX: (name, ..)}
 TBL_MOV = {
     0:  ('C/F', None),      # check/fold
     1:  ('CLL', None),      # call
     2:  ('BRS', 2.5, 0.6),  # bet/raise small
     3:  ('BRL', 4.0, 1.0),  # bet/raise large
 }
-TBL_MOV_R = {TBL_MOV[k][0]: k for k in TBL_MOV} # {name: IX}
 
 # folders
 MODELS_FD =          '_models'
