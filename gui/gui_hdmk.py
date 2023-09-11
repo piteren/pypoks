@@ -48,8 +48,11 @@ class GUI_HDMK:
         self.tk.title('pypoks HDMK')
         self.tk.tk_setPalette(background='gray70')
         #self.tk.geometry('400x250+20+20')
-        self.tk.resizable(0,0)
+        self.tk.resizable(False,False)
         self.tk.protocol("WM_DELETE_WINDOW", self.__on_closing)
+
+        ico = ImageTk.PhotoImage(Image.open(f'{imgs_FD}/aiico.png'))
+        self.tk.iconphoto(False, ico)
 
         self.cards_imagesD = build_cards_img_dict(imgs_FD)
         self.tcards = [] # here hand table cards are stored
@@ -86,7 +89,7 @@ class GUI_HDMK:
             lbl.grid(row=2, column=0)
             plx_lblL.append(lbl)
             set_image(lbl, self.nodealer_img)
-            lbl = Label(plx_frm, text=f'{ix}:{players[ix]}', font=('Helvetica bold', 7), width=10, pady=1) # name
+            lbl = Label(plx_frm, text=f'{ix}:{players[ix][:9]}', font=('Helvetica bold', 9), width=10, pady=1) # player name
             lbl.grid(row=3, column=0)
             plx_lblL.append(lbl)
             lbl = Label(plx_frm, font=('Helvetica bold', 12), width=5)
