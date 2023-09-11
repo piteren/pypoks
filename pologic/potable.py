@@ -250,7 +250,7 @@ class PTable:
             # manage table cards
             new_table_cards = []
             if self.state == 2:
-                # get table cards from mvh
+                # try to get table cards from mvh
                 for _ in range(3):
                     if hh_mvh:
                         c = hh_mvh.pop(0)[1]
