@@ -16,13 +16,27 @@ TBL_STT = {
     4:  'river',
     5:  'fin'}
 
-# possible table moves {IX: (name, ..)}
+# possible table moves {IX: (name, params)}
 TBL_MOV = {
-    0:  ('C/F', None),      # check/fold
-    1:  ('CLL', None),      # call
+    0:  ('C/F',),           # check/fold
+    1:  ('CLL',),           # call
     2:  ('BRS', 2.5, 0.6),  # bet/raise small
     3:  ('BRL', 4.0, 1.0),  # bet/raise large
 }
+
+"""
+# FUTURE:
+# possible table moves {IX: (name, Optional[preflop,flop])}
+TBL_MOV = {
+    0: ('CCK',),            # check
+    1: ('FLD',),            # fold
+    2: ('CLL',),            # call
+    3: ('BRM',),            # bet/raise MIN
+    4: ('BR1', 2.5, 0.6),   # bet/raise 1
+    5: ('BR2', 4.0, 1.0),   # bet/raise 2
+    6: ('BRA',)             # bet/raise ALL IN
+}
+"""
 
 # folders
 MODELS_FD =          '_models'
@@ -39,12 +53,11 @@ DMK_STATS_IV = 1000 # DMK (player) stats interval size, it is quite important co
 
 
 def get_pos_names(n_table_players=N_TABLE_PLAYERS) -> List[str]:
-    if n_table_players not in (2,3,6,9):
-        raise PyPoksException('not supported number of table players')
     if n_table_players == 2: return ['BTN','BB']
     if n_table_players == 3: return ['SB','BB','BTN']
     if n_table_players == 6: return ['SB','BB','UTG','MP','CT','BTN']
     if n_table_players == 9: return ['SB','BB','UTG1','UTG2','MP1','MP2','HJ','CT','BTN']
+    raise PyPoksException('not supported number of table players')
 
 
 def get_cardNet_name(c_embW :int):

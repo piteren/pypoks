@@ -106,7 +106,7 @@ class HHistory:
             return f'table cards: {" ".join(st[1])}'
 
         if st[0] == 'MOV':
-            return f'{st[1][0]} {TBL_MOV[st[1][1]]} {st[1][2]}'
+            return f'{st[1][0]} {TBL_MOV[st[1][1]][0]} {st[1][2]}'
 
         if st[0] == 'PRS':
             r = st[1][2] if type(st[1][2]) is str else st[1][2][-1]

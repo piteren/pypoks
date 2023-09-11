@@ -263,7 +263,7 @@ class GUI_HDMK:
 
         if state[0] == 'MOV':
             # fold case
-            if TBL_MOV[state[1][1]] == 'C/F' and state[1][2] < self.tcsh_tc - state[1][3][2]:
+            if TBL_MOV[state[1][1]][0] == 'C/F' and state[1][2] < self.tcsh_tc - state[1][3][2]:
                 self.__upd_plcsh(state[1][0], state[1][3][0])
                 self.__set_pl_active(state[1][0], False)
             else:

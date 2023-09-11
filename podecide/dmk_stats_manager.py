@@ -99,9 +99,9 @@ class StatsManager:
             if s[0] == 'TST':                                                       # table state changed
                 if s[1][0] == 1:                self.is_preflop[pid] = True         # preflop
                 if s[1][0] == 2:                self.is_preflop[pid] = False        # flop
-            if s[0] == 'POS' and s[1][0] == 0:  self.is_BB[pid] = s[1][1] == 1      # BB position
-            if s[0] == 'MOV' and s[1][0] == 0:  self.__upd_chsd(pid, s[1][1])       # move received
-            if s[0] == 'PRS' and s[1][0] == 0:                                      # final hand results
+            if s[0] == 'POS' and s[1][0] == 0:  self.is_BB[pid] = s[1][1] == 1      # my POS is BB position
+            if s[0] == 'MOV' and s[1][0] == 0:  self.__upd_chsd(pid, s[1][1])       # my move received
+            if s[0] == 'PRS' and s[1][0] == 0:                                      # my final hand results
 
                 self.stats['n_hands'][0] += 1
                 self.stats['won'][0] += s[1][1]
