@@ -141,7 +141,7 @@ class MethDMK(DMK, ABC):
         self._states_new: Dict[str,List[GameState]] = {pid: [] for pid in self._player_ids} # dict of new states lists
         self._n_states_new = 0  # cache, number of all _states_new == sum([len(l) for l in self._states_new.values()])
 
-    # takes player states, encodes and saves in self._new_states, updates cache
+    # takes player states, encodes and saves
     def collect_states(
             self,
             player_id: str,
@@ -149,7 +149,7 @@ class MethDMK(DMK, ABC):
 
         encoded_states = self._encode_states(player_id, player_states)
 
-        # save into data structures
+        # save
         if encoded_states:
             self._states_new[player_id] += encoded_states
             self._n_states_new += len(encoded_states)
@@ -159,7 +159,8 @@ class MethDMK(DMK, ABC):
     def _encode_states(
             self,
             player_id: str,
-            player_stateL: List[Tuple]) -> List[GameState]:
+            player_stateL: List[Tuple],
+    ) -> List[GameState]:
         return [GameState(state_orig_data=value) for value in player_stateL] # wraps into list of GameState
 
     # takes possible_moves (and their cash) from poker player
@@ -546,7 +547,7 @@ class StaMaDMK(QueDMK, ABC):
         self._wonH_IV = []      # wonH of interval (DMK_STATS_IV), computed using SM won
         self._wonH_afterIV = [] # wonH AFTER interval, sum(wonH_IV)/len(wonH_IV)
 
-
+    # adds stats management
     def _encode_states(
             self,
             player_id,
@@ -611,9 +612,9 @@ class StaMaDMK(QueDMK, ABC):
                 type=   'dmk_report',
                 data=   {
                     'dmk_name':     self.name,
-                    'n_hands':      self._sm.get_global_nhands(),       # current number of hands (since init ..of SM)
-                    'wonH_IV':      self._wonH_IV[message.data:],       # wonH of intervals GM is asking for
-                    'wonH_afterIV': self._wonH_afterIV[message.data:]}))# wonH AFTER intervals GM is asking for
+                    'n_hands':      self._sm.get_global_nhands(),           # current number of hands (since init ..of SM)
+                    'wonH_IV':      self._wonH_IV[message.data:],           # wonH of intervals GM is asking for
+                    'wonH_afterIV': self._wonH_afterIV[message.data:]}))    # wonH AFTER intervals GM is asking for
 
         if message.type == 'send_global_stats':
             self.que_to_gm.put(QMessage(
@@ -726,13 +727,14 @@ class NeurDMK(ExaDMK):
     # prepares state data into form accepted by NN input
     #  - encodes only selection of states: [POS,PLH,TCD,MOV,PRS] ..does not use: HST,TST,PSB,PBB,T$$,HFN
     #  - each event has values (ids):
-    #       0                                                       : pad (..for cards factually)
-    #       1,2,3..N_TABLE_PLAYERS                                  : my positions SB,BB,BTN..
+    #       0                                                       : pad (for cards)
+    #       1,2,3..N_TABLE_PLAYERS                                  : my positions 0-SB,1-BB..
     #       1+N_TABLE_PLAYERS.. len(TBL_MOV)*(N_TABLE_PLAYERS-1)-1  : n_opponents * n_moves
     def _encode_states(
             self,
             player_id,
-            player_stateL: List[Tuple]):
+            player_stateL: List[Tuple],
+    ) -> List[GameState]:
 
         es = super()._encode_states(player_id, player_stateL)
         news = [] # newly encoded states
@@ -743,13 +745,13 @@ class NeurDMK(ExaDMK):
             if val[0] == 'PLH' and val[1][0] == 0: # my hand
                 self._my_cards[player_id] = [PDeck.cti(c) for c in val[1][1:]]
                 nval = {
-                    'cards':    [] + self._my_cards[player_id], # copy cards
+                    'cards':    [] + self._my_cards[player_id], # copy
                     'event':    0}
 
             if val[0] == 'TCD': # my hand update
                 self._my_cards[player_id] += [PDeck.cti(c) for c in val[1]]
                 nval = {
-                    'cards':    [] + self._my_cards[player_id], # copy cards
+                    'cards':    [] + self._my_cards[player_id], # copy
                     'event':    0}
 
             if val[0] == 'POS' and val[1][0] == 0: # my position
@@ -758,10 +760,9 @@ class NeurDMK(ExaDMK):
                     'event':    1 + self._pos_names.index(val[1][1])}
 
             if val[0] == 'MOV' and val[1][0] != 0: # moves, all but mine
-                evsIX = 1 + N_TABLE_PLAYERS
                 nval = {
                     'cards':    None,
-                    'event':    evsIX + TBL_MOV_R[val[1][1]] + len(TBL_MOV_R)*(val[1][0]-1)}
+                    'event':    1 + N_TABLE_PLAYERS + TBL_MOV_R[val[1][1]] + len(TBL_MOV_R)*(val[1][0]-1)}
 
             if val[0] == 'PRS' and val[1][0] == 0: # my result
                 reward = val[1][1]

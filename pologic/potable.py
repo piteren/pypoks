@@ -117,7 +117,7 @@ class PTable:
 
     def __init__(
             self,
-            name,
+            name: str,
             pl_ids: Optional[List[Union[int,str]]]= None,
             logger=                                 None):
 
@@ -141,7 +141,7 @@ class PTable:
             # minbet = BB
             # minraise = cash_tc + cash_rs
 
-        self.hand_ID =      0   # hand counter
+        self.hand_ID: int=  0   # hand counter
 
         self.players = None
         # create players and put on the table

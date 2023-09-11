@@ -31,7 +31,7 @@ RESULTS_FP =        f'{DMK_MODELS_FD}/loops_results.json'
 DMK_STATS_IV = 1000 # DMK (player) stats interval size, it is quite important constant for DMK, StatsManager & GamesManager
 
 
-def get_pos_names(n_table_players=N_TABLE_PLAYERS):
+def get_pos_names(n_table_players=N_TABLE_PLAYERS) -> List[str]:
     if n_table_players not in (2,3,6,9):
         raise PyPoksException('not supported number of table players')
     if n_table_players == 2: return ['BTN','BB']
