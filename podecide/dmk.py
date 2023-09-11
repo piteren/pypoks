@@ -1279,13 +1279,6 @@ class HuDMK(StaMaDMK):
         self.tk_IQ = tk_gui.tk_que
         self.tk_OQ = tk_gui.out_que
 
-    # TODO: delete
-    """
-    def _pre_process(self):
-        # self.my_cards = {pa: [] for pa in self._player_ids} <- TODO: delete # current cards of player, updated while encoding states
-        super()._pre_process()
-    """
-
     # send incoming states to tk
     def _encode_states(
             self,
