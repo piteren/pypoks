@@ -18,28 +18,16 @@ TBL_STT = {
     4:  'river',
     5:  'fin'}
 
-# possible table moves {IX: (name, params)}
+# possible table moves {IX: (name, Optional[preflop,flop])}
 TBL_MOV = {
     0: ('CCK',),           # check
     1: ('FLD',),           # fold
     2: ('CLL',),           # call
-    3: ('BRS', 2.5, 0.6),  # bet/raise small
-    4: ('BRL', 4.0, 1.0),  # bet/raise large
+    #: ('BRM',),           # bet/raise MIN
+    3: ('BR1', 2.5, 0.6),  # bet/raise small
+    4: ('BR2', 4.0, 1.0),  # bet/raise large
+    #: ('BRA',)             # bet/raise ALL IN
 }
-
-"""
-# FUTURE:
-# possible table moves {IX: (name, Optional[preflop,flop])}
-TBL_MOV = {
-    0: ('CCK',),            # check
-    1: ('FLD',),            # fold
-    2: ('CLL',),            # call
-    3: ('BRM',),            # bet/raise MIN
-    4: ('BR1', 2.5, 0.6),   # bet/raise 1
-    5: ('BR2', 4.0, 1.0),   # bet/raise 2
-    6: ('BRA',)             # bet/raise ALL IN
-}
-"""
 
 # folders
 MODELS_FD =          '_models'
