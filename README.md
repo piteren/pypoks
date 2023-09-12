@@ -60,11 +60,7 @@ $ python run/run_human_game.py
 ```
 ![](images/pypoks_HDMK.png)
 
-There are 4 actions possible:
-- C/F - check / fold
-- CLL - call
-- BRS - bet or raise (small)
-- BRL - bet or raise (large)
+Possible moves are defined in TBL_MOV in envy.py.
 
 While playing debug of a game is logged to terminal. You can always check what cards played each agent.
 

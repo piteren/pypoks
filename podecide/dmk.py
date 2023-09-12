@@ -762,6 +762,8 @@ class NeurDMK(ExaDMK):
                 nval = {
                     'cards':    None,
                     'event':    1 + N_TABLE_PLAYERS + val[1][1] + len(TBL_MOV)*(val[1][0]-1)}
+                                # pad                 # move_ix   # n_moves   * pl_id-1 (because I am "0")
+                                                                  # it is a player offset for event -> each player has its move_ix event
 
             if val[0] == 'PRS' and val[1][0] == 0: # my result
                 reward = val[1][1]

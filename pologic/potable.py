@@ -38,29 +38,45 @@ class PPlayer:
         moves_cash = [0] * n_tbl_mov            # by now all have 0
         for mIX in range(n_tbl_mov):
             val = 0
-            if mIX == 1:
+            # CLL
+            if mIX == 2:
                 val = self.table.cash_tc - self.cash_cr
-            if mIX > 1:
+            # BR
+            if mIX > 2:
                 if self.table.state == 1:
                     val = round(TBL_MOV[mIX][1] * self.table.cash_tc)
                 else:
                     val = round(TBL_MOV[mIX][2] * self.table.pot)
-                    if val < 2 * self.table.cash_tc: val = 2 * self.table.cash_tc
-                val -= self.cash_cr # TODO: why???
+                    # check MINBET value
+                    if val < 2 * self.table.cash_tc:
+                        val = 2 * self.table.cash_tc
+                val -= self.cash_cr # reduce by cash already put on current river
 
             moves_cash[mIX] = val
 
-        if moves_cash[1] == 0:
-            possible_moves[1] = False # cannot call (..nobody bet on the river yet ..check or bet)
+        # if can CLL then cannot CCK
+        if moves_cash[2] > 0:
+            possible_moves[0] = False
 
-        for mIX in range(2,n_tbl_mov):
-            if moves_cash[mIX] <= moves_cash[1]: possible_moves[mIX] = False # cannot BET less than CALL
+        # if can CCK then cannot FLD
+        if possible_moves[0]:
+            possible_moves[1] = False
+
+        # if CLL cash is 0 then cannot CLL (nobody bet on the river yet -> CCK or BR)
+        if moves_cash[2] == 0:
+            possible_moves[2] = False
+
+        # cannot BET less than CALL
+        for mIX in range(3,n_tbl_mov):
+            if moves_cash[mIX] <= moves_cash[2]:
+                possible_moves[mIX] = False
 
         # eventually reduce moves_cash and disable next (higher) moves
-        for mIX in range(1,n_tbl_mov):
+        for mIX in range(2,n_tbl_mov):
             if possible_moves[mIX] and self.cash <= moves_cash[mIX]:
                 moves_cash[mIX] = self.cash
-                for mnIX in range(mIX+1,n_tbl_mov): possible_moves[mnIX] = False
+                for mnIX in range(mIX+1,n_tbl_mov):
+                    possible_moves[mnIX] = False
 
         return possible_moves, moves_cash
 
@@ -300,11 +316,13 @@ class PTable:
                     self.pot += mv_cash
                     self.cash_cr += mv_cash
 
-                    if mv_id == 0 and self.cash_tc > pl.cash_cr:
+                    # FLD case
+                    if mv_id == 1:
                         player_folded = True
                         h_pls.pop(cmv_pIX)
 
-                    if mv_id > 1:
+                    # raised case
+                    if mv_id > 2:
                         player_raised = True
                         self.cash_tc = pl.cash_cr
                         clc_pIX = cmv_pIX-1 if cmv_pIX>0 else len(h_pls) - 1 # player before in loop

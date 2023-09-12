@@ -149,7 +149,7 @@ class GUI_HDMK:
 
         # decision subframe ********************************************************************************************
 
-        lcol = ['black', 'DodgerBlue3'] + ['red'] * (len(TBL_MOV) - 2)  # fg colors in frame
+        lcol = ['dark green', 'black', 'DodgerBlue3'] + ['red'] * (len(TBL_MOV) - 3)  # fg colors in frame
         mnm = [TBL_MOV[k][0] for k in sorted(list(TBL_MOV.keys()))]     # moves names
         dec_frm = Frame(m_frm, padx=5, pady=5)
         dec_frm.grid(row=0, column=1)
@@ -264,9 +264,9 @@ class GUI_HDMK:
             prn = False
 
         if state[0] == 'MOV':
-            # fold case
-            if TBL_MOV[state[1][1]][0] == 'C/F' and state[1][2] < self.tcsh_tc - state[1][3][2]:
-                self.__upd_plcsh(state[1][0], state[1][3][0])
+            # FLD case
+            if TBL_MOV[state[1][1]][0] == 'FLD':
+                self.__upd_plcsh(state[1][0], state[1][3][0]) # sets cash_cr to '-'
                 self.__set_pl_active(state[1][0], False)
             else:
                 self.__upd_plcsh(state[1][0], state[1][3][0] - state[1][2], state[1][3][2] + state[1][2])

@@ -20,10 +20,11 @@ TBL_STT = {
 
 # possible table moves {IX: (name, params)}
 TBL_MOV = {
-    0:  ('C/F',),           # check/fold
-    1:  ('CLL',),           # call
-    2:  ('BRS', 2.5, 0.6),  # bet/raise small
-    3:  ('BRL', 4.0, 1.0),  # bet/raise large
+    0: ('CCK',),           # check
+    1: ('FLD',),           # fold
+    2: ('CLL',),           # call
+    3: ('BRS', 2.5, 0.6),  # bet/raise small
+    4: ('BRL', 4.0, 1.0),  # bet/raise large
 }
 
 """

@@ -73,7 +73,7 @@ class StatsManager:
     # updates self.chsd with given player move
     def __upd_chsd(self, pid:str, move:int):
         move_name = TBL_MOV[move][0]
-        if move_name == 'C/F':
+        if move_name == 'FLD':
             self.chsd[pid]['HF'] = True
         if self.is_preflop[pid]:
             if move_name == 'CLL' and not self.is_BB[pid] or 'BR' in move_name:
