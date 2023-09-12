@@ -1,3 +1,5 @@
+from typing import List
+
 DEBUG_MODE = True # True allows more information to be shown while playing HumanGame
 
 

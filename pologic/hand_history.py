@@ -31,13 +31,17 @@ class HHistory:
     def add(self, act:str, val:Tuple):
         self.events.append((act,val))
 
-    # returns translated into player history part of events[fr:to]
     def translated(
             self,
             pls: List[str],             # players (list of names)
             fr: Optional[int]=  None,   # starting index
             to: Optional[int]=  None,   # ending index
     ) -> List[Tuple]:
+        """
+        returns events translated into "player perspective"
+        - player names (pln:str) is replaced with int, where 0 means "me" and other players are marked with 1,2..
+        - PLH of other players are removed (if not DEBUG_MODE)
+        """
 
         if fr is None: fr = 0
         if to is None: to = len(self.events)

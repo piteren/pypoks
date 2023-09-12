@@ -18,9 +18,9 @@ class PPlayer:
         self.id = id
         self.name = f'pl{self.id}'
 
-        # fields below are managed(updated) by table
+        # fields below are managed(updated) by table._early_update_players()
         self.table = None
-        self.pls = []       # names of all players @table, initialised with table constructor, self name always first
+        self.pls = []       # names of all players @table, self name always first, then players to the right
 
         self.hand = None
         self.cash = 0       # current player cash
