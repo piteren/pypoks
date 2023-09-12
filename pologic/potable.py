@@ -307,7 +307,7 @@ class PTable:
                         pl.take_hh(hh)  # takes actual hh from table
                         mv_id, mv_cash, probs = pl.select_move()
                         prs = f'[{" ".join([f"{p:.4f}" for p in probs])}]'
-                        if self.logger: self.logger.debug(f'player: {pl.id} selected move #{mv_id} from probs: {prs}')
+                        if self.logger: self.logger.debug(f'player: {pl.id} selected move #{mv_id} {TBL_MOV[mv_id][0]} from probs: {prs}')
                     hh.add('MOV', (pl.id, mv_id, mv_cash, (pl.cash, pl.cash_ch, pl.cash_cr)))
 
                     pl.cash -= mv_cash
