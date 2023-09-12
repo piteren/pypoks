@@ -38,7 +38,7 @@ class GUI_HDMK:
 
     def __init__(
             self,
-            players: List[str], # names of players
+            players: List[str], # ids of players
             imgs_FD=    'gui/imgs'):
 
         self.tk_que = Que()
@@ -54,12 +54,14 @@ class GUI_HDMK:
         ico = ImageTk.PhotoImage(Image.open(f'{imgs_FD}/aiico.png'))
         self.tk.iconphoto(False, ico)
 
+        n_players = len(players)
+
         self.cards_imagesD = build_cards_img_dict(imgs_FD)
         self.tcards = [] # here hand table cards are stored
         self.tcsh_tc = 0 # will keep it to capture fold event
         self.pl_won = [0 for _ in range(len(players))]
         self.n_hands = 0
-        self.players_cards = {0:[], 1:[], 2:[]}
+        self.players_cards = {ix:[] for ix in range(n_players)}
 
         pyp_lbl = Label(self.tk)
         pyp_lbl.grid(row=0, column=0)
@@ -76,7 +78,7 @@ class GUI_HDMK:
         self.nodealer_img = ImageTk.PhotoImage(Image.open(f'{imgs_FD}/no_dealer.png'))
         user_ico = ImageTk.PhotoImage(Image.open(f'{imgs_FD}/user.png'))
         ai_ico = ImageTk.PhotoImage(Image.open(f'{imgs_FD}/ai.png'))
-        for ix in range(len(players)):
+        for ix in range(n_players):
             plx_frm = Frame(pl_frm, padx=5, pady=5)
             plx_frm.grid(row=0, column=ix)
             plx_lblL = []
@@ -276,8 +278,8 @@ class GUI_HDMK:
 
         if state[0] == 'HFN':
             if DEBUG_MODE:
-                for ix in [0,1,2]:
-                    print(f' DEB: pl{ix} cards: {self.players_cards[ix][0]} {self.players_cards[ix][1]}')
+                for ix in self.players_cards:
+                    print(f'DEB: pl{ix} cards: {self.players_cards[ix][0]} {self.players_cards[ix][1]}')
             self.next_btn['state'] = 'normal'
             print('\npress GO to start next hand')
             self.next_btn.wait_variable(self.next_go)

@@ -11,7 +11,7 @@ class TestPDeck(unittest.TestCase):
     def test_base(self):
         table = PTable(
             name=       'table',
-            pl_ids=     [0,1,2])
+            pl_ids=     ['pl0','pl1','pl2'])
         hh = table.run_hand()
 
         print(f'\nHHistory:\n{hh}')
@@ -22,19 +22,17 @@ class TestPDeck(unittest.TestCase):
             if re: print(re)
 
     def test_table_speed(self, n_hands=100000):
-        table = PTable(name='table_speed', pl_ids=[0,1,2])
+        table = PTable(name='table_speed', pl_ids=['pl0','pl1','pl2'])
         stime = time.time()
         for _ in tqdm(range(n_hands)):
             table.run_hand()
-            #hh = table.run_hand()
-            #print('%s\n'%hh)
         n_sec = time.time()-stime
         print('time taken: %.1fsec (%d h/s)'%(n_sec, n_hands/n_sec))
 
     def test_run_with_hh(self):
         table = PTable(
             name=       'table',
-            pl_ids=     [0,1,2])
+            pl_ids=     ['pl0','pl1','pl2'])
         hh1 = table.run_hand()
         print(f'\nHHistory1:\n{hh1}')
 

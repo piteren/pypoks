@@ -11,17 +11,17 @@ class HHistory:
     """
     Hand History is build by the table, while playing a hand, below are implemented states:
 
-    HST: (table_name:str, hand_id:int)                                      hand starts
-    TST: (state:int,)                                                       table state
-    POS: (pln:str, pos:int)                                                 player position
-    PSB: (pln:str, SB$:int)                                                 player puts SB
-    PBB: (pln:str, BB$:int)                                                 player puts BB
-    T$$: (pot:int, cash_cr:int, cash_tc:int)                                table cash
-    PLH: (pln:str, ca:str, cb:str)                                          player hand
-    TCD: (c0,c1,c2..:str)                                                   table cards dealt, only new cards are shown
-    MOV: (pln:str, mv:int, mv_cash:int, (pl.cash, pl.cash_ch, pl.cash_cr))  player move (pl.cashes BEFORE move)
-    PRS: (pln:str, won:int, full_rank)                                      player result (full_rank is a tuple returned by PDeck.cards_rank)
-    HFN: (table_name:str, hand_id:int)                                      hand finished
+    HST: (table_name:str, hand_id:int)                                          hand starts
+    TST: (state:int,)                                                           table state
+    POS: (pl_id:str, pos:int)                                                   player position
+    PSB: (pl_id:str, SB$:int)                                                   player puts SB
+    PBB: (pl_id:str, BB$:int)                                                   player puts BB
+    T$$: (pot:int, cash_cr:int, cash_tc:int)                                    table cash
+    PLH: (pl_id:str, ca:str, cb:str)                                            player hand
+    TCD: (c0,c1,c2..:str)                                                       table cards dealt, only new cards are shown
+    MOV: (pl_id:str, mv:int, mv_cash:int, (pl.cash, pl.cash_ch, pl.cash_cr))    player move (pl.cashes BEFORE move)
+    PRS: (pl_id:str, won:int, full_rank)                                        player result (full_rank is a tuple returned by PDeck.cards_rank)
+    HFN: (table_name:str, hand_id:int)                                          hand finished
     """
 
     def __init__(self):
@@ -33,13 +33,13 @@ class HHistory:
 
     def translated(
             self,
-            pls: List[str],             # players (list of names)
+            pls: List[str],             # players (list of ids)
             fr: Optional[int]=  None,   # starting index
             to: Optional[int]=  None,   # ending index
     ) -> List[Tuple]:
         """
         returns events translated into "player perspective"
-        - player names (pln:str) is replaced with int, where 0 means "me" and other players are marked with 1,2..
+        - player names (pl_id:str) is replaced with int, where 0 means "me" and other players are marked with 1,2..
         - PLH of other players are removed (if not DEBUG_MODE)
         """
 
@@ -51,7 +51,7 @@ class HHistory:
 
             state = list(st)
 
-            # replace pl.names with indexes
+            # replace pl.id with indexes
             if state[0] in ('POS','PSB','PBB','PLH','MOV','PRS'):
                 sd = list(state[1])
                 sd[0] = pls.index(sd[0])

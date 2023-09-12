@@ -13,10 +13,9 @@ from envy import TABLE_CASH_START, TABLE_CASH_SB, TABLE_CASH_BB, TBL_MOV
 # PPlayer is an interface of player @table (used by deciding class like DMK)
 class PPlayer:
 
-    def __init__(self, id:Union[int,str]): # player id/address, unique for all tables
+    def __init__(self, id:str):
 
-        self.id = id
-        self.name = f'pl{self.id}'
+        self.id = id        # player id/address, unique for all tables
 
         # fields below are managed(updated) by table._early_update_players()
         self.table = None
@@ -109,8 +108,8 @@ class PTable:
     def __init__(
             self,
             name: str,
-            pl_ids: Optional[List[Union[int,str]]]= None,
-            logger=                                 None):
+            pl_ids: Optional[List[str]]=    None,
+            logger=                         None):
 
         self.logger = logger
 
@@ -150,11 +149,11 @@ class PTable:
             pl.table = self
 
         # update players names with self on 1st pos, then next to me, then next..
-        pls = [pl.name for pl in self.players] # list of names
+        pls = [pl.id for pl in self.players] # list of ids
         for pl in self.players:
             pl.pls = [] + pls # copy
             # rotate for every player to put his on first position
-            while pl.pls[0] != pl.name:
+            while pl.pls[0] != pl.id:
                 nm = pl.pls.pop(0)
                 pl.pls.append(nm)
 
@@ -198,8 +197,8 @@ class PTable:
 
         # rotate table to match mvh, remove SB move
         if hh_mvh:
-            sb_pl_name = hh_mvh.pop(0)[0]
-            while sb_pl_name != self.players[0].name:
+            sb_pl_id = hh_mvh.pop(0)[0]
+            while sb_pl_id != self.players[0].id:
                 self.rotate_players()
         # remove also BB move
         if hh_mvh:
@@ -208,18 +207,18 @@ class PTable:
         h_pls = [] + self.players  # copy order of players for current hand (SB, BB, ..)
 
         for ix in range(len(h_pls)):
-            hh.add('POS', (h_pls[ix].name, ix))
+            hh.add('POS', (h_pls[ix].id, ix))
 
         # put blinds on table
         h_pls[0].cash -= self.SB
         h_pls[0].cash_ch = self.SB
         h_pls[0].cash_cr = self.SB
-        hh.add('PSB', (h_pls[0].name, self.SB))
+        hh.add('PSB', (h_pls[0].id, self.SB))
 
         h_pls[1].cash -= self.BB
         h_pls[1].cash_ch = self.BB
         h_pls[1].cash_cr = self.BB
-        hh.add('PBB', (h_pls[1].name, self.BB))
+        hh.add('PBB', (h_pls[1].id, self.BB))
 
         self.pot = self.SB + self.BB
         self.cash_cr = self.pot
@@ -239,7 +238,7 @@ class PTable:
             else:
                 ca, cb = self.deck.get_card(), self.deck.get_card()
                 pl.hand = PDeck.cts(ca), PDeck.cts(cb)
-            hh.add('PLH', (pl.name, pl.hand[0], pl.hand[1]))
+            hh.add('PLH', (pl.id, pl.hand[0], pl.hand[1]))
 
         # rivers loop
         while self.state < 5 and len(h_pls) > 1:
@@ -292,8 +291,8 @@ class PTable:
                         pl.take_hh(hh)  # takes actual hh from table
                         mv_id, mv_cash, probs = pl.select_move()
                         prs = f'[{" ".join([f"{p:.4f}" for p in probs])}]'
-                        if self.logger: self.logger.debug(f'player: {pl.name} selected move #{mv_id} from probs: {prs}')
-                    hh.add('MOV', (pl.name, mv_id, mv_cash, (pl.cash, pl.cash_ch, pl.cash_cr)))
+                        if self.logger: self.logger.debug(f'player: {pl.id} selected move #{mv_id} from probs: {prs}')
+                    hh.add('MOV', (pl.id, mv_id, mv_cash, (pl.cash, pl.cash_ch, pl.cash_cr)))
 
                     pl.cash -= mv_cash
                     pl.cash_ch += mv_cash
@@ -327,14 +326,14 @@ class PTable:
             self.state += 1  # move table to next state
 
         winnersD = {
-            pl.name: {
+            pl.id: {
                 'winner':       False,
                 'full_rank':    'muck',
                 'won':          0} for pl in self.players}
 
         # one player left finally (other passed)
         if len(h_pls) == 1:
-            w_name = h_pls[0].name
+            w_name = h_pls[0].id
             winnersD[w_name]['winner'] = True
             winnersD[w_name]['full_rank'] = 'not_shown'
             n_winners = 1
@@ -345,7 +344,7 @@ class PTable:
             for pl in h_pls:
                 cards = list(pl.hand)+self.cards
                 rank = PDeck.cards_rank(cards)
-                winnersD[pl.name]['full_rank'] = rank
+                winnersD[pl.id]['full_rank'] = rank
                 if top_rank < rank[1]: top_rank = rank[1]
 
             # who's got top rank
@@ -365,10 +364,11 @@ class PTable:
         prize = self.pot / n_winners
         for pl in self.players:
             my_won = -pl.cash_ch  # netto lost
-            if winnersD[pl.name]['winner']: my_won += prize  # add netto winning
-            winnersD[pl.name]['won'] = my_won
+            if winnersD[pl.id]['winner']: my_won += prize  # add netto winning
+            winnersD[pl.id]['won'] = my_won
 
-        for pln in winnersD: hh.add('PRS', (pln, winnersD[pln]['won'], winnersD[pln]['full_rank']))
+        for pl_id in winnersD:
+            hh.add('PRS', (pl_id, winnersD[pl_id]['won'], winnersD[pl_id]['full_rank']))
 
         hh.add('HFN', (self.name, self.hand_ID))
 
@@ -394,9 +394,10 @@ class QPPlayer(PPlayer):
 
     def __init__(
             self,
-            id :Union[int,str],
-            que_to_player :Que,       # from DMK to player
-            que_from_player :Que):    # from player to DMK
+            id: str,
+            que_to_player: Que,     # from DMK to player
+            que_from_player: Que,   # from player to DMK
+    ):
         super(QPPlayer,self).__init__(id)
         self.que_to_player = que_to_player
         self.que_from_player = que_from_player
