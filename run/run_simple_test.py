@@ -36,8 +36,8 @@ if __name__ == "__main__":
     for l in range(3):
 
         rgd = run_GM(
-            dmk_point_ref=  [{'name':dn, 'motorch_point':{'device':0}, 'fwd_stats_iv':1000, **pub_TS} for dn in refs_ranked],
-            dmk_point_PLL=  [{'name':dn, 'motorch_point':{'device':1}, 'fwd_stats_iv':1000, **pub_TS} for dn in names],
+            dmk_point_ref=  [{'name':dn, 'motorch_point':{'device':0}, **pub_TS} for dn in refs_ranked],
+            dmk_point_PLL=  [{'name':dn, 'motorch_point':{'device':1}, **pub_TS} for dn in names],
             game_size=      game_size,
             dmk_n_players=  150,
             sep_all_break=  True,

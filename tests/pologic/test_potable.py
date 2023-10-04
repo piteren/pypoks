@@ -2,6 +2,7 @@ import time
 from tqdm import tqdm
 import unittest
 
+from envy import N_TABLE_PLAYERS
 from pologic.potable import PTable
 from pologic.hand_history import HHistory
 
@@ -11,7 +12,7 @@ class TestPDeck(unittest.TestCase):
     def test_base(self):
         table = PTable(
             name=       'table',
-            pl_ids=     ['pl0','pl1','pl2'])
+            pl_ids=     [f'pl{ix}' for ix in range(N_TABLE_PLAYERS)])
         hh = table.run_hand()
 
         print(f'\nHHistory:\n{hh}')
@@ -22,17 +23,17 @@ class TestPDeck(unittest.TestCase):
             if re: print(re)
 
     def test_table_speed(self, n_hands=100000):
-        table = PTable(name='table_speed', pl_ids=['pl0','pl1','pl2'])
+        table = PTable(name='table_speed', pl_ids=[f'pl{ix}' for ix in range(N_TABLE_PLAYERS)])
         stime = time.time()
         for _ in tqdm(range(n_hands)):
             table.run_hand()
         n_sec = time.time()-stime
-        print('time taken: %.1fsec (%d h/s)'%(n_sec, n_hands/n_sec))
+        print(f'time taken: {n_sec:.1f}sec ({int(n_hands/n_sec)} h/s)')
 
     def test_run_with_hh(self):
         table = PTable(
             name=       'table',
-            pl_ids=     ['pl0','pl1','pl2'])
+            pl_ids=     [f'pl{ix}' for ix in range(N_TABLE_PLAYERS)])
         hh1 = table.run_hand()
         print(f'\nHHistory1:\n{hh1}')
 

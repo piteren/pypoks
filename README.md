@@ -15,18 +15,20 @@
 - Python Multiprocessing & PyTorch (many processes, many GPUs and a lot of data for parallel computing)
 - GA with PyTorch
 
+Detailed documentation may be found here: https://piteren.atlassian.net/wiki/spaces/pypoks/overview
+
 ---
 
 ### Setup
 
 To run training scripts you will need about 50 CPU cores, 120GB RAM and 2x GPU system.<br>
 You may just play `run_human_game.py` with trained agents downloaded from here:<br>
-https://drive.google.com/file/d/1dgfAiYTBsxCcmyWVe8wEbmcTa4Y4BAGw/view?usp=sharing - to be extracted in project main folder.<br>
+#### TODO: !!! to be updated - not valid now !!! https://drive.google.com/file/d/1dgfAiYTBsxCcmyWVe8wEbmcTa4Y4BAGw/view?usp=sharing - to be extracted in project main folder.<br>
 To play human game with agents you will also need `tkinter` for GUI, please install it.
 
 
 ### Training
-This code is preconfigured for reinforcement learning of limit texas holdem poker with 3 players.<br>
+This code is preconfigured for reinforcement learning of limit texas holdem poker.<br>
 
 Poker agent - **Decision Maker (DMK)** - consist of part responsible for preparation of card representations - **cardNet**.<br>
 **cardNet** may be optionally pretrained with supervised learning. To pretrain **cardNet** run:

@@ -57,7 +57,7 @@ class CardEnc(Module):
             cards: TNS # seven cards (ids)
     ) -> DTNS:
 
-        my_cards_indexes = [0,0,1,1,1,1,1]
+        my_cards_indexes = [0,0,1,1,1,1,1] # adds info which cards are mine (EncTNS does not recognize order)
 
         input = self.cards_emb[cards] + self.mycards_emb[my_cards_indexes]
         input = self.tf_drop(input)

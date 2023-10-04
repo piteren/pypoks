@@ -1,8 +1,9 @@
+from pypaq.lipytools.files import w_json, r_json
 from typing import List, Tuple, Optional, Union
 
 from envy import TBL_STT, TBL_MOV, DEBUG_MODE
 
-STATE = Tuple[str,Tuple] # type
+STATE = Tuple[str,Tuple] # state type
 
 
 # poker hand history
@@ -13,15 +14,38 @@ class HHistory:
 
     HST: (table_name:str, hand_id:int)                                          hand starts
     TST: (state:int,)                                                           table state
-    POS: (pl_id:str, pos:int)                                                   player position
+    POS: (pl_id:str, pos:int, pl.cash)                                          player position and starting cash
     PSB: (pl_id:str, SB$:int)                                                   player puts SB
     PBB: (pl_id:str, BB$:int)                                                   player puts BB
-    T$$: (pot:int, cash_cr:int, cash_tc:int)                                    table cash
+    T$$: (pot:int, cash_cr:int, cash_tc:int)                                    table cash, added after each player MOV (PSB+PBB <- together)
     PLH: (pl_id:str, ca:str, cb:str)                                            player hand
     TCD: (c0,c1,c2..:str)                                                       table cards dealt, only new cards are shown
     MOV: (pl_id:str, mv:int, mv_cash:int, (pl.cash, pl.cash_ch, pl.cash_cr))    player move (pl.cashes BEFORE move)
     PRS: (pl_id:str, won:int, full_rank)                                        player result (full_rank is a tuple returned by PDeck.cards_rank)
     HFN: (table_name:str, hand_id:int)                                          hand finished
+
+    below generic flow of states:
+
+        HST                             <- hand starts
+        TST(0)                          <- idle
+        T$$
+        POS,POS,..
+        PSB,PBB
+        T$$
+        PLH,PLH,..
+
+        TST(1)                          <- preflop
+         --loop of MOV > T$$
+
+        TST(2)                          <- flop
+        TCD
+         --loop of MOV > T$$
+
+        .. (next rivers like flop)
+
+        TST(5)                          <- showdown [optional]
+        PRS,PRS,..
+        HFN                             <- hand finished
     """
 
     def __init__(self):
@@ -38,7 +62,7 @@ class HHistory:
             to: Optional[int]=  None,   # ending index
     ) -> List[Tuple]:
         """
-        returns events translated into "player perspective"
+        returns events translated into "player perspective" - I am 0
         - player names (pl_id:str) is replaced with int, where 0 means "me" and other players are marked with 1,2..
         - PLH of other players are removed (if not DEBUG_MODE)
         """
@@ -56,7 +80,7 @@ class HHistory:
                 sd = list(state[1])
                 sd[0] = pls.index(sd[0])
 
-                # remove not 0 (I am 0) cards
+                # remove not my (0) cards
                 if state[0] == 'PLH' and not DEBUG_MODE:
                     if sd[0] != 0:
                         sd[1], sd[2] = None, None
@@ -116,8 +140,23 @@ class HHistory:
             r = st[1][2] if type(st[1][2]) is str else st[1][2][-1]
             return f'$$$: {st[1][0]} {st[1][1]} {r}'
 
-    # history to str
+    def save(self, file:str):
+        w_json(self.events, file)
+        re = [HHistory.readable_event(e) for e in self.events]
+        re = [e for e in re if e]
+        with open(f'{file}_txt', 'w') as file:
+            for e in re:
+                file.write(f'{e}\n')
+
+    def load(self, file:str):
+        self.events = r_json(file)
+
+    # returns HH as a str of readable events
     def __str__(self):
         hstr = ''
-        for el in self.events: hstr += f'{el[0]} {el[1]}\n'
-        return hstr[:-1]
+        for e in self.events:
+            re = HHistory.readable_event(e)
+            if re:
+                hstr += f'{re}\n'
+        if hstr: hstr = hstr[:-1]
+        return hstr

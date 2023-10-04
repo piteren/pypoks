@@ -7,13 +7,6 @@ from typing import Any, Union, Tuple, Optional, List
 from tqdm import tqdm
 
 
-"""
-cards may be represented with 3 types:
-    int 0-52            # 52 is pad (no card) - this is default internal deck representation
-    tuple (0-13,0-3)
-    str '9C'
-"""
-
 # card figures
 CRD_FIG = {
     0:      '2',
@@ -64,15 +57,15 @@ CC_I = {
 
 # hand (5 cards) ranks (codes)
 HND_RNK = {
-    0:  'hc',   # high card
-    1:  '2_',   # pair
-    2:  '22',   # two pairs
-    3:  '3_',   # three of
-    4:  'ST',   # straight
-    5:  'FL',   # flush
-    6:  '32',   # full house
-    7:  '4_',   # four of
-    8:  'SF'}   # straight flush
+    0:      'hc',   # high card
+    1:      '2_',   # pair
+    2:      '22',   # two pairs
+    3:      '3_',   # three of
+    4:      'ST',   # straight
+    5:      'FL',   # flush
+    6:      '32',   # full house
+    7:      '4_',   # four of
+    8:      'SF'}   # straight flush
 
 
 class PDeck:

@@ -5,6 +5,11 @@ from pologic.podeck import PDeck
 
 class TestPDeck(unittest.TestCase):
 
+    def test_card_representation(self):
+        for ci in range(53):
+            print(f'{ci:2} {PDeck.cts(ci)} {PDeck.ctt(ci)}')
+
+
     def test_deck_simple(self):
         test_cases = [
             (['2H', '4H', '5C', '8D', 'DD', 'KS', 'AS'], 0),
