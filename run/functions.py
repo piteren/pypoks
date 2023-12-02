@@ -10,7 +10,7 @@ from typing import List, Optional, Dict, Tuple, Union
 
 from envy import DMK_MODELS_FD, PyPoksException
 from podecide.dmk import FolDMK
-from podecide.dmk_module_pg import ProCNN_DMK_PG
+from podecide.dmk_module_pg import ProCNN_DMK_PG, ProCNN_DMK_PG_MRG, ProCNN_DMK_PG_MRGPL, ProCNN_DMK_PGevo
 from podecide.dmk_module_a2c import ProCNN_DMK_A2C
 from podecide.games_manager import GamesManager_PTR
 
@@ -22,48 +22,46 @@ def get_fresh_dna(name:str, family:str) -> Dict[str,POINT]:
         raise PyPoksException(f'unknown family: {family}')
 
     motorch_psdd: PSDD = {
-        'baseLR':           [1e-6,  3e-5],
+        'baseLR':           [1e-6,  1e-4],
         'do_clip':          (True,  False),
-        'train_ce':         (True,  False)}
+        'train_ce':         (True,  False),
+    }
 
     motorch_point_common: POINT = {
         'name':                     name,
-        'module_type':              ProCNN_DMK_PG,
+        'module_type':              ProCNN_DMK_PGevo,
         'save_topdir':              DMK_MODELS_FD,
         'cards_emb_width':          12,
         'load_cardnet_pretrained':  True,
-        'psdd':                     motorch_psdd}
+        'psdd':                     motorch_psdd,
+    }
 
     foldmk_psdd: PSDD = {
-        'upd_trigger':      [20000, 40000],
-
+            # MeTrainDMK
+        'upd_trigger':      [20000, 100000],
+            # ExaDMK
         'enable_pex':       (True,  False),
         'pex_max':          [0.01,  0.05],
         'prob_zero':        [0.0,   0.45],
         'prob_max':         [0.0,   0.45],
         'step_min':         [100,   10000],
         'step_max':         [10000, 100000],
-        'pid_pex_fraction': [0.5,   1.0]}
+        'pid_pex_fraction': [0.5,   1.0],
+            # NeurDMK
+        'reward_share':     (None,  3,5,6),
+    }
 
     foldmk_point_common: POINT = {
         'name':         name,
         'family':       family,
         'trainable':    True,
-        'psdd':         foldmk_psdd}
+        'psdd':         foldmk_psdd,
+    }
 
-    # A2C
-    if family in 'cd':
-        motorch_point_common['module_type'] = ProCNN_DMK_A2C
-
-    # wider network
-    if family in 'bd':
-        motorch_point_common['cards_emb_width'] = 24
-
+    # TODO: family MOD
     """
-    # no sampling from prob
-    if family == '...':
-        foldmk_psdd.pop('argmax_prob')
-        foldmk_point_common['argmax_prob'] = 1
+    motorch_point_common['module_type'] = ProCNN_DMK_A2C
+    motorch_point_common['cards_emb_width'] = 24 # wider network
     """
 
     foldmk_point = {}
@@ -91,7 +89,7 @@ def build_single_foldmk(name:str, family:str, logger=None):
     points = get_fresh_dna(name, family)
     FolDMK.from_points(**points, logger=logger)
 
-
+# prepares some pretrained DMKs
 def pretrain(
         n_dmk_total: int=       10,         # final total number of pretrained DMKs
         families=               'abcd',
@@ -271,7 +269,7 @@ def results_report(
         stats_nfo = ''
         for k in dmk_results[dn]["global_stats"]:
             v = dmk_results[dn]["global_stats"][k]
-            stats_nfo += f'{k}:{v:4.1f} '
+            stats_nfo += f'{k}:{v*100:4.1f} '
         res_nfo += f'{dn:18} : {wonH:6.2f} {wonH_mstd_str:>12}    {stats_nfo}\n'
 
     return res_nfo

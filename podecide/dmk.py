@@ -1,62 +1,3 @@
-"""
-
-    DMK (Decision MaKer) - Decision MaKer defines basic interface to make decision for poker players (PPlayer on PTable)
-
-       DMK makes decisions for poker players (PPlayer on PTable) with MSOD (many states one decision) concept.
-       MSOD assumes that player may send many (1-N) states before asking for a decision.
-       Single DMK decides for many players (n_players).
-
-        - receives data from table/player
-            - player sends list of states (calling: DMK.collect_states) does so before a move or after a hand
-            - from time to time player sends list of possible_moves (calling: DMK.collect_possible_moves)
-                > possible_moves are added (by DMK) to the last send state
-                    > now player/table has to wait for DMK decision
-                    > no new states from the table (for that player) will come until decision will be made
-                    > table with player (that waits for decision) is locked (any other player wont send anything then..)
-
-        - makes decisions (moves) for players:
-            > move should be made/selected:
-                - regarding received states (saved in _new_states) and any previous history saved by DMK
-                - from possible_moves
-                - with DMK (trainable?) policy
-            > DMK decides WHEN to make decisions (DMK.make_decisions, but DMK does not define how to do it..)
-            > makes decisions for (one-some-all) players with possible_moves @_new_states
-            > states used to make decisions are moved(appended) to _done_states
-
-    MethDMK - Methods DMK extends DMK baseline with methods and data structures
-        - implements _dec_from_new_states:
-            > calculate move probabilities (_calc_probs - decisions will be made by probabilistic model)
-            > selects move (argmax) using probs (__sample_move)
-
-    MeTrainDMK - Methods Trainable DMK adds training methods and data structures
-        - runs update to learned policy (with __train_policy)
-            > update is based on _done_states (cache of taken moves & received rewards)
-
-    QueDMK - extends basic interface with Ques and Process
-        (to act on QPTable with QPPlayer and to be managed by GamesManager)
-        - is implemented as a Process & Ques
-        - manages stats of update_process
-            - communicates with table, players and GM using ques
-
-    StaMaDMK - Stats Manager DMK adds StatsManager object and methods (for game stats),
-        adds saving & reports functionality for GamesManager
-
-    ExaDMK - Exploring Advanced DMK implements probability of exploring (pex) while making a decision
-        implements exploration while sampling move (forces random model instead of probabilistic one)
-
-    RnDMK - Random DMK implements baseline/equal probs (decision is fully random)
-
-    NeurDMK - Neural DMK, with NN as a deciding model
-        implemented with Neural Network to make decisions
-            - encodes states for NN
-            - makes decisions with NN
-            - updates NN (learns)
-                - from time to time updates itself(learns NN) using information from _done_states
-
-    FolDMK - Foldered DMK
-
-    HuDMK - Human Driven DMK enables a human to make a decision
-"""
 import math
 from abc import abstractmethod, ABC
 from multiprocessing import Process
@@ -75,11 +16,13 @@ from torchness.tbwr import TBwr
 from torchness.comoneural.zeroes_processor import ZeroesProcessor
 from typing import List, Tuple, Optional, Dict, Any
 
-from envy import DMK_MODELS_FD, DMK_POINT_PFX, N_TABLE_PLAYERS, TABLE_CASH_START, TBL_MOV, DMK_STATS_IV
+from envy import DMK_MODELS_FD, DMK_POINT_PFX, N_TABLE_PLAYERS, TABLE_CASH_START, TBL_MOV, WON_IV
 from pologic.podeck import PDeck
+from pologic.hand_history import STATE
 from podecide.game_state import GameState
 from podecide.dmk_motorch import DMK_MOTorch
-from podecide.dmk_stats_manager import StatsManager
+from podecide.stats.won_manager import WonMan
+from podecide.stats.player_stats import PStatsEx
 from gui.gui_hdmk import GUI_HDMK
 
 
@@ -108,7 +51,7 @@ class DMK(ABC):
                 level=      loglevel)
         self._logger = logger
 
-        self._player_ids = [f'{self.name}_{ix}' for ix in range(n_players)]  # DMK keeps unique ids (str) of players
+        self._player_ids = [f'{self.name}_{ix}' for ix in range(n_players)] if n_players>1 else [self.name] # DMK keeps unique ids (str) of players
         self.n_moves = n_moves
         self.family = family
         self.save_topdir = save_topdir
@@ -130,7 +73,7 @@ class DMK(ABC):
     def make_decisions(self) -> List[Tuple[str,int,NPL]]:
         pass
 
-# Methods DMK extends DMK baseline with methods and data structures
+# Methods DMK - extends DMK baseline with sub-methods and data structures
 class MethDMK(DMK, ABC):
 
     def __init__(self, **kwargs):
@@ -159,7 +102,7 @@ class MethDMK(DMK, ABC):
     def _encode_states(
             self,
             player_id: str,
-            player_stateL: List[Tuple],
+            player_stateL: List[STATE],
     ) -> List[GameState]:
         return [GameState(state_orig_data=value) for value in player_stateL] # wraps into list of GameState
 
@@ -191,7 +134,7 @@ class MethDMK(DMK, ABC):
         decL = self._sample_moves_for_ready_players()
         return decL
 
-    # calculates probabilities for at least some _new_states with possible_moves
+    # calculates probabilities for at least some _states_new with possible_moves
     @abstractmethod
     def _calc_probs(self) -> None: pass
 
@@ -206,6 +149,7 @@ class MethDMK(DMK, ABC):
                         probs=              last_state.probs,
                         possible_moves =    last_state.possible_moves,
                         pid=                pid)
+                    last_state.move = move # add move to the last state
                     decL.append((pid, move, last_state.probs))
         return decL
 
@@ -227,7 +171,7 @@ class MethDMK(DMK, ABC):
 
         return int(np.random.choice(self.n_moves, p=probs)) # choice
 
-# Methods Trainable DMK adds training methods and data structures
+# Methods Trainable DMK - adds training methods and data structures, training may be triggered while making decisions
 class MeTrainDMK(MethDMK, ABC):
 
     def __init__(
@@ -250,8 +194,14 @@ class MeTrainDMK(MethDMK, ABC):
     # makes decisions > moves states > trains policy - overrides MethDMK method, which does not train
     def make_decisions(self) -> List[Tuple[str,int,NPL]]:
         decL = self._decisions_from_new_states()    # get decisions list
-        self.__move_states(decL)                    # move states from new to dec
+        self.__move_states(decL)                    # move states from _states_new to _states_dec
         self.__train_policy()                       # learn/train policy,..it is called here but triggered inside
+
+        decr = f'\n{self.name} made decisions:\n'
+        for dec in decL:
+            decr += f'> {dec}\n'
+        self._logger.debug(decr)
+
         return decL
 
     # moves states (from _new to _dec) having decisions list
@@ -261,7 +211,6 @@ class MeTrainDMK(MethDMK, ABC):
             states = self._states_new[pid]      # take all new states
             self._states_new[pid] = []          # reset
             self._n_states_new -= len(states)
-            states[-1].move = move              # add move to last state
             self._states_dec[pid] += states     # put states to dec
             self._n_states_dec += len(states)
 
@@ -272,7 +221,7 @@ class MeTrainDMK(MethDMK, ABC):
             self._flush_states_dec(ust_details)
             self.upd_step += 1
 
-    # trains (updates self policy) with _done_states
+    # trains (updates self policy) with _states_dec (cache of taken moves & received rewards)
     def _training_core(self): return None
 
     # flushes _states_dec using information from ust_details
@@ -280,7 +229,7 @@ class MeTrainDMK(MethDMK, ABC):
         self._states_dec = {pid: [] for pid in self._player_ids} # flushes all _states_dec (here baseline, not uses ust_details)
         self._n_states_dec = 0
 
-# extends interface with Ques and Process (to act on QPTable with QPPlayer and to be managed by GamesManager)
+# Qued DMK - extends DMK with Ques and Process (to act on QPTable with QPPlayer and to be managed by GamesManager)
 class QueDMK(MeTrainDMK, ABC):
 
     def __init__(
@@ -493,9 +442,9 @@ class QueDMK(MeTrainDMK, ABC):
         self._processFWD_stats = {
             '0.messages':       [], # List[float] - factor of players that send messages in one loop
             '1.waiting':        [], # List[float] - factor of players waiting for a decision
-            '2.decisions':      [], # List[float] - factor of players that has been given decisions made
+            '2.decisions':      [], # List[float] - factor of players that has been given decisions
             '3.unlocked':       [], # List[float] - factor of waiting players that got unlocked by decision made
-            '4.n_rows':         [], # List[int]   - number of rows processed to get to PM (possible moves)
+            '4.n_rows':         [], # List[int]   - number of rows processed to get possible moves
             'new_states_hist':  []} # List[str]   - histogram of num new states (while calculating probs & making decisions)
 
 
@@ -529,62 +478,79 @@ class QueDMK(MeTrainDMK, ABC):
     def queD_to_player(self):
         return self._queD_to_player
 
-# Stats Manager DMK adds StatsManager (SM) object
+# Stats Manager DMK adds WonMan & PStatsEx objects, communicates with GamesManager (GM)
 class StaMaDMK(QueDMK, ABC):
 
     def __init__(
             self,
             fwd_stats_step=         0,      # FWD stats step
-            fwd_stats_iv=           DMK_STATS_IV,
+            won_iv=                 WON_IV,
+            use_villain_stats=      True,
             publish_player_stats=   True,
             **kwargs):
+
         QueDMK.__init__(self, **kwargs)
-        self._sm = None
+
         self.fwd_stats_step = fwd_stats_step
-        self.fwd_stats_iv = fwd_stats_iv
+        self.won_iv = won_iv
+
+        self.use_villain_stats = use_villain_stats
         self.publish_player_stats = publish_player_stats
 
-        self._wonH_IV = []      # wonH of interval (DMK_STATS_IV), computed using SM won
-        self._wonH_afterIV = [] # wonH AFTER interval, sum(wonH_IV)/len(wonH_IV)
+    # prepares macro-averaged stats of players -> DMK stats
+    def _accumulate_global_stats(self) -> Dict[str,float]:
+        my_statsL = [self._players_stats[pid][0].player_stats for pid in self._player_ids]
+        my_stats = {k: 0.0 for k in my_statsL[0]}
+        nk = len(self._player_ids)
+        for e in my_statsL:
+            for k in my_stats:
+                my_stats[k] += e[k]
+        for k in my_stats:
+            my_stats[k] /= nk
+        return my_stats
 
     # adds stats management
     def _encode_states(
             self,
             player_id,
-            player_stateL: List[Tuple]) -> List[GameState]:
+            player_stateL: List[STATE]) -> List[GameState]:
 
-        statsD = self._sm.process_states(player_id, player_stateL) # send states to SM
+        for i in (range(N_TABLE_PLAYERS) if self.use_villain_stats else [0]):
+            self._players_stats[player_id][i].process_states(player_stateL)
 
-        if statsD:
+        wonD = self._wm.process_states(player_stateL) # send states to WonMan
+        if wonD:
 
-            self._wonH_IV.append(statsD.pop('won') / self.fwd_stats_iv)
+            self._wonH_IV.append(wonD['wonH'])
             self._wonH_afterIV.append(sum(self._wonH_IV) / len(self._wonH_IV))
 
             if self.publish_player_stats:
-                for k in statsD:
+
+                my_stats = self._accumulate_global_stats()
+                for l,k in zip('abcdefghijklmnoprs'[:len(my_stats)], my_stats):
                     self.tb_add(
-                        value=  statsD[k],
-                        tag=    f'player_stats/{k}',
+                        value=  my_stats[k],
+                        tag=    f'player_stats/{l}.{k}',
                         step=   self.fwd_stats_step)
 
                 self.tb_add(
                     value=  self._wonH_IV[-1],
-                    tag=    f'player_stats/wonH_IV',
+                    tag=    f'player_won/wonH_IV',
                     step=   self.fwd_stats_step)
                 self.tb_add(
                     value=  self._wonH_afterIV[-1],
-                    tag=    f'player_stats/wonH_afterIV',
+                    tag=    f'player_won/wonH_afterIV',
                     step=   self.fwd_stats_step)
 
                 if len(self._wonH_IV) > 1:
                     wonH_IVstd = statistics.stdev(self._wonH_IV)
                     self.tb_add(
                         value=  wonH_IVstd, # wonH_IV stdev
-                        tag=    f'player_stats/wonH_IV_std',
+                        tag=    f'player_won/wonH_IV_std',
                         step=   self.fwd_stats_step)
                     self.tb_add(
                         value=  wonH_IVstd / math.sqrt(len(self._wonH_IV)), # wonH_IV mean stdev, 12.37: https://pl.wikibooks.org/wiki/Statystyka_matematyczna/Twierdzenie_o_rozk%C5%82adzie_normalnym_jednowymiarowym
-                        tag=    f'player_stats/wonH_IV_mean_std',
+                        tag=    f'player_won/wonH_IV_mean_std',
                         step=   self.fwd_stats_step)
 
             if self.publish_more:
@@ -595,12 +561,27 @@ class StaMaDMK(QueDMK, ABC):
 
         return super()._encode_states(player_id, player_stateL)
 
-    # SM has to be build here, inside process method
+    # SM & PStatsEx have to be build here, inside process method
     def _pre_process(self) -> None:
-        self._sm = StatsManager(
-            name=       self.name,
-            pids=       self._player_ids,
-            stats_iv=   self.fwd_stats_iv)
+
+        self._wm = WonMan(won_iv=self.won_iv)
+        self._wonH_IV = []      # my wonH of interval (DMK_STATS_IV), computed by WonMan
+        self._wonH_afterIV = [] # my wonH AFTER interval, sum(wonH_IV)/len(wonH_IV)
+
+        ps_logger = get_child(
+            logger=         self._logger,
+            name=           'pstatsex',
+            change_level=   10)
+
+        # PStatsEx for each table player, 0-my, 1-1st villain, ..
+        self._players_stats = {
+            pid: {ix: PStatsEx(
+                player=         ix,
+                use_initial=    False,
+                upd_freq=       10,
+                logger=         ps_logger,
+            ) for ix in (range(N_TABLE_PLAYERS) if self.use_villain_stats else [0])} for pid in self._player_ids}
+
         super()._pre_process()
 
     def _do_what_GM_says(self, message: QMessage):
@@ -612,7 +593,7 @@ class StaMaDMK(QueDMK, ABC):
                 type=   'dmk_report',
                 data=   {
                     'dmk_name':     self.name,
-                    'n_hands':      self._sm.get_global_nhands(),           # current number of hands (since init ..of SM)
+                    'n_hands':      self._wm.get_global_nhands(),           # current number of hands (since init)
                     'wonH_IV':      self._wonH_IV[message.data:],           # wonH of intervals GM is asking for
                     'wonH_afterIV': self._wonH_afterIV[message.data:]}))    # wonH AFTER intervals GM is asking for
 
@@ -621,14 +602,14 @@ class StaMaDMK(QueDMK, ABC):
                 type=   'global_stats',
                 data=   {
                     'dmk_name':     self.name,
-                    'global_stats': self._sm.get_global_stats()}))
+                    'global_stats': self._accumulate_global_stats()}))
 
-# Exploring Advanced DMK implements probability of exploring (pex) while making a decision
+# Exploring Advanced DMK - implements Policy of EXploring (PEX) while making a decision (active while training only)
 class ExaDMK(StaMaDMK, ABC):
 
     def __init__(
             self,
-            enable_pex: bool=           True,   # flag to enable/disable pex
+            enable_pex: bool=           True,   # enables/disables PEX
             pex_max: float=             0.05,   # maximal pex value
             prob_zero: float=           0.2,    # prob of setting: pex = 0
             prob_max: float=            0.2,    # prob of setting: pex = pex_max
@@ -677,12 +658,13 @@ class ExaDMK(StaMaDMK, ABC):
             probs[move_ix] = 1
         return probs
 
-    # samples single move with pex (if pex is enabled and is trainable - it is only trainable policy)
+    # adds sampling with PEX
     def _sample_move(
             self,
             probs: np.ndarray,
             possible_moves :List[bool],
             pid: str) -> int:
+        # if PEX is enabled and is trainable - it is only trainable policy
         if self.enable_pex and self.trainable:
             probs = self.__pex_probs(probs, pid)
         return super()._sample_move(probs, possible_moves, pid)
@@ -710,80 +692,87 @@ class RanDMK(StaMaDMK):
 
     def save(self): pass
 
-# Neural DMK, with NN (MOTorch) as a deciding model, MOTorch is a sub-object - it is initialized inside a process
+# Neural DMK, with NN (MOTorch) as a deciding model, MOTorch is a sub-object - it is initialized inside a Process
 class NeurDMK(ExaDMK):
 
     def __init__(
             self,
             motorch_point: Optional[POINT]= None,
+            reward_share: Optional[int]=    None, # reward sharing (between states) policy, for None every state gets reward/len(moves), for int gets reward/N
             publish_update=                 True,
             **kwargs):
         ExaDMK.__init__(self, **kwargs)
         self._mdl = None
         self.motorch_point = motorch_point or {}
+        self.reward_share = reward_share
         self.publish_update = publish_update
 
-    # prepares state data into form accepted by NN input
-    #  - encodes only selection of states: [POS,PLH,TCD,MOV,PRS] ..does not use: HST,TST,PSB,PBB,T$$,HFN
-    #  - each event has values (ids):
-    #       0                                                       : pad (for cards)
-    #       1,2,3..N_TABLE_PLAYERS                                  : my positions 0-SB,1-BB..
-    #       1+N_TABLE_PLAYERS.. len(TBL_MOV)*(N_TABLE_PLAYERS-1)-1  : n_opponents * n_moves
+    # encodes selection of HH states data into a form accepted by NN input
+    # returns only selected states (used by NN)
     def _encode_states(
             self,
             player_id,
-            player_stateL: List[Tuple],
+            player_stateL: List[STATE],
     ) -> List[GameState]:
 
         es = super()._encode_states(player_id, player_stateL)
-        news = [] # newly encoded states
+        es_sel = [] # selected states
+        ser = f'\nstates encoding report for {player_id}\n'
         for s in es:
+
             val = s.state_orig_data
-            nval = None
+            ser += f'> {val}\n'
 
-            if val[0] == 'PLH' and val[1][0] == 0: # my hand
+            # update table cash
+            if val[0] == 'T$$':
+                self._table_cash[player_id] = [float(val[1][0]), float(val[1][1]), float(val[1][2])]
+
+            # update my cards with my hand
+            if val[0] == 'PLH' and val[1][0] == 0:
                 self._my_cards[player_id] = [PDeck.cti(c) for c in val[1][1:]]
-                nval = {
-                    'cards':    [] + self._my_cards[player_id], # copy
-                    'event':    0}
 
-            if val[0] == 'TCD': # my hand update
+            # update my cards with table cards
+            if val[0] == 'TCD':
                 self._my_cards[player_id] += [PDeck.cti(c) for c in val[1]]
-                nval = {
-                    'cards':    [] + self._my_cards[player_id], # copy
-                    'event':    0}
 
-            if val[0] == 'POS' and val[1][0] == 0: # my position
-                nval = {
-                    'cards':    None,
-                    'event':    1 + val[1][1]}
+            # players POS or MOV
+            if val[0] in ['POS','MOV']:
 
-            if val[0] == 'MOV' and val[1][0] != 0: # moves, all but mine
+                if val[0] == 'POS':
+                    event_id = 0
+                    mv_cash = 0.0
+                    pl_cash = [float(val[1][2]), 0.0, 0.0]
+                    self._pos[player_id][val[1][0]] = val[1][1]  # save POS for next MOVes
+                else:
+                    event_id = 1 + val[1][1] # 1 + mov_id (index in TBL_MOV)
+                    mv_cash = float(val[1][2])
+                    pl_cash = [float(val[1][3][0]), float(val[1][3][1]), float(val[1][3][2])]
+
                 nval = {
-                    'cards':    None,
-                    'event':    1 + N_TABLE_PLAYERS + val[1][1] + len(TBL_MOV)*(val[1][0]-1)}
-                                # pad                 # move_ix   # n_moves   * pl_id-1 (because I am "0")
-                                                                  # it is a player offset for event -> each player has its move_ix event
+                    'cards':        [] + self._my_cards[player_id],     # List[7 x int] copy of my cards: 0-52
+                    'event_id':     event_id,                           # int: O-(1+len(TBL_MOV))
+                    'cash':         [mv_cash, *pl_cash, *self._table_cash[player_id]], # List[7 x float] move cash, pl.cash, pl.cash_ch, pl.cash_cr, table.pot, table.cash_cr, table.cash_tc
+                    'pl_id':        val[1][0],                          # int player ID: 0-N_TABLE_PLAYERS
+                    'pl_pos':       self._pos[player_id][val[1][0]],    # int player pos: 0-N_TABLE_PLAYERS
+                    'pl_stats':     list(self._players_stats[player_id][val[1][0]].player_stats.values()), # List[float,..] 0.0-1.0
+                }
+
+                es_sel.append(GameState(nval))
+                ser += f'---> {nval}\n'
 
             if val[0] == 'PRS' and val[1][0] == 0: # my result
-                reward = val[1][1]
                 if self._states_dec[player_id]:
-                    self._states_dec[player_id][-1].reward = reward # we can append reward to last state in _done_states (reward is for moves, moves are only there)
-                self._my_cards[player_id] = [] # reset my cards
+                    self._states_dec[player_id][-1].reward = val[1][1] # we can append reward to last state here
 
-            if nval:
-                news.append(GameState(nval))
+                # reset
+                self._my_cards[player_id] = []
+                self._table_cash[player_id] = (0,0,0)
 
-        self._logger.debug('>> states to encode:')
-        for s in es:
-            self._logger.debug(f' > {s.state_orig_data}')
-        self._logger.debug('>> encoded states:')
-        for s in news:
-            self._logger.debug(f' > {s.state_orig_data}')
+        self._logger.debug(ser)
 
-        return news
+        return es_sel
 
-    # add probabilities for at least some states with possible_moves (called by make_decisions)
+    # add probabilities for at least some states with possible_moves (called by _decisions_from_new_states)
     def _calc_probs(self) -> None:
 
         n_rows = 0
@@ -818,39 +807,32 @@ class NeurDMK(ExaDMK):
             vals_row :List[tuple]):
 
         # build batches
-        cards_batch = []
-        event_batch = []
-        switch_batch = []
-        state_batch = []
+        batches = {
+            k: [] for k in
+            ['cards','event_id','cash','pl_id','pl_pos','pl_stats','enc_cnn_state']}
         pids = []
         for vr in vals_row:
+
             pid, val = vr
             pids.append(pid) # save list of pid
-            switch = 1
 
+            # padded cards wrapped (in seq axis)
             cards = val['cards']
-            if not cards:
-                cards = []
-                switch = 0
-            cards += [52]*(7-len(cards)) # pads cards
+            cards += [52] * (7 - len(cards))
+            batches['cards'].append([cards])
 
-            event = val['event']
+            # single wrap (in seq axis)
+            for k in ['event_id','cash','pl_id','pl_pos','pl_stats']:
+                batches[k].append([val[k]])
 
-            # append samples wrapped in (seq axis)
-            cards_batch.append([cards])
-            event_batch.append([event])
-            switch_batch.append([[switch]])
-            state_batch.append(self._last_fwd_state[pid])
+            batches['enc_cnn_state'].append(self._last_fwd_state[pid])
 
-        cards = self._mdl.convert(cards_batch)
-        event = self._mdl.convert(event_batch)
-        switch = self._mdl.convert(switch_batch)
-        state = self._mdl.convert(np.asarray(state_batch)) # from list of np.ndarrays
-        out = self._mdl(
-            cards=          cards,
-            event=          event,
-            switch=         switch,
-            enc_cnn_state=  state)
+        # convert batches
+        for k in ['cards','event_id','cash','pl_id','pl_pos','pl_stats']:
+            batches[k] = self._mdl.convert(batches[k])
+        batches['enc_cnn_state'] = self._mdl.convert(np.asarray(batches['enc_cnn_state'])) # from list of np.ndarrays
+
+        out = self._mdl(**batches)
         probs = out['probs']
         fin_states = out['fin_state']
         probs = np.squeeze(probs, axis=1) # remove sequence axis (1)
@@ -872,12 +854,12 @@ class NeurDMK(ExaDMK):
 
             pidL = [] + self._player_ids
 
-            # move rewards down to moves (and build rewards dict)
+            # for every player: move rewards down to (last) moves (and build rewards dict)
             rewards = {} # {pid: [[99,95,92][85,81,77,74]..]} # indexes of moves, first is always rewarded
             for pid in pidL:
                 rewards[pid] = []
                 reward = None
-                passed_first_reward = False # we need to skip last(top) moves that do not have rewards yet
+                passed_first_reward = False # we need to skip some last(first from the reversed) moves that do not have rewards yet
                 move_ixL = [] # list of move index
                 for ix in reversed(range(len(self._states_dec[pid]))):
 
@@ -885,8 +867,13 @@ class NeurDMK(ExaDMK):
 
                     if st.reward is not None:
                         passed_first_reward = True
-                        if reward is not None:  reward += st.reward # got previous reward without a move, add it here
-                        else:                   reward = st.reward
+
+                        # got previous reward without a move, add it here
+                        if reward is not None:
+                            reward += st.reward
+                        else:
+                            reward = st.reward
+
                         st.reward = None
 
                     if st.move is not None and passed_first_reward: # got move here and it will share some reward
@@ -912,16 +899,22 @@ class NeurDMK(ExaDMK):
                 for pid in pid_not_rewarded:
                     pidL.remove(pid)
 
-            # share rewards:
+            # share (down) rewards:
             for pid in pidL:
                 for move_ixL in rewards[pid]:
                     rIX = move_ixL[0] # index of reward
                     # only when already not shared (..from previous update)
                     if self._states_dec[pid][rIX].reward_sh is None:
-                        rew_sh = self._states_dec[pid][rIX].reward / len(move_ixL)
+
+                        if self.reward_share is None:
+                            rew_sh = self._states_dec[pid][rIX].reward / len(move_ixL)
+                        else:
+                            rew_sh = self._states_dec[pid][rIX].reward / self.reward_share
+
                         for mIX in move_ixL:
                             self._states_dec[pid][mIX].reward_sh = rew_sh
-                    else: break
+                    else:
+                        break
 
             last_rewarded_move = [(pid,rewards[pid][0][0]) for pid in pidL] # [(pid, index of state)]
             last_rewarded_move = sorted(last_rewarded_move, key=lambda x: x[1], reverse=True) # sort decreasing
@@ -934,78 +927,63 @@ class NeurDMK(ExaDMK):
             n_moves_upd = last_rewarded_move[-1][1] + 1                     # n states to use for update (+1 since moves are indexed from 0)
             upd_pid = [e[0] for e in last_rewarded_move]                    # extract pid to update
 
-            # publish UPD process stats
+            # publish UPD process stats (sts, mov, rew)
             if self.publish_more:
 
                 # num of done states
                 n_sts = mam([len(self._states_dec[pid]) for pid in self._player_ids])
-                self.tb_add(value=n_sts[0], tag='process.UPD/0.n_states_min')
-                self.tb_add(value=n_sts[2], tag='process.UPD/1.n_states_max')
+                self.tb_add(value=n_sts[0], tag='process.UPD/0.n_sts_min')
+                self.tb_add(value=n_sts[2], tag='process.UPD/1.n_sts_max')
 
                 # num of states with moves
                 n_mov = mam([sum([len(ml) for ml in rewards[pid]]) for pid in pidL])
-                self.tb_add(value=n_mov[0], tag='process.UPD/2.n_moves_min')
-                self.tb_add(value=n_mov[2], tag='process.UPD/3.n_moves_max')
+                self.tb_add(value=n_mov[0], tag='process.UPD/2.n_mov_min')
+                self.tb_add(value=n_mov[2], tag='process.UPD/3.n_mov_max')
 
                 # num of states with rewards
                 n_rew = mam([len(rewards[pid]) for pid in pidL])
-                self.tb_add(value=n_rew[0], tag='process.UPD/4.n_rewards_min')
-                self.tb_add(value=n_rew[2], tag='process.UPD/5.n_rewards_max')
+                self.tb_add(value=n_rew[0], tag='process.UPD/4.n_rew_min')
+                self.tb_add(value=n_rew[2], tag='process.UPD/5.n_rew_max')
 
                 self.tb_add(value=n_sts[1] / n_mov[1], tag='process.UPD/6.n_sts/mov')
                 self.tb_add(value=n_sts[1] / n_rew[1], tag='process.UPD/7.n_sts/rew')
                 self.tb_add(value=n_mov[1] / n_rew[1], tag='process.UPD/8.n_mov/rew')
 
-            cards_batch = []
-            event_batch = []
-            switch_batch = []
-            state_batch = []
-            move_batch = []
-            reward_batch = []
+            # build batches
+            batches = {
+                k: [] for k in
+                ['cards','event_id','cash','pl_id','pl_pos','pl_stats','move','reward','enc_cnn_state']}
             for pid in upd_pid:
-                cards_seq = []
-                switch_seq = []
-                event_seq = []
-                move_seq = []
-                reward_seq = []
+
+                # build seqs
+                seqs = {
+                    k: [] for k in
+                    ['cards','event_id','cash','pl_id','pl_pos','pl_stats','move','reward','enc_cnn_state']}
                 for state in self._states_dec[pid][:n_moves_upd]:
 
                     val = state.state_orig_data
 
-                    switch = 1
+                    # padded cards
                     cards = val['cards']
-                    if not cards:
-                        cards = []
-                        switch = 0
-                    cards += [52]*(7-len(cards))  # pads cards
+                    cards += [52]*(7-len(cards)) # pad cards
+                    seqs['cards'].append(cards)
 
-                    cards_seq.append(cards)
-                    switch_seq.append([switch])
-                    event_seq.append(val['event'])
-                    move_seq.append(state.move if state.move is not None else 0)
-                    reward_seq.append(state.reward_sh / TABLE_CASH_START if state.reward_sh is not None else 0)
+                    for k in ['event_id','cash','pl_id','pl_pos','pl_stats']:
+                        seqs[k].append(val[k])
 
-                cards_batch.append(cards_seq)
-                event_batch.append(event_seq)
-                switch_batch.append(switch_seq)
-                move_batch.append(move_seq)
-                reward_batch.append(reward_seq)
-                state_batch.append(self._last_upd_state[pid])
+                    seqs['move'].append(state.move if state.move is not None else 0)
+                    seqs['reward'].append(state.reward_sh / TABLE_CASH_START if state.reward_sh is not None else 0)
 
-            cards = self._mdl.convert(cards_batch)
-            event = self._mdl.convert(event_batch)
-            switch = self._mdl.convert(switch_batch)
-            state = self._mdl.convert(np.asarray(state_batch))  # from list of np.ndarrays
-            move = self._mdl.convert(move_batch)
-            reward = self._mdl.convert(reward_batch)
-            out = self._mdl.backward(
-                cards=              cards,
-                event=              event,
-                switch=             switch,
-                move=               move,
-                reward=             reward,
-                enc_cnn_state=      state,
-                empty_cuda_cache=   True) # INFO: allows to train bigger models on limited GPU mem
+                for k in ['cards','event_id','cash','pl_id','pl_pos','pl_stats','move','reward']:
+                    batches[k].append(seqs[k])
+                batches['enc_cnn_state'].append(self._last_upd_state[pid])
+
+            # convert batches
+            for k in ['cards','event_id','cash','pl_id','pl_pos','pl_stats','move','reward']:
+                batches[k] = self._mdl.convert(batches[k])
+            batches['enc_cnn_state'] = self._mdl.convert(np.asarray(batches['enc_cnn_state'])) # from list of np.ndarrays
+
+            out = self._mdl.backward(empty_cuda_cache=True, **batches) # INFO: empty_cuda_cache allows to train bigger models on limited GPU mem
             fin_states = out['fin_state']
 
             # save upd states
@@ -1054,11 +1032,15 @@ class NeurDMK(ExaDMK):
             **self.motorch_point)
 
         # TODO: refactor data types, ..here we store history as np.ndarray
-        self._zero_state = self._mdl.module.enc_cnn.get_zero_history().cpu().detach().numpy()
+        zero_state = self._mdl.module.enc_cnn.get_zero_history().cpu().detach().numpy()
 
-        self._last_fwd_state =   {pa: self._zero_state for pa in self._player_ids}  # net state after last fwd
-        self._last_upd_state =   {pa: self._zero_state for pa in self._player_ids}  # net state after last upd
-        self._my_cards =         {pa: [] for pa in self._player_ids}  # current cards of player, updated while encoding states
+        self._last_fwd_state =   {pa: zero_state for pa in self._player_ids}  # NN state after last fwd
+        self._last_upd_state =   {pa: zero_state for pa in self._player_ids}  # NN state after last upd
+
+        # properties below are updated while encoding states
+        self._my_cards =         {pa: []      for pa in self._player_ids}  # current cards of player
+        self._table_cash =       {pa: (0,0,0) for pa in self._player_ids}  # current (before player move) table cash (from T$$ state)
+        self._pos =              {pa: {}      for pa in self._player_ids}  # current players positions {pl_id:pos}
 
         self._ze_pro_enc = ZeroesProcessor(
             intervals=      (5,20),
@@ -1096,7 +1078,7 @@ class NeurDMK(ExaDMK):
         model = DMK_MOTorch(**motorch_point, logger=logger, loglevel=loglevel)
         model.save()
 
-# Foldered DMK = ParaSave (POINT) + NeurDMK (MOTorch)
+# Foldered DMK - ParaSave (POINT) + NeurDMK (MOTorch) --> saving / serialization / genetic crossing (GX) / version management
 class FolDMK(ParaSave, NeurDMK):
 
     SAVE_TOPDIR = DMK_MODELS_FD
@@ -1270,7 +1252,7 @@ class FolDMK(ParaSave, NeurDMK):
         foldmk = FolDMK(**foldmk_point, logger=logger, loglevel=30)
         ParaSave.save_point(foldmk)
 
-# Human Driven DMK enables a human to make a decision
+# Human Driven DMK - enables a human to make a decision with TK GUI
 class HuDMK(StaMaDMK):
 
     def __init__(
@@ -1281,31 +1263,36 @@ class HuDMK(StaMaDMK):
         self.tk_IQ = tk_gui.tk_que
         self.tk_OQ = tk_gui.out_que
 
-    # send incoming states to tk
+    # additionally sends incoming states to TK
     def _encode_states(
             self,
             player_id,
-            player_stateL: List[tuple]) -> List[GameState]:
+            player_stateL: List[STATE]) -> List[GameState]:
         for state in player_stateL:
             message = QMessage(type='state', data=state)
             self.tk_IQ.put(message)
         return super()._encode_states(player_id, player_stateL)
 
-    # get human decision
+    # prepares probs <- TK <- human decision
     def _calc_probs(self) -> None:
         probs = np.zeros(self.n_moves)
         for pid in self._states_new:
             if self._states_new[pid]:
                 last_state = self._states_new[pid][-1]
                 if last_state.possible_moves:
+
+                    # send data to TK
                     message = QMessage(
                         type=   'possible_moves',
                         data=   {
                             'possible_moves':   last_state.possible_moves,
                             'moves_cash':       last_state.moves_cash})
                     self.tk_IQ.put(message)
+
+                    # get decision from TK
                     tk_message = self.tk_OQ.get()
                     probs[tk_message.data] = 1
+
                     last_state.probs = probs
 
     def save(self): pass

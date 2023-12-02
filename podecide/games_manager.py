@@ -2,13 +2,13 @@ import copy
 import math
 from pypaq.lipytools.printout import stamp, progress_
 from pypaq.lipytools.pylogger import get_pylogger, get_child
-from pypaq.mpython.mptools import Que, QMessage
+from pypaq.mpython.mptools import Que, QMessage, sys_res_nfo
 from torchness.tbwr import TBwr
 import random
 import statistics
 import time
 from tqdm import tqdm
-from typing import Dict, List, Tuple, Optional, Union
+from typing import Dict, List, Tuple, Optional
 
 from envy import MODELS_FD, DMK_MODELS_FD, N_TABLE_PLAYERS, PyPoksException
 from pologic.potable import QPTable
@@ -139,7 +139,8 @@ class GamesManager:
         self.logger.debug('> starts DMKs..')
 
         idmk = tqdm(self.dmkD.values()) if self.logger.level<20 else self.dmkD.values()
-        for dmk in idmk: dmk.start()
+        for dmk in idmk:
+            dmk.start()
         self.logger.debug('> initializing..')
         idmk = tqdm(self.dmkD) if self.logger.level < 20 else self.dmkD
         for _ in idmk:
@@ -148,7 +149,8 @@ class GamesManager:
         self.logger.debug(f'> initialized {len(self.dmkD)} DMKs!')
 
         message = QMessage(type='start_dmk_loop', data=None)
-        for dmk in self.dmkD.values(): dmk.que_from_gm.put(message) # synchronizes DMKs a bit..
+        for dmk in self.dmkD.values():
+            dmk.que_from_gm.put(message) # synchronizes DMKs a bit..
         for _ in self.dmkD:
             message = self.que_to_gm.get()
             self.logger.debug(f'>> {message}')
@@ -190,7 +192,7 @@ class GamesManager:
     # creates new tables & puts players with random policy
     def _put_players_on_tables(self):
 
-        self.logger.info('> puts players on tables..')
+        self.logger.debug('> puts players on tables..')
 
         # build dict of lists of players (per family): {family: [(pid, que_to_pl, que_from_pl)]}
         fam_ques: Dict[str, List[Tuple[str,Que,Que]]] = {fam: [] for fam in self.families}
@@ -241,7 +243,7 @@ class GamesManager:
         # put on tables
         self.tables = []
         table_ques = []
-        table_logger = get_child(self.logger, name='table_logger', change_level=-10) if self.debug_tables else None
+        table_logger = get_child(self.logger, name='table_logger', change_level=-10 if self.debug_tables else 10)
         while quesL:
             table_ques.append(quesL.pop())
             if len(table_ques) == N_TABLE_PLAYERS:
@@ -291,7 +293,7 @@ class GamesManager:
         there is no real need to change this design.
         """
 
-        # save of DMK results + additional DMK info
+        # save of DMK results + info (for focused only)
         dmk_results = {
             dn: {
                 'wonH_IV':              [],     # wonH (won $ / hand) of interval
@@ -313,14 +315,15 @@ class GamesManager:
         time_last_report = stime
         n_hands_last_report = 0
 
-        self.logger.info(f'{self.name} starts a game..')
+        self.logger.debug(f'> {self.name} starts a game..')
         loop_ix = 0
         while True:
 
             time.sleep(sleep)
 
-            reports = self._get_reports({dn: len(dmk_results[dn]['wonH_IV']) for dn in dmk_results}) # actual DMK reports
-            num_IV = [] # number of IV reports, for each DMK
+            # retrieve and process actual DMK reports
+            reports = self._get_reports({dn: len(dmk_results[dn]['wonH_IV']) for dn in dmk_results})
+            num_IV = [] # number of wonH_IV, for each DMK
             for dn in reports:
                 dmk_results[dn]['wonH_IV'] += reports[dn]['wonH_IV']
                 dmk_results[dn]['wonH_afterIV'] += reports[dn]['wonH_afterIV']
@@ -329,12 +332,12 @@ class GamesManager:
                 dmk_results[dn]['wonH_IV_mean_stdev'] = wonH_IV_stdev / math.sqrt(len(dmk_results[dn]['wonH_IV'])) if wonH_IV_stdev is not None else None
                 dmk_results[dn]['last_wonH_afterIV'] = dmk_results[dn]['wonH_afterIV'][-1] if dmk_results[dn]['wonH_afterIV'] else None
                 num_IV.append(len(dmk_results[dn]['wonH_IV']))
-            num_IV = min(num_IV)
+            min_num_IV = min(num_IV) # lowest number of wonH_IV
 
             # calculate game factor
             nhL = [reports[dn]['n_hands'] for dn in reports]
-            n_hands = sum(nhL)
-            n_hands_min = min(nhL)
+            n_hands = sum(nhL)      # total
+            n_hands_min = min(nhL)  # minimal
             game_factor = n_hands_min / game_size
             if game_factor >= 1:
                 game_factor = 1
@@ -367,34 +370,42 @@ class GamesManager:
                     left_nfo = f'{left:.1f}'
 
                 # speed
-                hdiff = n_hands-n_hands_last_report
-                hd_pp = int(hdiff / len(reports))
-                spd_report = f'({num_IV}) {int(hdiff / (time.time()-time_last_report))}H/s (+{hd_pp}Hpp)'
+                hdiff = n_hands-n_hands_last_report # number of hand played by focused DMKs since last report
                 n_hands_last_report = n_hands
+                hspeed = hdiff / (time.time()-time_last_report)
                 time_last_report = time.time()
 
                 sep_report_pairs = f'::{sep_pairs_nc:.2f}[{sep_pairs_nf:.2f}]' if sep_pairs else ''
+
+                srn = sys_res_nfo()
+                mem_used = srn['mem_used_%']
+                cpu_used = srn['cpu_used_%']
 
                 progress_(
                     current=    game_factor,
                     total=      1.0,
                     prefix=     f'GM: {passed:.1f}min left:{left_nfo}min',
-                    suffix=     f'{spd_report} -- SEP:{sep_nc:.2f}[{sep_nf:.2f}]{sep_report_pairs}',
+                    suffix=     f'({min_num_IV}) {int(hspeed)}H/s (mem:{int(mem_used)}% cpu:{int(cpu_used)}%) -- SEP:{sep_nc:.2f}[{sep_nf:.2f}]{sep_report_pairs}',
                     length=     20)
+
+                if publish_GM:
+                    self.tbwr.add(value=hspeed,     tag=f'GM/speedH/s',     step=loop_ix)
+                    self.tbwr.add(value=mem_used,   tag=f'GM/%mem',    step=loop_ix)
+                    self.tbwr.add(value=cpu_used,   tag=f'GM/%cpu',    step=loop_ix)
 
             # games break - factor condition
             if game_factor == 1:
-                self.logger.info('> finished game (game factor condition)')
+                fin_condition = 'game factor'
                 break
 
             # games break - all DMKs separation condition
-            if sep_all_break and num_IV >= sep_min_IV and sep_nc == 1.0:
-                self.logger.info(f'> finished game (all DMKs separation condition), game factor: {game_factor:.2f})')
+            if sep_all_break and min_num_IV >= sep_min_IV and sep_nc == 1.0:
+                fin_condition = f'all DMKs separation, factor:{game_factor:.2f}'
                 break
 
             # games break - pairs separation breaking value condition
-            if sep_pairs and num_IV >= sep_min_IV and sep_pairs_nc >= sep_pairs_factor:
-                self.logger.info(f'> finished game (pairs separation factor: {sep_pairs_factor:.2f}, game factor: {game_factor:.2f})')
+            if sep_pairs and min_num_IV >= sep_min_IV and sep_pairs_nc >= sep_pairs_factor:
+                fin_condition = f'pairs separation {sep_pairs_factor:.2f}, factor:{game_factor:.2f}'
                 break
 
             loop_ix += 1
@@ -419,7 +430,7 @@ class GamesManager:
         taken_sec = time.time() - stime
         taken_nfo = f'{taken_sec / 60:.1f}min' if taken_sec > 100 else f'{taken_sec:.1f}sec'
         speed = n_hands / taken_sec
-        self.logger.info(f'{self.name} finished run_game, avg speed: {speed:.1f}H/s, time taken: {taken_nfo}')
+        self.logger.info(f'{self.name} finished run_game (condition: {fin_condition}), avg speed: {speed:.1f}H/s, time taken: {taken_nfo}')
         loop_stats = {'speed': speed}
 
         return {
@@ -428,7 +439,7 @@ class GamesManager:
 
     # prepares list of DMK names GM is focused on while preparing dmk_results
     def _get_dmk_focus_names(self) -> List[str]:
-        return list(self.dmkD.keys())
+        return list(self.dmkD.keys()) # here all DMKs
 
     # asks DMKs to send reports, but only form given IV
     def _get_reports(
@@ -491,12 +502,12 @@ class GamesManager_PTR(GamesManager):
 
         for dmk in dmk_point_TRL:
             dmk.update({
-                'n_players': dmk_n_players, # TODO: what for???
+                'n_players': dmk_n_players,
                 'trainable': True})
 
         for dmk in dmk_point_PLL:
             dmk.update({
-                'n_players': dmk_n_players, # TODO: what for???
+                'n_players': dmk_n_players,
                 'trainable': False})
 
         self.ref_pattern = []
@@ -534,7 +545,7 @@ class GamesManager_PTR(GamesManager):
         if not self.dmk_name_ref:
             return GamesManager._put_players_on_tables(self)
 
-        self.logger.info('> puts players on tables with PTR policy..')
+        self.logger.debug('> puts players on tables with PTR policy..')
 
         ques_refD = {}
         ques_rest = []
@@ -554,7 +565,7 @@ class GamesManager_PTR(GamesManager):
         # put on tables
         self.tables = []
         table_ques =  []
-        table_logger = get_child(self.logger, name='table_logger', change_level=-10) if self.debug_tables else None
+        table_logger = get_child(self.logger, name='table_logger', change_level=-10 if self.debug_tables else 10)
         rp_ix = 0
         while ques_rest:
 
@@ -573,9 +584,10 @@ class GamesManager_PTR(GamesManager):
     # adds age update to dmk_results
     def run_game(self, **kwargs) -> Dict:
 
-        # update trainable age - needs to be done before game, cause after game DMKs are saved
+        # update trainable age - needs to be done before game, cause after the game DMKs are saved
         for dmk in self.dmkD.values():
-            if dmk.trainable: dmk.age += 1
+            if dmk.trainable:
+                dmk.age += 1
 
         rgd = GamesManager.run_game(self, **kwargs)
 
@@ -583,7 +595,7 @@ class GamesManager_PTR(GamesManager):
             rgd['dmk_results'][dn]['age'] = self.dmkD[dn].age
         return rgd
 
-    # at GamesManager_PTR we are focused on TRL (or PLL if not)
+    # GamesManager_PTR is focused on TRL or PLL
     def _get_dmk_focus_names(self) -> List[str]:
         return self.dmk_name_TRL or self.dmk_name_PLL
 
@@ -592,20 +604,33 @@ class HuGamesManager(GamesManager):
 
     def __init__(
             self,
-            dmk_names: Union[List[str],str],
-            logger=         None,
-            loglevel=       20,
-            debug_tables=   True):
+            dmk_names: List[str],
+            h_name=         'human',
+            **kwargs,
+    ):
 
-        if not logger:
-            logger = get_pylogger(level=loglevel)
+        if len(dmk_names) != N_TABLE_PLAYERS - 1:
+            raise PyPoksException(f'number of given DMK names should be equal N_TABLE_PLAYERS - 1 ({N_TABLE_PLAYERS-1})')
 
-        if N_TABLE_PLAYERS != 3:
-            raise PyPoksException('HuGamesManage supports now only 3-handed tables')
+        self.tk_gui = GUI_HDMK(
+            players=    [h_name]+dmk_names,
+            imgs_FD=    'gui/imgs',
+            loglevel=   10)
 
-        logger.info(f'HuGamesManager starts with given dmk_names: {dmk_names}')
+        ddL = [{
+            'name':             nm,
+            'trainable':        False,
+            'n_players':        1, # it is possible to play with single DMK many instances, but for now it is disabled, it would require different management of given DMKs
+            #'publish':          False,
+            'motorch_point':    {'device': None},
+            'fwd_stats_step':   10} for nm in dmk_names]
 
-        h_name = 'hm0'
+        GamesManager.__init__(
+            self,
+            dmk_pointL= ddL,
+            **kwargs)
+
+        self.logger.info(f'HuGamesManager was given dmk_names: \'{h_name}\' + {dmk_names}')
 
         hdna = {
             'name':             h_name,
@@ -615,28 +640,34 @@ class HuGamesManager(GamesManager):
             #'publish':          False,
             'fwd_stats_step':   10}
 
-        if type(dmk_names) is str: dmk_names = [dmk_names]
-
-        self.tk_gui = GUI_HDMK(players=[h_name]+dmk_names, imgs_FD='gui/imgs')
-
         hdmk = HuDMK(tk_gui=self.tk_gui, **hdna)
 
-        if len(dmk_names) not in [1,2]:
-            raise PyPoksException('Number of given DMK names must be equal 1 or 2')
+        # rewrite self.dmkD to maintain proper DMKs order (used by GUI)
+        dmkD = {hdna['name']: hdmk}
+        for k in self.dmkD:
+            dmkD[k] = self.dmkD[k]
+        self.dmkD = dmkD
 
-        ddL = [{
-            'name':             nm,
-            'trainable':        False,
-            'n_players':        N_TABLE_PLAYERS - len(dmk_names),
-            #'publish':          False,
-            'fwd_stats_step':   10} for nm in dmk_names]
-
-        GamesManager.__init__(self, dmk_pointL=ddL, logger=logger, debug_tables=debug_tables)
-
-        # update/override with HuDMK
-        self.dmkD[hdna['name']] = hdmk
         self.families.add(hdna['family'])
         hdmk.que_to_gm = self.que_to_gm
+
+    # creates a table & puts players
+    def _put_players_on_tables(self):
+
+        self.logger.debug('> puts players on table..')
+
+        ques = []
+        for dmk in self.dmkD.values():
+            for k in dmk.queD_to_player:
+                ques.append((k, dmk.queD_to_player[k], dmk.que_from_player))
+
+        # put on tables
+        self.tables = [
+            QPTable(
+                name=       'table',
+                que_to_gm=  self.que_to_gm,
+                pl_ques=    {t[0]: (t[1], t[2]) for t in ques},
+                logger=     get_child(self.logger, name='table_logger', change_level=-10 if self.debug_tables else 10))]
 
     # starts all subprocesses
     def start_games(self):
@@ -650,4 +681,5 @@ class HuGamesManager(GamesManager):
         for dmk in self.dmkD.values(): dmk.kill()
         for table in self.tables: table.kill()
 
-    def run_tk(self): self.tk_gui.run_tk()
+    def run_tk(self):
+        self.tk_gui.run_tk()

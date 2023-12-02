@@ -76,30 +76,28 @@ CONFIG_INIT = {
         # general
     'exit':                     False,      # exits loop (after train)
     'pause':                    False,      # pauses loop after test till Enter pressed
-    'families':                 'abcd',     # active families (forced to be present in learners)
+    'families':                 'bcd',#'abcd',      # active families (forced to be present in learners)
     'ndmk_refs':                10,         # number of refs DMKs (should fit one GPU)
     'ndmk_learners':            10,         # number of learners DMKs
     'ndmk_TR':                  5,          # learners are trained against refs in groups of this size
     'ndmk_TS':                  10,         # learners and refs are tested against refs in groups of this size
-    'update_size':              100000,     # how much increase TS game size when needed
-    'update_interval':          5,          # interval of TS game size update
-    'sep_factor_iv':            0.25,       # update trigger - min factor of sep in interval lifemarks
+    'sep_n_stddev':             0.5,        # n stddev for separation
         # train
     'game_size_TR':             300000,
     'dmk_n_players_TR':         150,        # number of players per DMK while TR
+    'against_best':             1,#2,          # every Nth loop train & test against only one best from R
         # test
-    'game_size_TS':             100000,
+    'game_size_TS':             300000,
     'dmk_n_players_TS':         150,        # number of players per DMK while TS
         # replace / new
     'remove_key':               [4,1],      # [A,B] (remove DMK if in last A+B life marks there are A -| and last is not +/) OR (in last 2A+2B there is no +)
-    'prob_fresh_dmk':           0.8,        # probability of 100% fresh DMK
+    'prob_fresh_dmk':           1.0,#0.5,        # probability of 100% fresh DMK (otherwise GX)
     'prob_fresh_ckpt':          0.8,        # probability of fresh checkpoint (child from GX of point only, without GX of ckpt)
         # PMT (Periodical Masters Test)
     'n_loops_PMT':              5,          # do PMT every N loops
     'ndmk_PMT':                 10}         # max number of DMKs (masters) in PMT
 
 
-#TODO: sep pairs when no pairs given
 
 if __name__ == "__main__":
 
@@ -134,16 +132,12 @@ if __name__ == "__main__":
         logger.info(f'> continuing with saved {saved_n_loops} loops')
 
         loop_ix = saved_n_loops + 1
-        update_idle = int(loops_results['update_idle'])
 
-        saved_dmks = get_saved_dmks_names()
-        dmk_refs = [dn for dn in saved_dmks if dn.endswith('R')]
-        dmk_learners = [dn for dn in saved_dmks if dn not in dmk_refs]
-
+        dmk_refs = loops_results['refs_ranked']
+        dmk_learners = list(loops_results['lifemarks'].keys())
     else:
 
         loop_ix = 1
-        update_idle = cm.update_interval
 
         dmk_refs = []
         dmk_learners = []
@@ -151,8 +145,7 @@ if __name__ == "__main__":
         loops_results = {
             'loop_ix':      loop_ix,
             'lifemarks':    {},
-            'refs_ranked':  [],
-            'update_idle':  update_idle}
+            'refs_ranked':  []}
 
     """
     DMKs are named with pattern: f'dmk{loop_ix:03}{family}{cix:02}_{age:03}' + optional 'R'
@@ -180,9 +173,9 @@ if __name__ == "__main__":
         
     5. Manage (modify) DMKs lists (learners & refs)
     
-    6. Adjust TS game size
+    TODO: automatically adjust TS/TR game size
     
-    7. PMT evaluation
+    6. PMT evaluation
     """
     while True:
 
@@ -197,6 +190,7 @@ if __name__ == "__main__":
 
         tbwr.add(value=cm.game_size_TS, tag=f'loop/game_size_TS', step=loop_ix)
         tbwr.add(value=cm.game_size_TR, tag=f'loop/game_size_TR', step=loop_ix)
+        tbwr.add(value=cm.sep_n_stddev, tag=f'loop/sep_n_stddev', step=loop_ix)
 
         #************************************************************************************************ 1. create DMKs
 
@@ -231,11 +225,11 @@ if __name__ == "__main__":
                 else:
 
                     pa = random.choice(dmk_refs) if dmk_refs else None
-                    family = refs_families[pa] if pa is not None else random.choice(cm.families)
-                    name_child = f'dmk{loop_ix:03}{family}{cix:02}_000'
 
                     # 100% fresh DMK from selected family
                     if random.random() < cm.prob_fresh_dmk or pa is None:
+                        family = random.choice(cm.families)
+                        name_child = f'dmk{loop_ix:03}{family}{cix:02}_000'
                         logger.info(f'> {name_child} <- 100% fresh')
                         build_single_foldmk(
                             name=   name_child,
@@ -244,6 +238,8 @@ if __name__ == "__main__":
 
                     # GX from refs
                     else:
+                        family = refs_families[pa] if pa is not None else random.choice(cm.families)
+                        name_child = f'dmk{loop_ix:03}{family}{cix:02}_000'
                         other_fam = [dn for dn in dmk_refs if refs_families[dn] == family]
                         if len(other_fam) > 1:
                             other_fam.remove(pa)
@@ -308,6 +304,22 @@ if __name__ == "__main__":
             tr_groups[fix].append(dn)
             gix += 1
 
+        dmk_refs_sel = [] + dmk_refs
+        best_copies = []
+        if cm.against_best and loop_ix % cm.against_best == 0:
+
+            best = dmk_refs[0]
+            logger.info(f'will train & test against best ref: {best}')
+
+            # multiply them to speed up training
+            best_copies = [f'{best}_copy{ix}' for ix in range(cm.ndmk_refs - 1)]
+            copy_dmks(
+                names_src=  [best] * len(best_copies),
+                names_trg=  best_copies,
+                logger=     get_child(logger, change_level=10))
+
+            dmk_refs_sel = [best] + best_copies
+
         pub_ref = {
             'publish_player_stats': False,
             'publish_pex':          False,
@@ -320,7 +332,7 @@ if __name__ == "__main__":
             'publish_more':         False}
         for trg in tr_groups:
             run_GM(
-                dmk_point_ref=  [{'name':dn, 'motorch_point':{'device':0}, **pub_ref} for dn in dmk_refs],
+                dmk_point_ref=  [{'name':dn, 'motorch_point':{'device':0}, **pub_ref} for dn in dmk_refs_sel],
                 dmk_point_TRL=  [{'name':dn, 'motorch_point':{'device':1}, **pub_TR}  for dn in trg],
                 game_size=      cm.game_size_TR,
                 dmk_n_players=  cm.dmk_n_players_TR,
@@ -328,7 +340,7 @@ if __name__ == "__main__":
 
         #************************************************************************************* 3. test (learners & refs)
         
-        # TODO: if refs group has not changed since last loop -> some DMKs may not need to be tested
+        # INFO: if refs group has not changed since last loop -> some DMKs may not need to be tested
 
         ### prepare full list of DMKs to test
 
@@ -372,16 +384,19 @@ if __name__ == "__main__":
         dmk_results = {}
         for tsg,pairs in zip(ts_groups,group_pairs):
             rgd = run_GM(
-                dmk_point_ref=      [{'name':dn, 'motorch_point':{'device': 0}, **pub_ref} for dn in dmk_refs],
+                dmk_point_ref=      [{'name':dn, 'motorch_point':{'device': 0}, **pub_ref} for dn in dmk_refs_sel],
                 dmk_point_PLL=      [{'name':dn, 'motorch_point':{'device': 1}, **pub}     for dn in tsg],
                 game_size=          cm.game_size_TS,
                 dmk_n_players=      cm.dmk_n_players_TS,
                 sep_pairs=          pairs,
                 sep_pairs_factor=   1.1, # disables sep pairs break
-                sep_n_stdev=        1.0,
+                sep_n_stdev=        cm.sep_n_stddev,
                 logger=             logger)
             speedL.append(rgd['loop_stats']['speed'])
             dmk_results.update(rgd['dmk_results'])
+
+        for dn in best_copies:
+            shutil.rmtree(f'{DMK_MODELS_FD}/{dn}', ignore_errors=True)
 
         speed_TS = sum(speedL) / len(speedL)
         tbwr.add(value=speed_TS, tag=f'loop/speed_Hs', step=loop_ix)
@@ -398,7 +413,7 @@ if __name__ == "__main__":
 
         sr = separation_report(
             dmk_results=    dmk_results,
-            n_stdev=        1.0,
+            n_stdev=        cm.sep_n_stddev,
             sep_pairs=      sep_pairs)
 
         # update dmk_results
@@ -516,7 +531,7 @@ if __name__ == "__main__":
                         a_wonH_mean_stdev=  dmk_results[dn]['wonH_IV_mean_stdev'],
                         b_wonH=             b_wonH,
                         b_wonH_mean_stdev=  dmk_results[dnr]['wonH_IV_mean_stdev'],
-                        n_stdev=            1.0,
+                        n_stdev=            cm.sep_n_stddev,
                     ) >= 1:
                         replaces = dnr
                         break
@@ -573,26 +588,14 @@ if __name__ == "__main__":
 
         loops_results['loop_ix'] = loop_ix
 
-        # *************************************************************************************** 6. adjust TS game size
-
-        if update_idle > 0:
-            update_idle -= 1
-
+        monitor_interval = 5
         lifemarks_str = ''
         for dn in loops_results['lifemarks']:
-            lifemarks_str += loops_results['lifemarks'][dn][-cm.update_interval:]
+            lifemarks_str += loops_results['lifemarks'][dn][-monitor_interval:]
         sep_count = lifemarks_str.count('+') + lifemarks_str.count('-')
         sfi = sep_count / len(lifemarks_str)
-        logger.info(f'TS game size update idle: {update_idle}; sep_factor_interval: {sfi:.2f} ({sep_count}/{len(lifemarks_str)}) {lifemarks_str}')
+        logger.info(f'TS game sep_factor (monitor_interval:{monitor_interval}): {sfi:.2f} ({sep_count}/{len(lifemarks_str)}) {lifemarks_str}')
         tbwr.add(value=sfi, tag=f'loop/sep_factor_interval', step=loop_ix)
-
-        if update_idle == 0 and sfi < cm.sep_factor_iv:
-            cm.game_size_TS += cm.update_size
-            update_idle = cm.update_interval
-            logger.info(f'increased game_size_TS to {cm.game_size_TS}')
-
-        loops_results['update_idle'] = update_idle
-
 
         if cm.pause: input("press Enter to continue..")
 
@@ -602,7 +605,7 @@ if __name__ == "__main__":
 
         w_json(loops_results, RESULTS_FP)
 
-        #********************************************************************************************* 7. PMT evaluation
+        #********************************************************************************************* 6. PMT evaluation
 
         if loop_ix % cm.n_loops_PMT == 0:
             new_master = refs_ranked[0]

@@ -1,9 +1,9 @@
 from multiprocessing import Process
 import numpy as np
-from typing import List, Dict, Tuple, Optional, Union
-
+from pypaq.lipytools.pylogger import get_pylogger
 from pypaq.pytypes import NPL
 from pypaq.mpython.mptools import Que, QMessage
+from typing import List, Dict, Tuple, Optional, Union
 
 from pologic.hand_history import HHistory
 from pologic.podeck import PDeck
@@ -99,7 +99,7 @@ class PPlayer:
         self.nhs_IX = len(hh.events)  # update index for next
         return state_changes
 
-    # takes actual hand history (hh) from table, to be implemented how to use that information
+    # takes actual hand history (hh) from table <- to be implemented how to use that information
     # called twice by table in a hand loop: before making a move and after a hand finished (last states and rewards)
     def take_hh(self, hh: HHistory): pass
 
@@ -109,29 +109,23 @@ class PPlayer:
         selected_move, probs = self._make_decision(possible_moves, moves_cash)
         return selected_move, moves_cash[selected_move], probs
 
-
+# PTable runs poker game hands
 class PTable:
-    """
-    PTable is an object that runs single poker game (with players)
-
-        During single hand table builds hand history (hh) (past events)
-        Each PPlayer makes decisions/moves and may use history data:
-            > history is translated to player perspective:
-                > does not see other player cards
-                > players are replaced with ints: 0-this player, 1-next..
-    """
 
     def __init__(
             self,
             name: str,
             pl_ids: Optional[List[str]]=    None,
-            logger=                         None):
-
+            logger=                         None,
+            loglevel=                       20,
+    ):
+        if not logger:
+            logger = get_pylogger(level=loglevel)
         self.logger = logger
 
         self.name = name
 
-        self.moves = sorted(list(TBL_MOV.keys()))
+        self.moves = list(range(len(TBL_MOV)))
         self.SB = TABLE_CASH_SB
         self.BB = TABLE_CASH_BB
         self.start_cash = TABLE_CASH_START
@@ -150,12 +144,19 @@ class PTable:
         self.hand_ID: int=  0   # hand counter
 
         self.players = None
-        # create players and put on the table
+        # create players and put on the table, order of players reflects their current positions at table
         if pl_ids:
             self.players = [PPlayer(id) for id in pl_ids]
             self._early_update_players()
 
-        if self.logger: self.logger.info(f'*** PTable *** {self.name} initialized')
+        size_nfo = f'(size:{len(pl_ids)}) ' if pl_ids else ''
+        self.logger.info(f'*** PTable : {self.name} {size_nfo}*** initialized')
+
+    @property
+    def is_headsup(self) -> bool:
+        if self.players and len(self.players) == 2:
+            return True
+        return False
 
     # update some players info since their position on table is known
     def _early_update_players(self):
@@ -170,8 +171,7 @@ class PTable:
             pl.pls = [] + pls # copy
             # rotate for every player to put his on first position
             while pl.pls[0] != pl.id:
-                nm = pl.pls.pop(0)
-                pl.pls.append(nm)
+                pl.pls.append(pl.pls.pop(0))
 
     # rotates table players (moves BTN right)
     def rotate_players(self):
@@ -183,19 +183,19 @@ class PTable:
             hh_given: Optional[Union["HHistory",List[str]]]=    None,   # if given, runs hand with given moves and cards
     ):
 
-        if self.logger: self.logger.debug(f'{self.name} starts hand {self.hand_ID}')
-
-        hh_mvh = HHistory.extract_mvh(hh_given) if hh_given else None
-        #print(hh_mvh)
-
         hh = HHistory()
         hh.add('HST', (self.name, self.hand_ID))
+        self.logger.debug(f'HH >> HST {(self.name, self.hand_ID)}')
 
-        self.pot, self.cash_cr, self.cash_tc = 0, 0, 0
-        hh.add('T$$', (self.pot, self.cash_cr, self.cash_tc))
+        hh_mvh = HHistory.extract_mvh(hh_given) if hh_given else None
+        if hh_mvh:
+            self.logger.debug(f'table was given hh_mvh: {hh_mvh}')
 
         self.state = 0
         hh.add('TST', (self.state,))
+
+        self.pot, self.cash_cr, self.cash_tc = 0, 0, 0
+        hh.add('T$$', (self.pot, self.cash_cr, self.cash_tc))
 
         # reset player data (cash, cards)
         for pl in self.players:
@@ -209,8 +209,6 @@ class PTable:
         self.cards = []
         self.deck.reset()
 
-        self.state = 1
-
         # rotate table to match mvh, remove SB move
         if hh_mvh:
             sb_pl_id = hh_mvh.pop(0)[0]
@@ -223,9 +221,11 @@ class PTable:
         h_pls = [] + self.players  # copy order of players for current hand (SB, BB, ..)
 
         for ix in range(len(h_pls)):
-            hh.add('POS', (h_pls[ix].id, ix))
+            hh.add('POS', (h_pls[ix].id, ix, h_pls[ix].cash))
+            self.logger.debug(f'HH >> POS {(h_pls[ix].id, ix)}')
 
-        # put blinds on table
+        ### put blinds on table
+
         h_pls[0].cash -= self.SB
         h_pls[0].cash_ch = self.SB
         h_pls[0].cash_cr = self.SB
@@ -241,11 +241,15 @@ class PTable:
         self.cash_tc = self.BB
         hh.add('T$$', (self.pot, self.cash_cr, self.cash_tc))
 
-        clc_pIX = 1 # current loop closing player index
-        cmv_pIX = 2 # currently moving player index (for 2 players not valid but validated at first river loop)
+        ### hand cards
 
-        # hand cards
-        for pl in h_pls:
+        c_pls = [] + h_pls
+
+        # rotate players for heads-up cards dealing (at heads-up BB is dealt first)
+        if self.is_headsup:
+            c_pls.append(c_pls.pop(0))
+
+        for pl in c_pls:
             if hh_mvh:
                 cas, cbs = hh_mvh.pop(0)[1:]
                 self.deck.getex_card(cas)
@@ -256,11 +260,15 @@ class PTable:
                 pl.hand = PDeck.cts(ca), PDeck.cts(cb)
             hh.add('PLH', (pl.id, pl.hand[0], pl.hand[1]))
 
+        # set preflop values
+        lc_pIX = 1                           # loop closing player index
+        mv_pIX = 0 if self.is_headsup else 2 # moving       player index
+
         # rivers loop
+        self.state = 1
         while self.state < 5 and len(h_pls) > 1:
 
             hh.add('TST', (self.state,))
-            hh.add('T$$', (self.pot, self.cash_cr, self.cash_tc))
 
             # manage table cards
             new_table_cards = []
@@ -289,10 +297,10 @@ class PTable:
             while len(h_pls)>1: # game end breaks in the loop
 
                 # next loop
-                if cmv_pIX == len(h_pls):
-                    cmv_pIX = 0
+                if mv_pIX == len(h_pls):
+                    mv_pIX = 0
 
-                pl = h_pls[cmv_pIX]
+                pl = h_pls[mv_pIX]
                 player_folded = False
                 player_raised = False
                 if pl.cash: # player has cash (not all-in-ed yet)
@@ -307,7 +315,7 @@ class PTable:
                         pl.take_hh(hh)  # takes actual hh from table
                         mv_id, mv_cash, probs = pl.select_move()
                         prs = f'[{" ".join([f"{p:.4f}" for p in probs])}]'
-                        if self.logger: self.logger.debug(f'player: {pl.id} selected move #{mv_id} {TBL_MOV[mv_id][0]} from probs: {prs}')
+                        self.logger.debug(f'player: {pl.id} selected move #{mv_id} {TBL_MOV[mv_id][0]} ${mv_cash} from probs: {prs}')
                     hh.add('MOV', (pl.id, mv_id, mv_cash, (pl.cash, pl.cash_ch, pl.cash_cr)))
 
                     pl.cash -= mv_cash
@@ -319,27 +327,28 @@ class PTable:
                     # FLD case
                     if mv_id == 1:
                         player_folded = True
-                        h_pls.pop(cmv_pIX)
+                        h_pls.pop(mv_pIX)
 
                     # raised case
                     if mv_id > 2:
                         player_raised = True
                         self.cash_tc = pl.cash_cr
-                        clc_pIX = cmv_pIX-1 if cmv_pIX>0 else len(h_pls) - 1 # player before in loop
+                        lc_pIX = mv_pIX-1 if mv_pIX>0 else len(h_pls) - 1 # player before in loop
 
                     hh.add('T$$', (self.pot, self.cash_cr, self.cash_tc))
 
-                if clc_pIX == cmv_pIX and not player_raised: break # player closing loop made decision (without raise)
+                if lc_pIX == mv_pIX and not player_raised: break # player closing loop made decision (without raise)
 
-                if not player_folded: cmv_pIX += 1
-                elif clc_pIX > cmv_pIX: clc_pIX -= 1 # move index left because of del
+                if not player_folded: mv_pIX += 1
+                elif lc_pIX > mv_pIX: lc_pIX -= 1 # move index left because of del
 
             # reset for next river
-            clc_pIX = len(h_pls)-1
-            cmv_pIX = 0
+            lc_pIX = 0 if self.is_headsup else len(h_pls)-1
+            mv_pIX = 1 if self.is_headsup else 0
             self.cash_cr = 0
             self.cash_tc = 0
-            for pl in self.players: pl.cash_cr = 0
+            for pl in self.players:
+                pl.cash_cr = 0
 
             self.state += 1  # move table to next state
 
@@ -355,8 +364,10 @@ class PTable:
             winnersD[w_name]['winner'] = True
             winnersD[w_name]['full_rank'] = 'not_shown'
             n_winners = 1
-        # got more than one player @showdown
+        # got more than one player -> showdown
         else:
+            hh.add('TST', (5,))
+
             # get their ranks and top rank
             top_rank = 0
             for pl in h_pls:
@@ -500,26 +511,3 @@ class QPTable(PTable, Process):
 
     # kills self (process)
     def kill(self): self.terminate()
-
-# Qued Poker Table wrapped with a Process
-class ProcPTable(Process):
-
-    def __init__(
-            self,
-            que_from_gm: Que,
-            que_to_gm: Que,
-            pl_ques: Dict[str, Tuple[Que, Que]]):
-        Process.__init__(self, target=self.__run)
-        self.que_from_gm = que_from_gm
-        self.que_to_gm = que_to_gm
-        self.pl_ques = pl_ques
-
-    def __run(self):
-        message: QMessage = self.que_from_gm.get()
-        assert message.type == 'init'
-        table = QPTable(
-            que_from_gm =   self.que_from_gm,
-            que_to_gm=      self.que_to_gm,
-            pl_ques=        self.pl_ques,
-            **message.data)
-        table.run_hand_loop()

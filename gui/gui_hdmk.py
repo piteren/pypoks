@@ -1,5 +1,6 @@
 from functools import partial
 from PIL import Image, ImageTk
+from pypaq.lipytools.pylogger import get_pylogger
 from pypaq.mpython.mptools import Que, QMessage
 import time
 from tkinter import Tk, Label, Button, Frame, IntVar
@@ -8,6 +9,7 @@ from typing import List, Optional
 from envy import DEBUG_MODE, TABLE_CASH_START, TABLE_CASH_SB, TABLE_CASH_BB, TBL_MOV, get_pos_names
 from pologic.podeck import CRD_FIG, CRD_COL
 from pologic.hand_history import HHistory, STATE
+from podecide.stats.player_stats import PStatsEx
 
 GUI_DELAY = 0.1 # seconds of delay for every message
 
@@ -39,7 +41,16 @@ class GUI_HDMK:
     def __init__(
             self,
             players: List[str], # ids of players
-            imgs_FD=    'gui/imgs'):
+            imgs_FD=    'gui/imgs',
+            logger=     None,
+            loglevel=   20,
+    ):
+        if not logger:
+            logger = get_pylogger(level=loglevel)
+        self.logger = logger
+
+        self.players = players
+        self.logger.info(f'*** GUI_HDMK *** starts with players: {self.players}')
 
         self.tk_que = Que()
         self.out_que = Que()
@@ -54,22 +65,27 @@ class GUI_HDMK:
         ico = ImageTk.PhotoImage(Image.open(f'{imgs_FD}/aiico.png'))
         self.tk.iconphoto(False, ico)
 
-        n_players = len(players)
-
         self.cards_imagesD = build_cards_img_dict(imgs_FD)
         self.tcards = [] # here hand table cards are stored
         self.tcsh_tc = 0 # will keep it to capture fold event
-        self.pl_won = [0 for _ in range(len(players))]
+        self.pl_won = [0 for _ in range(len(self.players))]
         self.n_hands = 0
-        self.players_cards = {ix:[] for ix in range(n_players)}
+        self.players_cards = {ix:[] for ix in range(len(self.players))}
+
+        self.states = [] # current hand states cache
+        self.human_stats = PStatsEx(
+            player=         0,
+            use_initial=    False,
+            upd_freq=       1,
+            logger=         self.logger)
 
         pyp_lbl = Label(self.tk)
         pyp_lbl.grid(row=0, column=0)
         set_image(pyp_lbl, ImageTk.PhotoImage(Image.open(f'{imgs_FD}/pypoks_bar.png')))
 
-        # players frame ************************************************************************************************
+        ### players frame ******************************************************************************** players frame
 
-        self.__btn_pos = get_pos_names().index('BTN') # where is BTN position
+        self.__btn_pos = get_pos_names().index('BTN') # index of BTN position (for given N_TABLE_PLAYERS)
 
         pl_frm = Frame(self.tk, padx=5, pady=5)
         pl_frm.grid(row=1, column=0)
@@ -78,7 +94,7 @@ class GUI_HDMK:
         self.nodealer_img = ImageTk.PhotoImage(Image.open(f'{imgs_FD}/no_dealer.png'))
         user_ico = ImageTk.PhotoImage(Image.open(f'{imgs_FD}/user.png'))
         ai_ico = ImageTk.PhotoImage(Image.open(f'{imgs_FD}/ai.png'))
-        for ix in range(n_players):
+        for ix in range(len(self.players)):
             plx_frm = Frame(pl_frm, padx=5, pady=5)
             plx_frm.grid(row=0, column=ix)
             plx_lblL = []
@@ -106,7 +122,7 @@ class GUI_HDMK:
 
             self.__upd_plcsh(ix)
 
-        # table frame **************************************************************************************************
+        ### table frame ************************************************************************************ table frame
 
         tbl_frm = Frame(self.tk, padx=5, pady=5)
         tbl_frm.grid(row=2, column=0)
@@ -131,12 +147,12 @@ class GUI_HDMK:
         self.tcsh_lblL.append(lbl)
         self.__upd_tcsh()
 
-        # my frame *****************************************************************************************************
+        ### my frame ****************************************************************************************** my frame
 
         m_frm = Frame(self.tk, padx=5, pady=5)
         m_frm.grid(row=3, column=0)
 
-        # my cards subframe ********************************************************************************************
+        ### my cards subframe ************************************************************************ my cards subframe
 
         myc_frm = Frame(m_frm, padx=5, pady=5)
         myc_frm.grid(row=0, column=0)
@@ -147,23 +163,33 @@ class GUI_HDMK:
             self.myc_lblL.append(clbl)
         self.__upd_myc()
 
-        # decision subframe ********************************************************************************************
+        ### decision subframe ************************************************************************ decision subframe
 
-        lcol = ['dark green', 'black', 'DodgerBlue3'] + ['red'] * (len(TBL_MOV) - 3)  # fg colors in frame
-        mnm = [TBL_MOV[k][0] for k in sorted(list(TBL_MOV.keys()))]     # moves names
+        mvnL = [mv[0] for mv in TBL_MOV] # moves names
+        lcolL = []                       # fg colors in a frame
+        for mvn in mvnL:
+            if mvn == 'CCK':
+                lcolL.append('dark green')
+            if mvn == 'FLD':
+                lcolL.append('black')
+            if mvn == 'CLL':
+                lcolL.append('DodgerBlue3')
+            if 'BR' in mvn:
+                lcolL.append('red')
+
         dec_frm = Frame(m_frm, padx=5, pady=5)
         dec_frm.grid(row=0, column=1)
 
         self.dec_lblL = []
-        for ix in range(len(lcol)):
-            lbl = Label(dec_frm, fg=lcol[ix], font=('Helvetica', 14))
+        for ix in range(len(lcolL)):
+            lbl = Label(dec_frm, fg=lcolL[ix], font=('Helvetica', 14))
             lbl.grid(row=0, column=ix)
             self.dec_lblL.append(lbl)
         self.__set_dec_lbl_val()
 
         self.dec_btnL = []
-        for ix in range(len(mnm)):
-            btn = Button(dec_frm, text=mnm[ix], fg=lcol[ix], font=('Helvetica', 12), command=partial(self.__put_decision, ix), pady=2, padx=2, width=4)
+        for ix in range(len(mvnL)):
+            btn = Button(dec_frm, text=mvnL[ix], fg=lcolL[ix], font=('Helvetica', 12), command=partial(self.__put_decision, ix), pady=2, padx=2, width=4)
             btn.grid(row=1,column=ix)
             self.dec_btnL.append(btn)
         self.__set_dec_btn_act()
@@ -178,7 +204,7 @@ class GUI_HDMK:
         self.nHlbl = Label(go_frm, text=0, font=('Helvetica bold', 11), width=5)  # n_hands
         self.nHlbl.grid(row=0, column=1)
 
-    # GUI main logic methods ******************************************************************************** main logic
+    ### GUI main logic methods ****************************************************************** GUI main logic methods
 
     # runs main loop
     def run_tk(self):
@@ -208,6 +234,8 @@ class GUI_HDMK:
     # processes incoming state
     def __proc_state(self, state:STATE):
 
+        self.states.append(state)
+
         prn = True # to catch unhandled states below
 
         prn_event = HHistory.readable_event(state)
@@ -236,6 +264,7 @@ class GUI_HDMK:
                     self.__upd_plcsh(plix, True, None)
             prn = False
 
+        # TODO: update here with player starting cash given with POS
         if state[0] == 'POS':
             # SB
             if state[1][1] == 0:
@@ -280,6 +309,16 @@ class GUI_HDMK:
             if DEBUG_MODE:
                 for ix in self.players_cards:
                     print(f'DEB: pl{ix} cards: {self.players_cards[ix][0]} {self.players_cards[ix][1]}')
+
+            hh = HHistory()
+            hh.events = self.states
+            hh.save(file=f'hh_test_stats/human_{self.n_hands:02}.hh')
+            self.logger.debug(str(hh))
+
+            self.human_stats.process_states(self.states)
+            self.logger.debug(f'human_stats: {self.human_stats.player_stats}')
+            self.states = []
+
             self.next_btn['state'] = 'normal'
             print('\npress GO to start next hand')
             self.next_btn.wait_variable(self.next_go)
@@ -298,7 +337,7 @@ class GUI_HDMK:
         self.__set_dec_lbl_val()
         self.__set_dec_btn_act()
 
-    # players frames methods **************************************************************************** players frames
+    ### players frames methods ****************************************************************** players frames methods
 
     # updates player tot won
     def __upd_pl_won(
@@ -319,18 +358,18 @@ class GUI_HDMK:
         if csh is not True:     self.plx_elD[plix]['lblL'][4]['text'] = csh
         if csh_cr is not True:  self.plx_elD[plix]['lblL'][5]['text'] = csh_cr
 
-    def __set_pl_active(self, plix :int, a=True):
+    def __set_pl_active(self, plix:int, a=True):
         self.plx_elD[plix]['lblL'][4]['fg'] = 'black' if a else 'gray36'
         self.plx_elD[plix]['lblL'][5]['fg'] = 'black' if a else 'gray36'
 
-    def __set_button(self, i :int=None):
+    def __set_button(self, i:int=None):
         set_image(self.plx_elD[i]['lblL'][2], self.dealer_img)
-        other = [0, 1, 2]
+        other = list(range(len(self.players)))
         other.pop(i)
         for ix in other:
             set_image(self.plx_elD[ix]['lblL'][2], self.nodealer_img)
 
-    # table frame methods ********************************************************************************** table frame
+    ### table frame methods ************************************************************************ table frame methods
 
     # updates self.tcards list
     def __upd_tblc(self, cl:Optional[List]=None):
@@ -354,14 +393,14 @@ class GUI_HDMK:
         self.tcsh_lblL[0]['text'] = a
         self.tcsh_lblL[1]['text'] = f'({b})'
 
-    # my cards frame methods **************************************************************************** my cards frame
+    ### my cards frame methods ****************************************************************** my cards frame methods
 
     # updates my cards
     def __upd_myc(self, ca :str=None, cb :str=None):
         set_image(self.myc_lblL[0], self.cards_imagesD[ca])
         set_image(self.myc_lblL[1], self.cards_imagesD[cb])
 
-    # decision frame methods **************************************************************************** decision frame
+    ### decision frame methods ****************************************************************** decision frame methods
 
     # sets $ values of labels
     def __set_dec_lbl_val(self, val:Optional[List[int]]=None):
@@ -371,11 +410,11 @@ class GUI_HDMK:
 
     # sets state of buttons
     def __set_dec_btn_act(self, act:Optional[List[bool]]=None):
-        if not act: act = [False]*len(TBL_MOV)
+        if not act:
+            act = [False]*len(TBL_MOV)
         for ix in range(len(self.dec_btnL)):
-            self.dec_btnL[ix]['state'] = 'normal' if act[ix] else'disabled'
-
+            self.dec_btnL[ix]['state'] = 'normal' if act[ix] else 'disabled'
 
     def __on_closing(self):
-        self.next_btn.invoke()
+        self.next_btn.invoke() # this button may hold exit (#286), we need to invoke it
         self.tk.quit()
