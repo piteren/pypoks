@@ -2,10 +2,10 @@ Composition {
 	CurrentTime = 0,
 	RenderRange = { 0, 0 },
 	GlobalRange = { 0, 1 },
-	CurrentID = 2628,
+	CurrentID = 3311,
 	HiQ = true,
 	PlaybackUpdateMode = 0,
-	Version = "Fusion Studio 16.2 build 22",
+	Version = "Fusion 9.0.1 build 3",
 	SavedOutputs = 1,
 	HeldTools = 0,
 	DisabledTools = 0,
@@ -43,17 +43,17 @@ Composition {
 		"/home/pp/projects/pypoks/gui/cards/dfR/DS.png",
 		"/home/pp/projects/pypoks/gui/cards/dfR/9D.png",
 		"/home/pp/projects/pypoks/gui/cards/dfR/8S.png",
+		"/home/pp/projects/pypoks/gui/cards/dfR/5S.png",
 		"/home/pp/projects/pypoks/gui/cards/dfR/TD.png",
 		"/home/pp/projects/pypoks/gui/cards/dfR/KH.png",
 		"/home/pp/projects/pypoks/gui/cards/dfR/AS.png",
 		"/home/pp/projects/pypoks/gui/cards/dfR/DD.png",
 		"/home/pp/projects/pypoks/gui/cards/dfR/5C.png",
-		"/home/pp/projects/pypoks/gui/cards/dfR/5S.png",
 		"/home/pp/projects/pypoks/gui/cards/dfR/JC.png",
-		"/home/pp/projects/pypoks/gui/cards/dfR/9S.png",
-		"/home/pp/projects/pypoks/gui/cards/dfR/2C.png",
-		"/home/pp/projects/pypoks/gui/cards/dfR/5D.png",
+		"/home/pp/projects/pypoks/gui/cards/dfR/KC.png",
 		"/home/pp/projects/pypoks/gui/cards/dfR/2D.png",
+		"/home/pp/projects/pypoks/gui/cards/dfR/5D.png",
+		"/home/pp/projects/pypoks/gui/cards/dfR/JD.png",
 		"/home/pp/projects/pypoks/gui/cards/dfR/3C.png",
 		"/home/pp/projects/pypoks/gui/cards/dfR/4H.png",
 		"/home/pp/projects/pypoks/gui/cards/dfR/DH.png",
@@ -61,8 +61,8 @@ Composition {
 		"/home/pp/projects/pypoks/gui/cards/dfR/AD.png",
 		"/home/pp/projects/pypoks/gui/cards/dfR/DC.png",
 		"/home/pp/projects/pypoks/gui/cards/dfR/7H.png",
-		"/home/pp/projects/pypoks/gui/cards/dfR/JD.png",
-		"/home/pp/projects/pypoks/gui/cards/dfR/KC.png",
+		"/home/pp/projects/pypoks/gui/cards/dfR/2C.png",
+		"/home/pp/projects/pypoks/gui/cards/dfR/9S.png",
 		"/home/pp/projects/pypoks/gui/cards/dfR/7D.png",
 		"/home/pp/projects/pypoks/gui/cards/dfR/9H.png",
 		"/home/pp/projects/pypoks/gui/cards/dfR/AC.png"
@@ -89,10 +89,35 @@ Composition {
 				}
 			},
 			Inputs = {
-				["Gamut.SLogVersion"] = Input { Value = FuID { "SLog2" }, },
 				["Clip1.PNGFormat.PostMultiply"] = Input { Value = 1, },
+				["Gamut.SLogVersion"] = Input { Value = FuID { "SLog2" }, },
 			},
 			ViewInfo = OperatorInfo { Pos = { -55, -49.5 } },
+		},
+		Loader5 = Loader {
+			Clips = {
+				Clip {
+					ID = "Clip1",
+					Filename = "/home/pniewinski/projects/pypoks_evo/images/pypoks_logo_alph_black.png",
+					FormatID = "PNGFormat",
+					StartFrame = -1,
+					LengthSetManually = true,
+					TrimIn = 0,
+					TrimOut = 0,
+					ExtendFirst = 0,
+					ExtendLast = 0,
+					Loop = 0,
+					AspectMode = 0,
+					Depth = 0,
+					TimeCode = 0,
+					GlobalStart = 0,
+					GlobalEnd = 0
+				}
+			},
+			Inputs = {
+				["Gamut.SLogVersion"] = Input { Value = FuID { "SLog2" }, },
+			},
+			ViewInfo = OperatorInfo { Pos = { 110, -610.5 } },
 		},
 		Loader3 = Loader {
 			Clips = {
@@ -115,8 +140,8 @@ Composition {
 				}
 			},
 			Inputs = {
-				["Gamut.SLogVersion"] = Input { Value = FuID { "SLog2" }, },
 				["Clip1.PNGFormat.PostMultiply"] = Input { Value = 1, },
+				["Gamut.SLogVersion"] = Input { Value = FuID { "SLog2" }, },
 			},
 			ViewInfo = OperatorInfo { Pos = { -275, -577.5 } },
 		},
@@ -141,12 +166,12 @@ Composition {
 				}
 			},
 			Inputs = {
+				["Clip1.PNGFormat.PostMultiply"] = Input { Value = 1, },
+				["Gamut.SLogVersion"] = Input { Value = FuID { "SLog2" }, },
 				EffectMask = Input {
 					SourceOp = "Rectangle3",
 					Source = "Mask",
-				},
-				["Gamut.SLogVersion"] = Input { Value = FuID { "SLog2" }, },
-				["Clip1.PNGFormat.PostMultiply"] = Input { Value = 1, },
+				}
 			},
 			ViewInfo = OperatorInfo { Pos = { -935, 214.5 } },
 		},
@@ -175,10 +200,40 @@ Composition {
 			},
 			ViewInfo = OperatorInfo { Pos = { -440, -412.5 } },
 		},
+		Loader7 = Loader {
+			Clips = {
+				Clip {
+					ID = "Clip1",
+					Filename = "/home/pniewinski/projects/pypoks_evo/images/pypoks_logo_alph_white_add.png",
+					FormatID = "PNGFormat",
+					StartFrame = -1,
+					LengthSetManually = true,
+					TrimIn = 0,
+					TrimOut = 0,
+					ExtendFirst = 0,
+					ExtendLast = 0,
+					Loop = 0,
+					AspectMode = 0,
+					Depth = 0,
+					TimeCode = 0,
+					GlobalStart = 0,
+					GlobalEnd = 0
+				}
+			},
+			CtrlWZoom = false,
+			Inputs = {
+				["Gamut.SLogVersion"] = Input { Value = FuID { "SLog2" }, },
+			},
+			ViewInfo = OperatorInfo { Pos = { 385, -610.5 } },
+		},
 		Instance_Crop1_3_1_7 = Crop {
 			SourceOp = "Instance_Crop1_2_1_7",
 			Inputs = {
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
 				ResetSize = Input { },
 				ResetOffset = Input { },
 				Input = Input {
@@ -186,29 +241,20 @@ Composition {
 					Source = "Output",
 				},
 				AutoCrop = Input { },
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 220, 1765.5 } },
 		},
 		Text1_1_1_4 = TextPlus {
 			Inputs = {
-				HorizontalJustification = Input { Value = 1, },
-				Alignment = Input { Value = 1, },
+				HorizontalJustificationNew = Input { Value = 3, },
+				VerticalJustificationNew = Input { Value = 3, },
 				GlobalOut = Input { Value = 1, },
 				Width = Input { Value = 1920, },
 				Height = Input { Value = 1080, },
 				Center = Input { Value = { 0.5, 0.545083011716293 }, },
-				Red1 = Input { Value = 0.778792858123779, },
-				Green1 = Input { Value = 0.0274509191513062, },
-				Blue1 = Input { Value = 0.0961014628410339, },
-				StyledText = Input { Value = "6", },
 				Font = Input { Value = "DejaVu Sans", },
+				StyledText = Input { Value = "6", },
 				Style = Input { Value = "Bold", },
-				VerticalJustificationNew = Input { Value = 3, },
-				HorizontalJustificationNew = Input { Value = 3, },
 				ManualFontKerningPlacement = Input {
 					Value = StyledText {
 						Array = {
@@ -216,6 +262,11 @@ Composition {
 						Value = ""
 					},
 				},
+				Alignment = Input { Value = 1, },
+				HorizontalJustification = Input { Value = 1, },
+				Red1 = Input { Value = 0.778792858123779, },
+				Green1 = Input { Value = 0.0274509191513062, },
+				Blue1 = Input { Value = 0.0961014628410339, },
 			},
 			ViewInfo = OperatorInfo { Pos = { -825, 1006.5 } },
 		},
@@ -268,25 +319,29 @@ Composition {
 		Instance_Transform4_2 = Transform {
 			SourceOp = "Transform4",
 			Inputs = {
-				EffectMask = Input { },
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
 				TransformNest = Input { },
 				ReferenceSize = Input { },
 				Input = Input {
 					SourceOp = "Merge1",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
+				EffectMask = Input { }
 			},
 			ViewInfo = OperatorInfo { Pos = { 0, 148.5 } },
 		},
 		Instance_Crop1_1_1_10 = Crop {
 			SourceOp = "Instance_Crop1_2_1_10",
 			Inputs = {
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
 				ResetSize = Input { },
 				ResetOffset = Input { },
 				Input = Input {
@@ -294,10 +349,6 @@ Composition {
 					Source = "Output",
 				},
 				AutoCrop = Input { },
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 220, 2161.5 } },
 		},
@@ -324,7 +375,11 @@ Composition {
 		Instance_Crop1_4_1 = Crop {
 			SourceOp = "Instance_Crop1_2_1_1",
 			Inputs = {
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
 				ResetSize = Input { },
 				ResetOffset = Input { },
 				Input = Input {
@@ -332,19 +387,11 @@ Composition {
 					Source = "Output",
 				},
 				AutoCrop = Input { },
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 220, 577.5 } },
 		},
 		Merge8 = Merge {
 			Inputs = {
-				EffectMask = Input {
-					SourceOp = "Ellipse3_1_1",
-					Source = "Mask",
-				},
 				Background = Input {
 					SourceOp = "Merge7",
 					Source = "Output",
@@ -354,6 +401,10 @@ Composition {
 					Source = "Output",
 				},
 				PerformDepthMerge = Input { Value = 0, },
+				EffectMask = Input {
+					SourceOp = "Ellipse3_1_1",
+					Source = "Mask",
+				}
 			},
 			ViewInfo = OperatorInfo { Pos = { -275, -379.5 } },
 		},
@@ -425,33 +476,33 @@ Composition {
 		Instance_Transform4_7 = Transform {
 			SourceOp = "Transform4",
 			Inputs = {
-				EffectMask = Input { },
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
 				TransformNest = Input { },
 				ReferenceSize = Input { },
 				Input = Input {
 					SourceOp = "Text1_1_1_4",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
+				EffectMask = Input { }
 			},
 			ViewInfo = OperatorInfo { Pos = { -715, 1006.5 } },
 		},
 		Instance_Scale1_1_1_9 = Scale {
 			SourceOp = "Instance_Scale1_2_1_9",
 			Inputs = {
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				FrameRenderScriptNest = Input { },
+				CommentsNest = Input { },
 				Input = Input {
 					SourceOp = "Instance_Crop1_1_1_9",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 330, 1996.5 } },
 		},
@@ -475,38 +526,33 @@ Composition {
 		Instance_Background4 = Background {
 			SourceOp = "Background4",
 			Inputs = {
+				ImageNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
+				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				BackgroundNest = Input { },
+				CommentsNest = Input { },
+				["Gamut.ColorSpaceNest"] = Input { },
+				["Gamut.GammaSpaceNest"] = Input { },
 				EffectMask = Input {
 					SourceOp = "Ellipse2",
 					Source = "Mask",
-				},
-				SettingsNest = Input { },
-				ImageNest = Input { },
-				["Gamut.ColorSpaceNest"] = Input { },
-				["Gamut.GammaSpaceNest"] = Input { },
-				BackgroundNest = Input { },
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
+				}
 			},
 			ViewInfo = OperatorInfo { Pos = { -330, -214.5 } },
 		},
 		Text1_1_1_9 = TextPlus {
 			Inputs = {
-				HorizontalJustification = Input { Value = 1, },
-				Alignment = Input { Value = 1, },
+				HorizontalJustificationNew = Input { Value = 3, },
+				VerticalJustificationNew = Input { Value = 3, },
 				GlobalOut = Input { Value = 1, },
 				Width = Input { Value = 1920, },
 				Height = Input { Value = 1080, },
 				Center = Input { Value = { 0.5, 0.545083011716293 }, },
-				Red1 = Input { Value = 0.778792858123779, },
-				Green1 = Input { Value = 0.0274509191513062, },
-				Blue1 = Input { Value = 0.0961014628410339, },
-				StyledText = Input { Value = "D", },
 				Font = Input { Value = "DejaVu Sans", },
+				StyledText = Input { Value = "D", },
 				Style = Input { Value = "Bold", },
-				VerticalJustificationNew = Input { Value = 3, },
-				HorizontalJustificationNew = Input { Value = 3, },
 				ManualFontKerningPlacement = Input {
 					Value = StyledText {
 						Array = {
@@ -514,36 +560,41 @@ Composition {
 						Value = ""
 					},
 				},
+				Alignment = Input { Value = 1, },
+				HorizontalJustification = Input { Value = 1, },
+				Red1 = Input { Value = 0.778792858123779, },
+				Green1 = Input { Value = 0.0274509191513062, },
+				Blue1 = Input { Value = 0.0961014628410339, },
 			},
 			ViewInfo = OperatorInfo { Pos = { -825, 1996.5 } },
 		},
 		Instance_Scale1_4_11 = Scale {
 			SourceOp = "Instance_Scale1_2_1_11",
 			Inputs = {
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				FrameRenderScriptNest = Input { },
+				CommentsNest = Input { },
 				Input = Input {
 					SourceOp = "Instance_Crop1_4_11",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 330, 2392.5 } },
 		},
 		Instance_Scale1_4_1 = Scale {
 			SourceOp = "Instance_Scale1_2_1_1",
 			Inputs = {
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				FrameRenderScriptNest = Input { },
+				CommentsNest = Input { },
 				Input = Input {
 					SourceOp = "Instance_Crop1_4_1",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 330, 577.5 } },
 		},
@@ -567,7 +618,11 @@ Composition {
 		Instance_Crop1_3 = Crop {
 			SourceOp = "Crop1",
 			Inputs = {
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
 				ResetSize = Input { },
 				ResetOffset = Input { },
 				Input = Input {
@@ -575,10 +630,6 @@ Composition {
 					Source = "Output",
 				},
 				AutoCrop = Input { },
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 220, 1600.5 } },
 		},
@@ -712,18 +763,18 @@ Composition {
 		Instance_Transform4_8 = Transform {
 			SourceOp = "Transform4",
 			Inputs = {
-				EffectMask = Input { },
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
 				TransformNest = Input { },
 				ReferenceSize = Input { },
 				Input = Input {
 					SourceOp = "Text1_1_1_5",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
+				EffectMask = Input { }
 			},
 			ViewInfo = OperatorInfo { Pos = { -715, 1171.5 } },
 		},
@@ -747,24 +798,20 @@ Composition {
 		Instance_Scale1 = Scale {
 			SourceOp = "Scale1",
 			Inputs = {
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				FrameRenderScriptNest = Input { },
+				CommentsNest = Input { },
 				Input = Input {
 					SourceOp = "Instance_Crop1",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 330, 1567.5 } },
 		},
 		Merge10 = Merge {
 			Inputs = {
-				EffectMask = Input {
-					SourceOp = "Polygon5",
-					Source = "Mask",
-				},
 				Background = Input {
 					SourceOp = "Merge9",
 					Source = "Output",
@@ -777,6 +824,10 @@ Composition {
 				Size = Input { Value = 0.0494254032258064, },
 				ApplyMode = Input { Value = FuID { "Multiply" }, },
 				PerformDepthMerge = Input { Value = 0, },
+				EffectMask = Input {
+					SourceOp = "Polygon5",
+					Source = "Mask",
+				}
 			},
 			ViewInfo = OperatorInfo { Pos = { -55, -379.5 } },
 		},
@@ -811,33 +862,33 @@ Composition {
 		Instance_Transform4 = Transform {
 			SourceOp = "Transform4",
 			Inputs = {
-				EffectMask = Input { },
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
 				TransformNest = Input { },
 				ReferenceSize = Input { },
 				Input = Input {
 					SourceOp = "Merge1_2_1",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
+				EffectMask = Input { }
 			},
 			ViewInfo = OperatorInfo { Pos = { -220, 148.5 } },
 		},
 		Instance_Scale1_1_1 = Scale {
 			SourceOp = "Instance_Scale1_2_1",
 			Inputs = {
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				FrameRenderScriptNest = Input { },
+				CommentsNest = Input { },
 				Input = Input {
 					SourceOp = "Instance_Crop1_1_1",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 330, 346.5 } },
 		},
@@ -874,17 +925,17 @@ Composition {
 		Text1 = TextPlus {
 			CtrlWZoom = false,
 			Inputs = {
+				HorizontalJustificationNew = Input { Value = 3, },
+				VerticalJustificationNew = Input { Value = 3, },
 				GlobalOut = Input { Value = 1, },
 				Width = Input { Value = 1920, },
 				Height = Input { Value = 1080, },
 				["Gamut.SLogVersion"] = Input { Value = FuID { "SLog2" }, },
 				Center = Input { Value = { 0.48581986497545, 0.5 }, },
-				StyledText = Input { Value = "D", },
-				Font = Input { Value = "Open Sans", },
-				Style = Input { Value = "Bold", },
 				Size = Input { Value = 0.01, },
-				VerticalJustificationNew = Input { Value = 3, },
-				HorizontalJustificationNew = Input { Value = 3, },
+				Font = Input { Value = "Open Sans", },
+				StyledText = Input { Value = "D", },
+				Style = Input { Value = "Bold", },
 				ManualFontKerningPlacement = Input {
 					Value = StyledText {
 						Array = {
@@ -897,10 +948,6 @@ Composition {
 		},
 		Merge2 = Merge {
 			Inputs = {
-				EffectMask = Input {
-					SourceOp = "Polygon2",
-					Source = "Mask",
-				},
 				Background = Input {
 					SourceOp = "Loader1",
 					Source = "Output",
@@ -910,6 +957,10 @@ Composition {
 					Source = "Output",
 				},
 				PerformDepthMerge = Input { Value = 0, },
+				EffectMask = Input {
+					SourceOp = "Polygon2",
+					Source = "Mask",
+				}
 			},
 			ViewInfo = OperatorInfo { Pos = { -55, -16.5 } },
 		},
@@ -1026,30 +1077,30 @@ Composition {
 		Instance_Scale1_1_1_4 = Scale {
 			SourceOp = "Instance_Scale1_2_1_4",
 			Inputs = {
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				FrameRenderScriptNest = Input { },
+				CommentsNest = Input { },
 				Input = Input {
 					SourceOp = "Instance_Crop1_1_1_4",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 330, 1006.5 } },
 		},
 		Instance_Scale1_3_1_7 = Scale {
 			SourceOp = "Instance_Scale1_2_1_7",
 			Inputs = {
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				FrameRenderScriptNest = Input { },
+				CommentsNest = Input { },
 				Input = Input {
 					SourceOp = "Instance_Crop1_3_1_7",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 330, 1765.5 } },
 		},
@@ -1073,7 +1124,11 @@ Composition {
 		Instance_Crop1_1_1_11 = Crop {
 			SourceOp = "Instance_Crop1_2_1_11",
 			Inputs = {
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
 				ResetSize = Input { },
 				ResetOffset = Input { },
 				Input = Input {
@@ -1081,10 +1136,6 @@ Composition {
 					Source = "Output",
 				},
 				AutoCrop = Input { },
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 220, 2326.5 } },
 		},
@@ -1142,42 +1193,42 @@ Composition {
 		Instance_Scale1_4_6 = Scale {
 			SourceOp = "Instance_Scale1_2_1_6",
 			Inputs = {
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				FrameRenderScriptNest = Input { },
+				CommentsNest = Input { },
 				Input = Input {
 					SourceOp = "Instance_Crop1_4_6",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 330, 1402.5 } },
 		},
 		Background1_1 = Background {
 			Inputs = {
-				EffectMask = Input {
-					SourceOp = "LumaKeyer1",
-					Source = "Output",
-				},
 				GlobalOut = Input { Value = 1, },
 				Width = Input { Value = 693, },
 				Height = Input { Value = 175, },
+				EffectMask = Input {
+					SourceOp = "LumaKeyer1",
+					Source = "Output",
+				}
 			},
 			ViewInfo = OperatorInfo { Pos = { -165, 82.5 } },
 		},
 		Instance_Scale1_3_1_8 = Scale {
 			SourceOp = "Instance_Scale1_2_1_8",
 			Inputs = {
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				FrameRenderScriptNest = Input { },
+				CommentsNest = Input { },
 				Input = Input {
 					SourceOp = "Instance_Crop1_3_1_8",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 330, 1930.5 } },
 		},
@@ -1198,7 +1249,11 @@ Composition {
 		Instance_Crop1 = Crop {
 			SourceOp = "Crop1",
 			Inputs = {
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
 				ResetSize = Input { },
 				ResetOffset = Input { },
 				Input = Input {
@@ -1206,19 +1261,11 @@ Composition {
 					Source = "Output",
 				},
 				AutoCrop = Input { },
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 220, 1567.5 } },
 		},
 		Merge5 = Merge {
 			Inputs = {
-				EffectMask = Input {
-					SourceOp = "Polygon4",
-					Source = "Mask",
-				},
 				Background = Input {
 					SourceOp = "Merge4",
 					Source = "Output",
@@ -1230,6 +1277,10 @@ Composition {
 				Center = Input { Value = { 0.580712991075326, 0.4400456497493 }, },
 				ApplyMode = Input { Value = FuID { "Multiply" }, },
 				PerformDepthMerge = Input { Value = 0, },
+				EffectMask = Input {
+					SourceOp = "Polygon4",
+					Source = "Mask",
+				}
 			},
 			ViewInfo = OperatorInfo { Pos = { -385, 214.5 } },
 		},
@@ -1354,25 +1405,29 @@ Composition {
 		Instance_Transform4_9 = Transform {
 			SourceOp = "Transform4",
 			Inputs = {
-				EffectMask = Input { },
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
 				TransformNest = Input { },
 				ReferenceSize = Input { },
 				Input = Input {
 					SourceOp = "Text1_1_1_6",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
+				EffectMask = Input { }
 			},
 			ViewInfo = OperatorInfo { Pos = { -715, 1336.5 } },
 		},
 		Instance_Crop1_3_1 = Crop {
 			SourceOp = "Instance_Crop1_2_1",
 			Inputs = {
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
 				ResetSize = Input { },
 				ResetOffset = Input { },
 				Input = Input {
@@ -1380,10 +1435,6 @@ Composition {
 					Source = "Output",
 				},
 				AutoCrop = Input { },
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 220, 445.5 } },
 		},
@@ -1408,10 +1459,6 @@ Composition {
 			DrawMode = "InsertAndModify",
 			DrawMode2 = "InsertAndModify",
 			Inputs = {
-				EffectMask = Input {
-					SourceOp = "Polygon1",
-					Source = "Mask",
-				},
 				MaskWidth = Input { Value = 1920, },
 				MaskHeight = Input { Value = 1080, },
 				PixelAspect = Input { Value = { 1, 1 }, },
@@ -1425,6 +1472,10 @@ Composition {
 					},
 					Disabled = true,
 				},
+				EffectMask = Input {
+					SourceOp = "Polygon1",
+					Source = "Mask",
+				}
 			},
 			ViewInfo = OperatorInfo { Pos = { -165, -16.5 } },
 		},
@@ -1482,15 +1533,15 @@ Composition {
 		Instance_Scale1_3_1_4 = Scale {
 			SourceOp = "Instance_Scale1_2_1_4",
 			Inputs = {
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				FrameRenderScriptNest = Input { },
+				CommentsNest = Input { },
 				Input = Input {
 					SourceOp = "Instance_Crop1_3_1_4",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 330, 1105.5 } },
 		},
@@ -1595,7 +1646,11 @@ Composition {
 		Instance_Crop1_1_1 = Crop {
 			SourceOp = "Instance_Crop1_2_1",
 			Inputs = {
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
 				ResetSize = Input { },
 				ResetOffset = Input { },
 				Input = Input {
@@ -1603,10 +1658,6 @@ Composition {
 					Source = "Output",
 				},
 				AutoCrop = Input { },
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 220, 346.5 } },
 		},
@@ -1681,7 +1732,11 @@ Composition {
 		Instance_Crop1_1_1_6 = Crop {
 			SourceOp = "Instance_Crop1_2_1_6",
 			Inputs = {
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
 				ResetSize = Input { },
 				ResetOffset = Input { },
 				Input = Input {
@@ -1689,25 +1744,21 @@ Composition {
 					Source = "Output",
 				},
 				AutoCrop = Input { },
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 220, 1336.5 } },
 		},
 		Instance_Scale1_1_1_10 = Scale {
 			SourceOp = "Instance_Scale1_2_1_10",
 			Inputs = {
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				FrameRenderScriptNest = Input { },
+				CommentsNest = Input { },
 				Input = Input {
 					SourceOp = "Instance_Crop1_1_1_10",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 330, 2161.5 } },
 		},
@@ -1757,18 +1808,18 @@ Composition {
 		Instance_Transform3 = Transform {
 			SourceOp = "Transform3",
 			Inputs = {
-				EffectMask = Input { },
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
 				TransformNest = Input { },
 				ReferenceSize = Input { },
 				Input = Input {
 					SourceOp = "Merge10",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
+				EffectMask = Input { }
 			},
 			ViewInfo = OperatorInfo { Pos = { 0, -445.5 } },
 		},
@@ -1790,15 +1841,15 @@ Composition {
 		Instance_Scale1_3_1_11 = Scale {
 			SourceOp = "Instance_Scale1_2_1_11",
 			Inputs = {
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				FrameRenderScriptNest = Input { },
+				CommentsNest = Input { },
 				Input = Input {
 					SourceOp = "Instance_Crop1_3_1_11",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 330, 2425.5 } },
 		},
@@ -1834,20 +1885,15 @@ Composition {
 		},
 		Text1_1_1_2 = TextPlus {
 			Inputs = {
-				HorizontalJustification = Input { Value = 1, },
-				Alignment = Input { Value = 1, },
+				HorizontalJustificationNew = Input { Value = 3, },
+				VerticalJustificationNew = Input { Value = 3, },
 				GlobalOut = Input { Value = 1, },
 				Width = Input { Value = 1920, },
 				Height = Input { Value = 1080, },
 				Center = Input { Value = { 0.5, 0.545083011716293 }, },
-				Red1 = Input { Value = 0.778792858123779, },
-				Green1 = Input { Value = 0.0274509191513062, },
-				Blue1 = Input { Value = 0.0961014628410339, },
-				StyledText = Input { Value = "4", },
 				Font = Input { Value = "DejaVu Sans", },
+				StyledText = Input { Value = "4", },
 				Style = Input { Value = "Bold", },
-				VerticalJustificationNew = Input { Value = 3, },
-				HorizontalJustificationNew = Input { Value = 3, },
 				ManualFontKerningPlacement = Input {
 					Value = StyledText {
 						Array = {
@@ -1855,6 +1901,11 @@ Composition {
 						Value = ""
 					},
 				},
+				Alignment = Input { Value = 1, },
+				HorizontalJustification = Input { Value = 1, },
+				Red1 = Input { Value = 0.778792858123779, },
+				Green1 = Input { Value = 0.0274509191513062, },
+				Blue1 = Input { Value = 0.0961014628410339, },
 			},
 			ViewInfo = OperatorInfo { Pos = { -825, 676.5 } },
 		},
@@ -1935,18 +1986,18 @@ Composition {
 		Instance_Transform4_13 = Transform {
 			SourceOp = "Transform4",
 			Inputs = {
-				EffectMask = Input { },
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
 				TransformNest = Input { },
 				ReferenceSize = Input { },
 				Input = Input {
 					SourceOp = "Text1_1_1_9",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
+				EffectMask = Input { }
 			},
 			ViewInfo = OperatorInfo { Pos = { -715, 1996.5 } },
 		},
@@ -1987,15 +2038,15 @@ Composition {
 		Instance_Scale1_4_2 = Scale {
 			SourceOp = "Instance_Scale1_2_1_2",
 			Inputs = {
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				FrameRenderScriptNest = Input { },
+				CommentsNest = Input { },
 				Input = Input {
 					SourceOp = "Instance_Crop1_4_2",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 330, 742.5 } },
 		},
@@ -2017,18 +2068,18 @@ Composition {
 		Instance_Transform4_11 = Transform {
 			SourceOp = "Transform4",
 			Inputs = {
-				EffectMask = Input { },
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
 				TransformNest = Input { },
 				ReferenceSize = Input { },
 				Input = Input {
 					SourceOp = "Text1_1_1_7",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
+				EffectMask = Input { }
 			},
 			ViewInfo = OperatorInfo { Pos = { -715, 1666.5 } },
 		},
@@ -2057,15 +2108,15 @@ Composition {
 		},
 		Background4 = Background {
 			Inputs = {
-				EffectMask = Input {
-					SourceOp = "Ellipse1",
-					Source = "Mask",
-				},
 				GlobalOut = Input { Value = 1, },
 				Width = Input { Value = 70, },
 				Height = Input { Value = 15, },
 				["Gamut.SLogVersion"] = Input { Value = FuID { "SLog2" }, },
 				TopLeftRed = Input { Value = 0.685, },
+				EffectMask = Input {
+					SourceOp = "Ellipse1",
+					Source = "Mask",
+				}
 			},
 			ViewInfo = OperatorInfo { Pos = { -330, -247.5 } },
 		},
@@ -2102,15 +2153,15 @@ Composition {
 		Instance_Scale1_4_7 = Scale {
 			SourceOp = "Instance_Scale1_2_1_7",
 			Inputs = {
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				FrameRenderScriptNest = Input { },
+				CommentsNest = Input { },
 				Input = Input {
 					SourceOp = "Instance_Crop1_4_7",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 330, 1732.5 } },
 		},
@@ -2181,7 +2232,11 @@ Composition {
 		Instance_Crop1_3_1_3 = Crop {
 			SourceOp = "Instance_Crop1_2_1_3",
 			Inputs = {
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
 				ResetSize = Input { },
 				ResetOffset = Input { },
 				Input = Input {
@@ -2189,10 +2244,6 @@ Composition {
 					Source = "Output",
 				},
 				AutoCrop = Input { },
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 220, 940.5 } },
 		},
@@ -2229,7 +2280,11 @@ Composition {
 		Instance_Crop1_1_1_5 = Crop {
 			SourceOp = "Instance_Crop1_2_1_5",
 			Inputs = {
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
 				ResetSize = Input { },
 				ResetOffset = Input { },
 				Input = Input {
@@ -2237,10 +2292,6 @@ Composition {
 					Source = "Output",
 				},
 				AutoCrop = Input { },
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 220, 1171.5 } },
 		},
@@ -2277,30 +2328,30 @@ Composition {
 		Instance_Scale1_3_1_2 = Scale {
 			SourceOp = "Instance_Scale1_2_1_2",
 			Inputs = {
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				FrameRenderScriptNest = Input { },
+				CommentsNest = Input { },
 				Input = Input {
 					SourceOp = "Instance_Crop1_3_1_2",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 330, 775.5 } },
 		},
 		Instance_Scale1_1_1_5 = Scale {
 			SourceOp = "Instance_Scale1_2_1_5",
 			Inputs = {
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				FrameRenderScriptNest = Input { },
+				CommentsNest = Input { },
 				Input = Input {
 					SourceOp = "Instance_Crop1_1_1_5",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 330, 1171.5 } },
 		},
@@ -2384,7 +2435,11 @@ Composition {
 		Instance_Crop1_3_1_11 = Crop {
 			SourceOp = "Instance_Crop1_2_1_11",
 			Inputs = {
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
 				ResetSize = Input { },
 				ResetOffset = Input { },
 				Input = Input {
@@ -2392,25 +2447,21 @@ Composition {
 					Source = "Output",
 				},
 				AutoCrop = Input { },
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 220, 2425.5 } },
 		},
 		Instance_Scale1_1_1_3 = Scale {
 			SourceOp = "Instance_Scale1_2_1_3",
 			Inputs = {
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				FrameRenderScriptNest = Input { },
+				CommentsNest = Input { },
 				Input = Input {
 					SourceOp = "Instance_Crop1_1_1_3",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 330, 841.5 } },
 		},
@@ -2457,15 +2508,15 @@ Composition {
 		Instance_Scale1_4_9 = Scale {
 			SourceOp = "Instance_Scale1_2_1_9",
 			Inputs = {
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				FrameRenderScriptNest = Input { },
+				CommentsNest = Input { },
 				Input = Input {
 					SourceOp = "Instance_Crop1_4_9",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 330, 2062.5 } },
 		},
@@ -2572,10 +2623,6 @@ Composition {
 		},
 		Merge1_2_1_1 = Merge {
 			Inputs = {
-				EffectMask = Input {
-					SourceOp = "Rectangle2",
-					Source = "Mask",
-				},
 				Background = Input {
 					SourceOp = "Background1_1_2",
 					Source = "Output",
@@ -2586,6 +2633,10 @@ Composition {
 				},
 				Center = Input { Value = { -0.465493388515801, 0.231103286384977 }, },
 				PerformDepthMerge = Input { Value = 0, },
+				EffectMask = Input {
+					SourceOp = "Rectangle2",
+					Source = "Mask",
+				}
 			},
 			ViewInfo = OperatorInfo { Pos = { -110, 115.5 } },
 		},
@@ -2622,7 +2673,11 @@ Composition {
 		Instance_Crop1_1_1_7 = Crop {
 			SourceOp = "Instance_Crop1_2_1_7",
 			Inputs = {
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
 				ResetSize = Input { },
 				ResetOffset = Input { },
 				Input = Input {
@@ -2630,28 +2685,24 @@ Composition {
 					Source = "Output",
 				},
 				AutoCrop = Input { },
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 220, 1666.5 } },
 		},
 		Instance_Transform4_10 = Transform {
 			SourceOp = "Transform4",
 			Inputs = {
-				EffectMask = Input { },
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
 				TransformNest = Input { },
 				ReferenceSize = Input { },
 				Input = Input {
 					SourceOp = "Text1_1",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
+				EffectMask = Input { }
 			},
 			ViewInfo = OperatorInfo { Pos = { -715, 1501.5 } },
 		},
@@ -2730,6 +2781,22 @@ Composition {
 			},
 			ViewInfo = OperatorInfo { Pos = { 440, 1006.5 } },
 		},
+		Merge11_1 = Merge {
+			CtrlWZoom = false,
+			Inputs = {
+				Background = Input {
+					SourceOp = "Background3_1",
+					Source = "Output",
+				},
+				Foreground = Input {
+					SourceOp = "Loader5",
+					Source = "Output",
+				},
+				Size = Input { Value = 0.1369917522689, },
+				PerformDepthMerge = Input { Value = 0, },
+			},
+			ViewInfo = OperatorInfo { Pos = { 110, -544.5 } },
+		},
 		Merge4_1_3_2 = Merge {
 			Inputs = {
 				Background = Input {
@@ -2776,30 +2843,30 @@ Composition {
 		Instance_Scale1_1_1_2 = Scale {
 			SourceOp = "Instance_Scale1_2_1_2",
 			Inputs = {
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				FrameRenderScriptNest = Input { },
+				CommentsNest = Input { },
 				Input = Input {
 					SourceOp = "Instance_Crop1_1_1_2",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 330, 676.5 } },
 		},
 		Instance_Scale1_4_3 = Scale {
 			SourceOp = "Instance_Scale1_2_1_3",
 			Inputs = {
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				FrameRenderScriptNest = Input { },
+				CommentsNest = Input { },
 				Input = Input {
 					SourceOp = "Instance_Crop1_4_3",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 330, 907.5 } },
 		},
@@ -2835,10 +2902,6 @@ Composition {
 		},
 		Merge1_2 = Merge {
 			Inputs = {
-				EffectMask = Input {
-					SourceOp = "Rectangle2",
-					Source = "Mask",
-				},
 				Background = Input {
 					SourceOp = "Background1_1_2",
 					Source = "Output",
@@ -2849,6 +2912,10 @@ Composition {
 				},
 				Center = Input { Value = { 1.80175438596491, 0.231103286384977 }, },
 				PerformDepthMerge = Input { Value = 0, },
+				EffectMask = Input {
+					SourceOp = "Rectangle2",
+					Source = "Mask",
+				}
 			},
 			ViewInfo = OperatorInfo { Pos = { 110, 115.5 } },
 		},
@@ -2905,18 +2972,18 @@ Composition {
 		Instance_Transform4_14 = Transform {
 			SourceOp = "Transform4",
 			Inputs = {
-				EffectMask = Input { },
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
 				TransformNest = Input { },
 				ReferenceSize = Input { },
 				Input = Input {
 					SourceOp = "Text1_1_1_10",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
+				EffectMask = Input { }
 			},
 			ViewInfo = OperatorInfo { Pos = { -715, 2161.5 } },
 		},
@@ -2981,15 +3048,15 @@ Composition {
 		Instance_Scale1_3 = Scale {
 			SourceOp = "Scale1",
 			Inputs = {
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				FrameRenderScriptNest = Input { },
+				CommentsNest = Input { },
 				Input = Input {
 					SourceOp = "Instance_Crop1_3",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 330, 1600.5 } },
 		},
@@ -3026,18 +3093,18 @@ Composition {
 		Instance_Transform4_6 = Transform {
 			SourceOp = "Transform4",
 			Inputs = {
-				EffectMask = Input { },
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
 				TransformNest = Input { },
 				ReferenceSize = Input { },
 				Input = Input {
 					SourceOp = "Text1_1_1_3",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
+				EffectMask = Input { }
 			},
 			ViewInfo = OperatorInfo { Pos = { -715, 841.5 } },
 		},
@@ -3116,7 +3183,11 @@ Composition {
 		Instance_Crop1_4_11 = Crop {
 			SourceOp = "Instance_Crop1_2_1_11",
 			Inputs = {
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
 				ResetSize = Input { },
 				ResetOffset = Input { },
 				Input = Input {
@@ -3124,10 +3195,6 @@ Composition {
 					Source = "Output",
 				},
 				AutoCrop = Input { },
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 220, 2392.5 } },
 		},
@@ -3232,15 +3299,15 @@ Composition {
 		Instance_Scale1_3_1_10 = Scale {
 			SourceOp = "Instance_Scale1_2_1_10",
 			Inputs = {
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				FrameRenderScriptNest = Input { },
+				CommentsNest = Input { },
 				Input = Input {
 					SourceOp = "Instance_Crop1_3_1_10",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 330, 2260.5 } },
 		},
@@ -3353,24 +3420,20 @@ Composition {
 		Instance_Scale1_3_1_9 = Scale {
 			SourceOp = "Instance_Scale1_2_1_9",
 			Inputs = {
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				FrameRenderScriptNest = Input { },
+				CommentsNest = Input { },
 				Input = Input {
 					SourceOp = "Instance_Crop1_3_1_9",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 330, 2095.5 } },
 		},
 		Merge1 = Merge {
 			Inputs = {
-				EffectMask = Input {
-					SourceOp = "Rectangle2",
-					Source = "Mask",
-				},
 				Background = Input {
 					SourceOp = "Background1_1_2",
 					Source = "Output",
@@ -3381,6 +3444,10 @@ Composition {
 				},
 				Center = Input { Value = { 3.00175438596491, 0.231103286384977 }, },
 				PerformDepthMerge = Input { Value = 0, },
+				EffectMask = Input {
+					SourceOp = "Rectangle2",
+					Source = "Mask",
+				}
 			},
 			ViewInfo = OperatorInfo { Pos = { 0, 115.5 } },
 		},
@@ -3416,35 +3483,30 @@ Composition {
 		},
 		Background2 = Background {
 			Inputs = {
-				EffectMask = Input {
-					SourceOp = "Rectangle1",
-					Source = "Mask",
-				},
 				GlobalOut = Input { Value = 1, },
 				Width = Input { Value = 220, },
 				Height = Input { Value = 300, },
 				TopLeftRed = Input { Value = 1, },
 				TopLeftGreen = Input { Value = 1, },
 				TopLeftBlue = Input { Value = 1, },
+				EffectMask = Input {
+					SourceOp = "Rectangle1",
+					Source = "Mask",
+				}
 			},
 			ViewInfo = OperatorInfo { Pos = { -495, 115.5 } },
 		},
 		Text1_1_1_5 = TextPlus {
 			Inputs = {
-				HorizontalJustification = Input { Value = 1, },
-				Alignment = Input { Value = 1, },
+				HorizontalJustificationNew = Input { Value = 3, },
+				VerticalJustificationNew = Input { Value = 3, },
 				GlobalOut = Input { Value = 1, },
 				Width = Input { Value = 1920, },
 				Height = Input { Value = 1080, },
 				Center = Input { Value = { 0.5, 0.545083011716293 }, },
-				Red1 = Input { Value = 0.778792858123779, },
-				Green1 = Input { Value = 0.0274509191513062, },
-				Blue1 = Input { Value = 0.0961014628410339, },
-				StyledText = Input { Value = "7", },
 				Font = Input { Value = "DejaVu Sans", },
+				StyledText = Input { Value = "7", },
 				Style = Input { Value = "Bold", },
-				VerticalJustificationNew = Input { Value = 3, },
-				HorizontalJustificationNew = Input { Value = 3, },
 				ManualFontKerningPlacement = Input {
 					Value = StyledText {
 						Array = {
@@ -3452,13 +3514,22 @@ Composition {
 						Value = ""
 					},
 				},
+				Alignment = Input { Value = 1, },
+				HorizontalJustification = Input { Value = 1, },
+				Red1 = Input { Value = 0.778792858123779, },
+				Green1 = Input { Value = 0.0274509191513062, },
+				Blue1 = Input { Value = 0.0961014628410339, },
 			},
 			ViewInfo = OperatorInfo { Pos = { -825, 1171.5 } },
 		},
 		Instance_Crop1_4_7 = Crop {
 			SourceOp = "Instance_Crop1_2_1_7",
 			Inputs = {
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
 				ResetSize = Input { },
 				ResetOffset = Input { },
 				Input = Input {
@@ -3466,10 +3537,6 @@ Composition {
 					Source = "Output",
 				},
 				AutoCrop = Input { },
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 220, 1732.5 } },
 		},
@@ -3503,6 +3570,54 @@ Composition {
 			},
 			ViewInfo = OperatorInfo { Pos = { 440, 1336.5 } },
 		},
+		Instance_Crop1_2 = Crop {
+			SourceOp = "Crop1",
+			Inputs = {
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
+				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				ResetSize = Input { },
+				ResetOffset = Input { },
+				Input = Input {
+					SourceOp = "Merge3_2_1_1",
+					Source = "Output",
+				},
+				AutoCrop = Input { },
+			},
+			ViewInfo = OperatorInfo { Pos = { 220, 1534.5 } },
+		},
+		Saver1_3_1_3 = Saver {
+			Inputs = {
+				ProcessWhenBlendIs00 = Input { Value = 0, },
+				Clip = Input {
+					Value = Clip {
+						Filename = "/home/pp/projects/pypoks/gui/cards/dfR/5S.png",
+						FormatID = "PNGFormat",
+						Length = 0,
+						Saving = true,
+						TrimIn = 0,
+						ExtendFirst = 0,
+						ExtendLast = 0,
+						Loop = 1,
+						AspectMode = 0,
+						Depth = 0,
+						TimeCode = 0,
+						GlobalStart = -2000000000,
+						GlobalEnd = 0
+					},
+				},
+				OutputFormat = Input { Value = FuID { "PNGFormat" }, },
+				["Gamut.SLogVersion"] = Input { Value = FuID { "SLog2" }, },
+				Input = Input {
+					SourceOp = "Instance_Scale1_1_1_3",
+					Source = "Output",
+				},
+				["PNGFormat.PreDivide"] = Input { Value = 1, },
+			},
+			ViewInfo = OperatorInfo { Pos = { 440, 841.5 } },
+		},
 		Instance_Crop1_2_1_4 = Crop {
 			Inputs = {
 				XOffset = Input { Value = 56, },
@@ -3520,7 +3635,11 @@ Composition {
 		Instance_Crop1_3_1_4 = Crop {
 			SourceOp = "Instance_Crop1_2_1_4",
 			Inputs = {
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
 				ResetSize = Input { },
 				ResetOffset = Input { },
 				Input = Input {
@@ -3528,12 +3647,23 @@ Composition {
 					Source = "Output",
 				},
 				AutoCrop = Input { },
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 220, 1105.5 } },
+		},
+		Merge3 = Merge {
+			Inputs = {
+				Background = Input {
+					SourceOp = "Background3",
+					Source = "Output",
+				},
+				Foreground = Input {
+					SourceOp = "Loader5",
+					Source = "Output",
+				},
+				Size = Input { Value = 0.1020625, },
+				PerformDepthMerge = Input { Value = 0, },
+			},
+			ViewInfo = OperatorInfo { Pos = { -275, -544.5 } },
 		},
 		Saver1_4_1_7 = Saver {
 			Inputs = {
@@ -3609,25 +3739,29 @@ Composition {
 		Instance_Transform4_3 = Transform {
 			SourceOp = "Transform4",
 			Inputs = {
-				EffectMask = Input { },
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
 				TransformNest = Input { },
 				ReferenceSize = Input { },
 				Input = Input {
 					SourceOp = "Merge1_2",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
+				EffectMask = Input { }
 			},
 			ViewInfo = OperatorInfo { Pos = { 110, 148.5 } },
 		},
 		Instance_Crop1_1_1_1 = Crop {
 			SourceOp = "Instance_Crop1_2_1_1",
 			Inputs = {
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
 				ResetSize = Input { },
 				ResetOffset = Input { },
 				Input = Input {
@@ -3635,10 +3769,6 @@ Composition {
 					Source = "Output",
 				},
 				AutoCrop = Input { },
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 220, 511.5 } },
 		},
@@ -3699,28 +3829,28 @@ Composition {
 		Instance_Scale1_1_1_6 = Scale {
 			SourceOp = "Instance_Scale1_2_1_6",
 			Inputs = {
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				FrameRenderScriptNest = Input { },
+				CommentsNest = Input { },
 				Input = Input {
 					SourceOp = "Instance_Crop1_1_1_6",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 330, 1336.5 } },
 		},
 		Background4_1_1 = Background {
 			Inputs = {
-				EffectMask = Input {
-					SourceOp = "Ellipse3",
-					Source = "Mask",
-				},
 				GlobalOut = Input { Value = 1, },
 				Width = Input { Value = 70, },
 				Height = Input { Value = 70, },
 				["Gamut.SLogVersion"] = Input { Value = FuID { "SLog2" }, },
+				EffectMask = Input {
+					SourceOp = "Ellipse3",
+					Source = "Mask",
+				}
 			},
 			ViewInfo = OperatorInfo { Pos = { -550, -379.5 } },
 		},
@@ -3734,21 +3864,6 @@ Composition {
 				},
 			},
 			ViewInfo = OperatorInfo { Pos = { -385, -445.5 } },
-		},
-		Instance_Scale1_1_1_7 = Scale {
-			SourceOp = "Instance_Scale1_2_1_7",
-			Inputs = {
-				SettingsNest = Input { },
-				Input = Input {
-					SourceOp = "Instance_Crop1_1_1_7",
-					Source = "Output",
-				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
-			},
-			ViewInfo = OperatorInfo { Pos = { 330, 1666.5 } },
 		},
 		Merge3_2_2_6 = Merge {
 			Inputs = {
@@ -3801,7 +3916,11 @@ Composition {
 		Instance_Crop1_4_4 = Crop {
 			SourceOp = "Instance_Crop1_2_1_4",
 			Inputs = {
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
 				ResetSize = Input { },
 				ResetOffset = Input { },
 				Input = Input {
@@ -3809,17 +3928,17 @@ Composition {
 					Source = "Output",
 				},
 				AutoCrop = Input { },
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 220, 1072.5 } },
 		},
 		Instance_Crop1_3_1_10 = Crop {
 			SourceOp = "Instance_Crop1_2_1_10",
 			Inputs = {
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
 				ResetSize = Input { },
 				ResetOffset = Input { },
 				Input = Input {
@@ -3827,17 +3946,13 @@ Composition {
 					Source = "Output",
 				},
 				AutoCrop = Input { },
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 220, 2260.5 } },
 		},
-		Merge3_2_1_1_1_11 = Merge {
+		Merge3_2_1_1 = Merge {
 			Inputs = {
 				Background = Input {
-					SourceOp = "Merge4_1_3_11",
+					SourceOp = "Merge4_1",
 					Source = "Output",
 				},
 				Foreground = Input {
@@ -3849,7 +3964,7 @@ Composition {
 				FilterMethod = Input { Value = 5, },
 				PerformDepthMerge = Input { Value = 0, },
 			},
-			ViewInfo = OperatorInfo { Pos = { -110, 2359.5 } },
+			ViewInfo = OperatorInfo { Pos = { -110, 1534.5 } },
 		},
 		Polygon3 = PolylineMask {
 			DrawMode = "InsertAndModify",
@@ -3919,20 +4034,19 @@ Composition {
 		Instance_Scale1_4_8 = Scale {
 			SourceOp = "Instance_Scale1_2_1_8",
 			Inputs = {
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				FrameRenderScriptNest = Input { },
+				CommentsNest = Input { },
 				Input = Input {
 					SourceOp = "Instance_Crop1_4_8",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 330, 1897.5 } },
 		},
 		Background3 = Background {
-			CtrlWZoom = false,
 			Inputs = {
 				GlobalOut = Input { Value = 1, },
 				Width = Input { Value = 400, },
@@ -3947,17 +4061,32 @@ Composition {
 		Instance_Scale1_4 = Scale {
 			SourceOp = "Instance_Scale1_2_1",
 			Inputs = {
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				FrameRenderScriptNest = Input { },
+				CommentsNest = Input { },
 				Input = Input {
 					SourceOp = "Instance_Crop1_4",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 330, 412.5 } },
+		},
+		Instance_Scale1_3_1_3 = Scale {
+			SourceOp = "Instance_Scale1_2_1_3",
+			Inputs = {
+				StartRenderScripts = Input { },
+				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				FrameRenderScriptNest = Input { },
+				CommentsNest = Input { },
+				Input = Input {
+					SourceOp = "Instance_Crop1_3_1_3",
+					Source = "Output",
+				},
+			},
+			ViewInfo = OperatorInfo { Pos = { 330, 940.5 } },
 		},
 		Saver1_2_1_3 = Saver {
 			Inputs = {
@@ -3989,21 +4118,6 @@ Composition {
 			},
 			ViewInfo = OperatorInfo { Pos = { 440, 874.5 } },
 		},
-		Instance_Scale1_3_1_3 = Scale {
-			SourceOp = "Instance_Scale1_2_1_3",
-			Inputs = {
-				SettingsNest = Input { },
-				Input = Input {
-					SourceOp = "Instance_Crop1_3_1_3",
-					Source = "Output",
-				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
-			},
-			ViewInfo = OperatorInfo { Pos = { 330, 940.5 } },
-		},
 		Instance_Crop1_2_1 = Crop {
 			Inputs = {
 				XOffset = Input { Value = 56, },
@@ -4033,7 +4147,11 @@ Composition {
 		Instance_Crop1_1_1_9 = Crop {
 			SourceOp = "Instance_Crop1_2_1_9",
 			Inputs = {
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
 				ResetSize = Input { },
 				ResetOffset = Input { },
 				Input = Input {
@@ -4041,120 +4159,70 @@ Composition {
 					Source = "Output",
 				},
 				AutoCrop = Input { },
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 220, 1996.5 } },
 		},
 		Instance_Transform4_1 = Transform {
 			SourceOp = "Transform4",
 			Inputs = {
-				EffectMask = Input { },
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
 				TransformNest = Input { },
 				ReferenceSize = Input { },
 				Input = Input {
 					SourceOp = "Merge1_2_1_1",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
+				EffectMask = Input { }
 			},
 			ViewInfo = OperatorInfo { Pos = { -110, 148.5 } },
 		},
-		Merge3 = Merge {
+		ColorCorrector1_2_2 = ColorCorrector {
 			Inputs = {
-				Background = Input {
-					SourceOp = "Background3",
-					Source = "Output",
-				},
-				Foreground = Input {
-					SourceOp = "Loader3",
-					Source = "Output",
-				},
-				Size = Input { Value = 0.1020625, },
-				PerformDepthMerge = Input { Value = 0, },
-			},
-			ViewInfo = OperatorInfo { Pos = { -275, -544.5 } },
-		},
-		Merge4_1_1_2_10 = Merge {
-			Inputs = {
-				Background = Input {
-					SourceOp = "Background2",
-					Source = "Output",
-				},
-				Foreground = Input {
-					SourceOp = "Instance_Transform4_14",
-					Source = "Output",
-				},
-				Center = Input { Value = { 0.5, 0.490328820116054 }, },
-				PerformDepthMerge = Input { Value = 0, },
-			},
-			ViewInfo = OperatorInfo { Pos = { -495, 2227.5 } },
-		},
-		Saver1_3_1_3 = Saver {
-			Inputs = {
-				ProcessWhenBlendIs00 = Input { Value = 0, },
-				Clip = Input {
-					Value = Clip {
-						Filename = "/home/pp/projects/pypoks/gui/cards/dfR/5S.png",
-						FormatID = "PNGFormat",
-						Length = 0,
-						Saving = true,
-						TrimIn = 0,
-						ExtendFirst = 0,
-						ExtendLast = 0,
-						Loop = 1,
-						AspectMode = 0,
-						Depth = 0,
-						TimeCode = 0,
-						GlobalStart = -2000000000,
-						GlobalEnd = 0
+				WheelSaturation1 = Input { Value = 0, },
+				MasterRGBGain = Input { Value = 0, },
+				ColorRanges = Input {
+					Value = ColorCurves {
+						Curves = {
+							{
+								Points = {
+									{ 0, 1 },
+									{ 0.4, 0.2 },
+									{ 0.6, 0 },
+									{ 1, 0 }
+								}
+							},
+							{
+								Points = {
+									{ 0, 0 },
+									{ 0.4, 0 },
+									{ 0.6, 0.2 },
+									{ 1, 1 }
+								}
+							}
+						}
 					},
 				},
-				OutputFormat = Input { Value = FuID { "PNGFormat" }, },
-				["Gamut.SLogVersion"] = Input { Value = FuID { "SLog2" }, },
+				HistogramIgnoreTransparent = Input { Value = 1, },
 				Input = Input {
-					SourceOp = "Instance_Scale1_1_1_3",
+					SourceOp = "Instance_Transform4_5",
 					Source = "Output",
 				},
-				["PNGFormat.PreDivide"] = Input { Value = 1, },
 			},
-			ViewInfo = OperatorInfo { Pos = { 440, 841.5 } },
+			ViewInfo = OperatorInfo { Pos = { -605, 676.5 } },
 		},
-		Text1_1_1_8 = TextPlus {
+		Background3_1 = Background {
 			Inputs = {
-				HorizontalJustification = Input { Value = 1, },
-				Alignment = Input { Value = 1, },
-				EffectMask = Input {
-					SourceOp = "Rectangle4",
-					Source = "Mask",
-				},
 				GlobalOut = Input { Value = 1, },
-				Width = Input { Value = 1920, },
-				Height = Input { Value = 1080, },
-				Center = Input { Value = { 0.5, 0.558812988832998 }, },
-				Red1 = Input { Value = 0.778792858123779, },
-				Green1 = Input { Value = 0.0274509191513062, },
-				Blue1 = Input { Value = 0.0961014628410339, },
-				StyledText = Input { Value = "J", },
-				Font = Input { Value = "DejaVu Sans", },
-				Style = Input { Value = "Bold", },
-				VerticalJustificationNew = Input { Value = 3, },
-				HorizontalJustificationNew = Input { Value = 3, },
-				ManualFontKerningPlacement = Input {
-					Value = StyledText {
-						Array = {
-						},
-						Value = ""
-					},
-				},
+				Width = Input { Value = 400, },
+				Height = Input { Value = 34, },
+				["Gamut.SLogVersion"] = Input { Value = FuID { "SLog2" }, },
+				TopLeftAlpha = Input { Value = 0, },
 			},
-			ViewInfo = OperatorInfo { Pos = { -825, 1831.5 } },
+			ViewInfo = OperatorInfo { Pos = { 0, -544.5 } },
 		},
 		Merge3_2_1_1_1_8 = Merge {
 			Inputs = {
@@ -4173,6 +4241,36 @@ Composition {
 			},
 			ViewInfo = OperatorInfo { Pos = { -110, 1864.5 } },
 		},
+		Text1_1_1_8 = TextPlus {
+			Inputs = {
+				HorizontalJustificationNew = Input { Value = 3, },
+				VerticalJustificationNew = Input { Value = 3, },
+				GlobalOut = Input { Value = 1, },
+				Width = Input { Value = 1920, },
+				Height = Input { Value = 1080, },
+				Center = Input { Value = { 0.5, 0.558812988832998 }, },
+				Font = Input { Value = "DejaVu Sans", },
+				StyledText = Input { Value = "J", },
+				Style = Input { Value = "Bold", },
+				ManualFontKerningPlacement = Input {
+					Value = StyledText {
+						Array = {
+						},
+						Value = ""
+					},
+				},
+				Alignment = Input { Value = 1, },
+				HorizontalJustification = Input { Value = 1, },
+				Red1 = Input { Value = 0.778792858123779, },
+				Green1 = Input { Value = 0.0274509191513062, },
+				Blue1 = Input { Value = 0.0961014628410339, },
+				EffectMask = Input {
+					SourceOp = "Rectangle4",
+					Source = "Mask",
+				}
+			},
+			ViewInfo = OperatorInfo { Pos = { -825, 1831.5 } },
+		},
 		Instance_Scale1_2_1_8 = Scale {
 			Inputs = {
 				XSize = Input { Value = 0.3333, },
@@ -4185,10 +4283,28 @@ Composition {
 			},
 			ViewInfo = OperatorInfo { Pos = { 330, 1864.5 } },
 		},
+		Background1_1_1 = Background {
+			Inputs = {
+				GlobalOut = Input { Value = 1, },
+				Width = Input { Value = 693, },
+				Height = Input { Value = 175, },
+				TopLeftRed = Input { Value = 0.772549092769623, },
+				TopLeftBlue = Input { Value = 0.0705882385373116, },
+				EffectMask = Input {
+					SourceOp = "LumaKeyer1",
+					Source = "Output",
+				}
+			},
+			ViewInfo = OperatorInfo { Pos = { 55, 82.5 } },
+		},
 		Instance_Crop1_4 = Crop {
 			SourceOp = "Instance_Crop1_2_1",
 			Inputs = {
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
 				ResetSize = Input { },
 				ResetOffset = Input { },
 				Input = Input {
@@ -4196,59 +4312,8 @@ Composition {
 					Source = "Output",
 				},
 				AutoCrop = Input { },
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 220, 412.5 } },
-		},
-		Background1_1_1 = Background {
-			Inputs = {
-				EffectMask = Input {
-					SourceOp = "LumaKeyer1",
-					Source = "Output",
-				},
-				GlobalOut = Input { Value = 1, },
-				Width = Input { Value = 693, },
-				Height = Input { Value = 175, },
-				TopLeftRed = Input { Value = 0.772549092769623, },
-				TopLeftBlue = Input { Value = 0.0705882385373116, },
-			},
-			ViewInfo = OperatorInfo { Pos = { 55, 82.5 } },
-		},
-		Instance_Crop1_4_5 = Crop {
-			SourceOp = "Instance_Crop1_2_1_5",
-			Inputs = {
-				SettingsNest = Input { },
-				ResetSize = Input { },
-				ResetOffset = Input { },
-				Input = Input {
-					SourceOp = "Merge3_2_2_5",
-					Source = "Output",
-				},
-				AutoCrop = Input { },
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
-			},
-			ViewInfo = OperatorInfo { Pos = { 220, 1237.5 } },
-		},
-		Merge4_1_3_4 = Merge {
-			Inputs = {
-				Background = Input {
-					SourceOp = "Background2",
-					Source = "Output",
-				},
-				Foreground = Input {
-					SourceOp = "ColorCorrector1_2_4",
-					Source = "Output",
-				},
-				Center = Input { Value = { 0.5, 0.490328820116054 }, },
-				PerformDepthMerge = Input { Value = 0, },
-			},
-			ViewInfo = OperatorInfo { Pos = { -495, 1006.5 } },
 		},
 		Saver1_2_1_8 = Saver {
 			Inputs = {
@@ -4280,116 +4345,64 @@ Composition {
 			},
 			ViewInfo = OperatorInfo { Pos = { 440, 1864.5 } },
 		},
-		Saver1_3 = Saver {
+		Instance_Crop1_4_5 = Crop {
+			SourceOp = "Instance_Crop1_2_1_5",
 			Inputs = {
-				ProcessWhenBlendIs00 = Input { Value = 0, },
-				Clip = Input {
-					Value = Clip {
-						Filename = "/home/pp/projects/pypoks/gui/cards/dfR/9S.png",
-						FormatID = "PNGFormat",
-						Length = 0,
-						Saving = true,
-						TrimIn = 0,
-						ExtendFirst = 0,
-						ExtendLast = 0,
-						Loop = 1,
-						AspectMode = 0,
-						Depth = 0,
-						TimeCode = 0,
-						GlobalStart = -2000000000,
-						GlobalEnd = 0
-					},
-				},
-				OutputFormat = Input { Value = FuID { "PNGFormat" }, },
-				["Gamut.SLogVersion"] = Input { Value = FuID { "SLog2" }, },
-				Input = Input {
-					SourceOp = "Instance_Scale1_1",
-					Source = "Output",
-				},
-				["PNGFormat.PreDivide"] = Input { Value = 1, },
-			},
-			ViewInfo = OperatorInfo { Pos = { 440, 1501.5 } },
-		},
-		Instance_Crop1_3_1_9 = Crop {
-			SourceOp = "Instance_Crop1_2_1_9",
-			Inputs = {
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
 				ResetSize = Input { },
 				ResetOffset = Input { },
 				Input = Input {
-					SourceOp = "Merge3_2_1_3_9",
+					SourceOp = "Merge3_2_2_5",
 					Source = "Output",
 				},
 				AutoCrop = Input { },
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
-			ViewInfo = OperatorInfo { Pos = { 220, 2095.5 } },
+			ViewInfo = OperatorInfo { Pos = { 220, 1237.5 } },
 		},
-		Saver1_2_1 = Saver {
+		Merge4_1_3_4 = Merge {
 			Inputs = {
-				ProcessWhenBlendIs00 = Input { Value = 0, },
-				Clip = Input {
-					Value = Clip {
-						Filename = "/home/pp/projects/pypoks/gui/cards/dfR/2C.png",
-						FormatID = "PNGFormat",
-						Length = 0,
-						Saving = true,
-						TrimIn = 0,
-						ExtendFirst = 0,
-						ExtendLast = 0,
-						Loop = 1,
-						AspectMode = 0,
-						Depth = 0,
-						TimeCode = 0,
-						GlobalStart = -2000000000,
-						GlobalEnd = 0
+				Background = Input {
+					SourceOp = "Background2",
+					Source = "Output",
+				},
+				Foreground = Input {
+					SourceOp = "ColorCorrector1_2_4",
+					Source = "Output",
+				},
+				Center = Input { Value = { 0.5, 0.490328820116054 }, },
+				PerformDepthMerge = Input { Value = 0, },
+			},
+			ViewInfo = OperatorInfo { Pos = { -495, 1006.5 } },
+		},
+		Text1_1 = TextPlus {
+			Inputs = {
+				HorizontalJustificationNew = Input { Value = 3, },
+				VerticalJustificationNew = Input { Value = 3, },
+				GlobalOut = Input { Value = 1, },
+				Width = Input { Value = 1920, },
+				Height = Input { Value = 1080, },
+				Center = Input { Value = { 0.5, 0.545083011716293 }, },
+				Font = Input { Value = "DejaVu Sans", },
+				StyledText = Input { Value = "9", },
+				Style = Input { Value = "Bold", },
+				ManualFontKerningPlacement = Input {
+					Value = StyledText {
+						Array = {
+						},
+						Value = ""
 					},
 				},
-				OutputFormat = Input { Value = FuID { "PNGFormat" }, },
-				["Gamut.SLogVersion"] = Input { Value = FuID { "SLog2" }, },
-				Input = Input {
-					SourceOp = "Instance_Scale1_2_1",
-					Source = "Output",
-				},
-				["PNGFormat.PreDivide"] = Input { Value = 1, },
+				Alignment = Input { Value = 1, },
+				HorizontalJustification = Input { Value = 1, },
+				Red1 = Input { Value = 0.778792858123779, },
+				Green1 = Input { Value = 0.0274509191513062, },
+				Blue1 = Input { Value = 0.0961014628410339, },
 			},
-			ViewInfo = OperatorInfo { Pos = { 440, 379.5 } },
-		},
-		Instance_Scale1_3_1_1 = Scale {
-			SourceOp = "Instance_Scale1_2_1_1",
-			Inputs = {
-				SettingsNest = Input { },
-				Input = Input {
-					SourceOp = "Instance_Crop1_3_1_1",
-					Source = "Output",
-				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
-			},
-			ViewInfo = OperatorInfo { Pos = { 330, 610.5 } },
-		},
-		Instance_Crop1_1_1_3 = Crop {
-			SourceOp = "Instance_Crop1_2_1_3",
-			Inputs = {
-				SettingsNest = Input { },
-				ResetSize = Input { },
-				ResetOffset = Input { },
-				Input = Input {
-					SourceOp = "Merge3_2_1_2_1_3",
-					Source = "Output",
-				},
-				AutoCrop = Input { },
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
-			},
-			ViewInfo = OperatorInfo { Pos = { 220, 841.5 } },
+			ViewInfo = OperatorInfo { Pos = { -825, 1501.5 } },
 		},
 		Merge3_2_1_2 = Merge {
 			Inputs = {
@@ -4408,85 +4421,30 @@ Composition {
 			},
 			ViewInfo = OperatorInfo { Pos = { -220, 1501.5 } },
 		},
-		Merge3_2_2_5 = Merge {
+		Instance_Crop1_3_1_9 = Crop {
+			SourceOp = "Instance_Crop1_2_1_9",
 			Inputs = {
-				Background = Input {
-					SourceOp = "Merge4_1_1_2_5",
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
+				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				ResetSize = Input { },
+				ResetOffset = Input { },
+				Input = Input {
+					SourceOp = "Merge3_2_1_3_9",
 					Source = "Output",
 				},
-				Foreground = Input {
-					SourceOp = "Instance_Transform4_2",
-					Source = "Output",
-				},
-				Center = Input { Value = { 0.5, 0.336847437677603 }, },
-				Size = Input { Value = 0.949970674486804, },
-				FilterMethod = Input { Value = 5, },
-				PerformDepthMerge = Input { Value = 0, },
+				AutoCrop = Input { },
 			},
-			ViewInfo = OperatorInfo { Pos = { 0, 1237.5 } },
+			ViewInfo = OperatorInfo { Pos = { 220, 2095.5 } },
 		},
-		Merge4_1_1_2_2 = Merge {
-			Inputs = {
-				Background = Input {
-					SourceOp = "Background2",
-					Source = "Output",
-				},
-				Foreground = Input {
-					SourceOp = "Instance_Transform4_5",
-					Source = "Output",
-				},
-				Center = Input { Value = { 0.5, 0.490328820116054 }, },
-				PerformDepthMerge = Input { Value = 0, },
-			},
-			ViewInfo = OperatorInfo { Pos = { -495, 742.5 } },
-		},
-		Merge4_1_3_6 = Merge {
-			Inputs = {
-				Background = Input {
-					SourceOp = "Background2",
-					Source = "Output",
-				},
-				Foreground = Input {
-					SourceOp = "ColorCorrector1_2_6",
-					Source = "Output",
-				},
-				Center = Input { Value = { 0.5, 0.490328820116054 }, },
-				PerformDepthMerge = Input { Value = 0, },
-			},
-			ViewInfo = OperatorInfo { Pos = { -495, 1336.5 } },
-		},
-		Text1_1 = TextPlus {
-			Inputs = {
-				HorizontalJustification = Input { Value = 1, },
-				Alignment = Input { Value = 1, },
-				GlobalOut = Input { Value = 1, },
-				Width = Input { Value = 1920, },
-				Height = Input { Value = 1080, },
-				Center = Input { Value = { 0.5, 0.545083011716293 }, },
-				Red1 = Input { Value = 0.778792858123779, },
-				Green1 = Input { Value = 0.0274509191513062, },
-				Blue1 = Input { Value = 0.0961014628410339, },
-				StyledText = Input { Value = "9", },
-				Font = Input { Value = "DejaVu Sans", },
-				Style = Input { Value = "Bold", },
-				VerticalJustificationNew = Input { Value = 3, },
-				HorizontalJustificationNew = Input { Value = 3, },
-				ManualFontKerningPlacement = Input {
-					Value = StyledText {
-						Array = {
-						},
-						Value = ""
-					},
-				},
-			},
-			ViewInfo = OperatorInfo { Pos = { -825, 1501.5 } },
-		},
-		Saver1_4_1_3 = Saver {
+		Saver1_2_1_10 = Saver {
 			Inputs = {
 				ProcessWhenBlendIs00 = Input { Value = 0, },
 				Clip = Input {
 					Value = Clip {
-						Filename = "/home/pp/projects/pypoks/gui/cards/dfR/5D.png",
+						Filename = "/home/pp/projects/pypoks/gui/cards/dfR/KC.png",
 						FormatID = "PNGFormat",
 						Length = 0,
 						Saving = true,
@@ -4504,29 +4462,12 @@ Composition {
 				OutputFormat = Input { Value = FuID { "PNGFormat" }, },
 				["Gamut.SLogVersion"] = Input { Value = FuID { "SLog2" }, },
 				Input = Input {
-					SourceOp = "Instance_Scale1_3_1_3",
+					SourceOp = "Instance_Scale1_2_1_10",
 					Source = "Output",
 				},
 				["PNGFormat.PreDivide"] = Input { Value = 1, },
 			},
-			ViewInfo = OperatorInfo { Pos = { 440, 940.5 } },
-		},
-		Merge3_2_1_1_1_6 = Merge {
-			Inputs = {
-				Background = Input {
-					SourceOp = "Merge4_1_3_6",
-					Source = "Output",
-				},
-				Foreground = Input {
-					SourceOp = "Instance_Transform4_1",
-					Source = "Output",
-				},
-				Center = Input { Value = { 0.5, 0.34458438158476 }, },
-				Size = Input { Value = 0.961301671064204, },
-				FilterMethod = Input { Value = 5, },
-				PerformDepthMerge = Input { Value = 0, },
-			},
-			ViewInfo = OperatorInfo { Pos = { -110, 1369.5 } },
+			ViewInfo = OperatorInfo { Pos = { 440, 2194.5 } },
 		},
 		Saver1_4_1 = Saver {
 			Inputs = {
@@ -4558,123 +4499,117 @@ Composition {
 			},
 			ViewInfo = OperatorInfo { Pos = { 440, 445.5 } },
 		},
-		Instance_Crop1_2 = Crop {
-			SourceOp = "Crop1",
-			Inputs = {
-				SettingsNest = Input { },
-				ResetSize = Input { },
-				ResetOffset = Input { },
-				Input = Input {
-					SourceOp = "Merge3_2_1_1",
-					Source = "Output",
-				},
-				AutoCrop = Input { },
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
-			},
-			ViewInfo = OperatorInfo { Pos = { 220, 1534.5 } },
-		},
-		Merge3_2_1_3_2 = Merge {
+		Merge3_2_1_1_1_6 = Merge {
 			Inputs = {
 				Background = Input {
-					SourceOp = "Merge4_1_1_2_2",
+					SourceOp = "Merge4_1_3_6",
 					Source = "Output",
 				},
 				Foreground = Input {
-					SourceOp = "Instance_Transform4_3",
+					SourceOp = "Instance_Transform4_1",
 					Source = "Output",
 				},
-				Center = Input { Value = { 0.5, 0.354255561468705 }, },
-				Size = Input { Value = 0.883932231992637, },
+				Center = Input { Value = { 0.5, 0.34458438158476 }, },
+				Size = Input { Value = 0.961301671064204, },
 				FilterMethod = Input { Value = 5, },
 				PerformDepthMerge = Input { Value = 0, },
 			},
-			ViewInfo = OperatorInfo { Pos = { 110, 775.5 } },
+			ViewInfo = OperatorInfo { Pos = { -110, 1369.5 } },
 		},
-		Instance_Scale1_1 = Scale {
-			SourceOp = "Scale1",
+		Instance_Crop1_1_1_3 = Crop {
+			SourceOp = "Instance_Crop1_2_1_3",
 			Inputs = {
-				SettingsNest = Input { },
-				Input = Input {
-					SourceOp = "Instance_Crop1_1",
-					Source = "Output",
-				},
 				CommentsNest = Input { },
 				FrameRenderScriptNest = Input { },
 				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
-			},
-			ViewInfo = OperatorInfo { Pos = { 330, 1501.5 } },
-		},
-		Instance_Scale1_1_1_11 = Scale {
-			SourceOp = "Instance_Scale1_2_1_11",
-			Inputs = {
 				SettingsNest = Input { },
-				Input = Input {
-					SourceOp = "Instance_Crop1_1_1_11",
-					Source = "Output",
-				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
 				EndRenderScripts = Input { },
-			},
-			ViewInfo = OperatorInfo { Pos = { 330, 2326.5 } },
-		},
-		Instance_Crop1_3_1_2 = Crop {
-			SourceOp = "Instance_Crop1_2_1_2",
-			Inputs = {
-				SettingsNest = Input { },
 				ResetSize = Input { },
 				ResetOffset = Input { },
 				Input = Input {
-					SourceOp = "Merge3_2_1_3_2",
+					SourceOp = "Merge3_2_1_2_1_3",
 					Source = "Output",
 				},
 				AutoCrop = Input { },
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
-			ViewInfo = OperatorInfo { Pos = { 220, 775.5 } },
+			ViewInfo = OperatorInfo { Pos = { 220, 841.5 } },
 		},
-		Merge3_2_1_3_4 = Merge {
+		Merge3_2_2_5 = Merge {
 			Inputs = {
 				Background = Input {
-					SourceOp = "Merge4_1_1_2_4",
+					SourceOp = "Merge4_1_1_2_5",
 					Source = "Output",
 				},
 				Foreground = Input {
-					SourceOp = "Instance_Transform4_3",
+					SourceOp = "Instance_Transform4_2",
 					Source = "Output",
 				},
-				Center = Input { Value = { 0.5, 0.354255561468705 }, },
-				Size = Input { Value = 0.883932231992637, },
+				Center = Input { Value = { 0.5, 0.336847437677603 }, },
+				Size = Input { Value = 0.949970674486804, },
 				FilterMethod = Input { Value = 5, },
 				PerformDepthMerge = Input { Value = 0, },
 			},
-			ViewInfo = OperatorInfo { Pos = { 110, 1105.5 } },
+			ViewInfo = OperatorInfo { Pos = { 0, 1237.5 } },
 		},
-		Instance_Transform4_15 = Transform {
-			SourceOp = "Transform4",
+		Merge4_1_1_2_9 = Merge {
 			Inputs = {
-				EffectMask = Input { },
-				SettingsNest = Input { },
-				TransformNest = Input { },
-				ReferenceSize = Input { },
-				Input = Input {
-					SourceOp = "Text1_1_1_11",
+				Background = Input {
+					SourceOp = "Background2",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
+				Foreground = Input {
+					SourceOp = "Instance_Transform4_13",
+					Source = "Output",
+				},
+				Center = Input { Value = { 0.5, 0.490328820116054 }, },
+				PerformDepthMerge = Input { Value = 0, },
 			},
-			ViewInfo = OperatorInfo { Pos = { -715, 2326.5 } },
+			ViewInfo = OperatorInfo { Pos = { -495, 2062.5 } },
+		},
+		Merge4_1_1_2_8 = Merge {
+			Inputs = {
+				Background = Input {
+					SourceOp = "Background2",
+					Source = "Output",
+				},
+				Foreground = Input {
+					SourceOp = "Instance_Transform4_12",
+					Source = "Output",
+				},
+				Center = Input { Value = { 0.5, 0.490328820116054 }, },
+				PerformDepthMerge = Input { Value = 0, },
+			},
+			ViewInfo = OperatorInfo { Pos = { -495, 1897.5 } },
+		},
+		Saver1_4_1_3 = Saver {
+			Inputs = {
+				ProcessWhenBlendIs00 = Input { Value = 0, },
+				Clip = Input {
+					Value = Clip {
+						Filename = "/home/pp/projects/pypoks/gui/cards/dfR/5D.png",
+						FormatID = "PNGFormat",
+						Length = 0,
+						Saving = true,
+						TrimIn = 0,
+						ExtendFirst = 0,
+						ExtendLast = 0,
+						Loop = 1,
+						AspectMode = 0,
+						Depth = 0,
+						TimeCode = 0,
+						GlobalStart = -2000000000,
+						GlobalEnd = 0
+					},
+				},
+				OutputFormat = Input { Value = FuID { "PNGFormat" }, },
+				["Gamut.SLogVersion"] = Input { Value = FuID { "SLog2" }, },
+				Input = Input {
+					SourceOp = "Instance_Scale1_3_1_3",
+					Source = "Output",
+				},
+				["PNGFormat.PreDivide"] = Input { Value = 1, },
+			},
+			ViewInfo = OperatorInfo { Pos = { 440, 940.5 } },
 		},
 		Merge3_2_1_2_1_1 = Merge {
 			Inputs = {
@@ -4693,6 +4628,98 @@ Composition {
 			},
 			ViewInfo = OperatorInfo { Pos = { -220, 511.5 } },
 		},
+		Instance_Crop1_3_1_2 = Crop {
+			SourceOp = "Instance_Crop1_2_1_2",
+			Inputs = {
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
+				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				ResetSize = Input { },
+				ResetOffset = Input { },
+				Input = Input {
+					SourceOp = "Merge3_2_1_3_2",
+					Source = "Output",
+				},
+				AutoCrop = Input { },
+			},
+			ViewInfo = OperatorInfo { Pos = { 220, 775.5 } },
+		},
+		Merge3_2_1_3_2 = Merge {
+			Inputs = {
+				Background = Input {
+					SourceOp = "Merge4_1_1_2_2",
+					Source = "Output",
+				},
+				Foreground = Input {
+					SourceOp = "Instance_Transform4_3",
+					Source = "Output",
+				},
+				Center = Input { Value = { 0.5, 0.354255561468705 }, },
+				Size = Input { Value = 0.883932231992637, },
+				FilterMethod = Input { Value = 5, },
+				PerformDepthMerge = Input { Value = 0, },
+			},
+			ViewInfo = OperatorInfo { Pos = { 110, 775.5 } },
+		},
+		Merge3_2_1_3 = Merge {
+			Inputs = {
+				Background = Input {
+					SourceOp = "Merge4_1_1_2",
+					Source = "Output",
+				},
+				Foreground = Input {
+					SourceOp = "Instance_Transform4_3",
+					Source = "Output",
+				},
+				Center = Input { Value = { 0.5, 0.354255561468705 }, },
+				Size = Input { Value = 0.883932231992637, },
+				FilterMethod = Input { Value = 5, },
+				PerformDepthMerge = Input { Value = 0, },
+			},
+			ViewInfo = OperatorInfo { Pos = { 110, 445.5 } },
+		},
+		Text1_2 = TextPlus {
+			Inputs = {
+				HorizontalJustificationNew = Input { Value = 3, },
+				VerticalJustificationNew = Input { Value = 3, },
+				GlobalOut = Input { Value = 1, },
+				Width = Input { Value = 1920, },
+				Height = Input { Value = 1080, },
+				["Gamut.SLogVersion"] = Input { Value = FuID { "SLog2" }, },
+				Center = Input { Value = { 0.499178403755869, 0.505575467941059 }, },
+				Size = Input { Value = 0.0302, },
+				Font = Input { Value = "Open Sans", },
+				StyledText = Input { Value = "AI", },
+				Style = Input { Value = "Extrabold Italic", },
+				ManualFontKerningPlacement = Input {
+					Value = StyledText {
+						Array = {
+						},
+						Value = ""
+					},
+				},
+				Green1 = Input { Value = 0.0156862754374743, },
+				Blue1 = Input { Value = 0.0156862754374743, },
+			},
+			ViewInfo = OperatorInfo { Pos = { -165, -412.5 } },
+		},
+		Instance_Scale1_1_1_11 = Scale {
+			SourceOp = "Instance_Scale1_2_1_11",
+			Inputs = {
+				StartRenderScripts = Input { },
+				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				FrameRenderScriptNest = Input { },
+				CommentsNest = Input { },
+				Input = Input {
+					SourceOp = "Instance_Crop1_1_1_11",
+					Source = "Output",
+				},
+			},
+			ViewInfo = OperatorInfo { Pos = { 330, 2326.5 } },
+		},
 		Instance_Crop1_2_1_7 = Crop {
 			Inputs = {
 				XOffset = Input { Value = 56, },
@@ -4709,20 +4736,15 @@ Composition {
 		},
 		Text1_1_1_3 = TextPlus {
 			Inputs = {
-				HorizontalJustification = Input { Value = 1, },
-				Alignment = Input { Value = 1, },
+				HorizontalJustificationNew = Input { Value = 3, },
+				VerticalJustificationNew = Input { Value = 3, },
 				GlobalOut = Input { Value = 1, },
 				Width = Input { Value = 1920, },
 				Height = Input { Value = 1080, },
 				Center = Input { Value = { 0.5, 0.545083011716293 }, },
-				Red1 = Input { Value = 0.778792858123779, },
-				Green1 = Input { Value = 0.0274509191513062, },
-				Blue1 = Input { Value = 0.0961014628410339, },
-				StyledText = Input { Value = "5", },
 				Font = Input { Value = "DejaVu Sans", },
+				StyledText = Input { Value = "5", },
 				Style = Input { Value = "Bold", },
-				VerticalJustificationNew = Input { Value = 3, },
-				HorizontalJustificationNew = Input { Value = 3, },
 				ManualFontKerningPlacement = Input {
 					Value = StyledText {
 						Array = {
@@ -4730,8 +4752,30 @@ Composition {
 						Value = ""
 					},
 				},
+				Alignment = Input { Value = 1, },
+				HorizontalJustification = Input { Value = 1, },
+				Red1 = Input { Value = 0.778792858123779, },
+				Green1 = Input { Value = 0.0274509191513062, },
+				Blue1 = Input { Value = 0.0961014628410339, },
 			},
 			ViewInfo = OperatorInfo { Pos = { -825, 841.5 } },
+		},
+		Merge3_2_2_1 = Merge {
+			Inputs = {
+				Background = Input {
+					SourceOp = "Merge4_1_1_2_1",
+					Source = "Output",
+				},
+				Foreground = Input {
+					SourceOp = "Instance_Transform4_2",
+					Source = "Output",
+				},
+				Center = Input { Value = { 0.5, 0.336847437677603 }, },
+				Size = Input { Value = 0.949970674486804, },
+				FilterMethod = Input { Value = 5, },
+				PerformDepthMerge = Input { Value = 0, },
+			},
+			ViewInfo = OperatorInfo { Pos = { 0, 577.5 } },
 		},
 		Instance_Scale1_2_1 = Scale {
 			Inputs = {
@@ -4745,57 +4789,35 @@ Composition {
 			},
 			ViewInfo = OperatorInfo { Pos = { 330, 379.5 } },
 		},
-		Instance_Crop1_1_1_8 = Crop {
-			SourceOp = "Instance_Crop1_2_1_8",
+		Saver1_4_1_8 = Saver {
 			Inputs = {
-				SettingsNest = Input { },
-				ResetSize = Input { },
-				ResetOffset = Input { },
-				Input = Input {
-					SourceOp = "Merge3_2_1_2_1_8",
-					Source = "Output",
-				},
-				AutoCrop = Input { },
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
-			},
-			ViewInfo = OperatorInfo { Pos = { 220, 1831.5 } },
-		},
-		ColorCorrector1_2_3 = ColorCorrector {
-			Inputs = {
-				WheelSaturation1 = Input { Value = 0, },
-				MasterRGBGain = Input { Value = 0, },
-				ColorRanges = Input {
-					Value = ColorCurves {
-						Curves = {
-							{
-								Points = {
-									{ 0, 1 },
-									{ 0.4, 0.2 },
-									{ 0.6, 0 },
-									{ 1, 0 }
-								}
-							},
-							{
-								Points = {
-									{ 0, 0 },
-									{ 0.4, 0 },
-									{ 0.6, 0.2 },
-									{ 1, 1 }
-								}
-							}
-						}
+				ProcessWhenBlendIs00 = Input { Value = 0, },
+				Clip = Input {
+					Value = Clip {
+						Filename = "/home/pp/projects/pypoks/gui/cards/dfR/JD.png",
+						FormatID = "PNGFormat",
+						Length = 0,
+						Saving = true,
+						TrimIn = 0,
+						ExtendFirst = 0,
+						ExtendLast = 0,
+						Loop = 1,
+						AspectMode = 0,
+						Depth = 0,
+						TimeCode = 0,
+						GlobalStart = -2000000000,
+						GlobalEnd = 0
 					},
 				},
-				HistogramIgnoreTransparent = Input { Value = 1, },
+				OutputFormat = Input { Value = FuID { "PNGFormat" }, },
+				["Gamut.SLogVersion"] = Input { Value = FuID { "SLog2" }, },
 				Input = Input {
-					SourceOp = "Instance_Transform4_6",
+					SourceOp = "Instance_Scale1_3_1_8",
 					Source = "Output",
 				},
+				["PNGFormat.PreDivide"] = Input { Value = 1, },
 			},
-			ViewInfo = OperatorInfo { Pos = { -605, 841.5 } },
+			ViewInfo = OperatorInfo { Pos = { 440, 1930.5 } },
 		},
 		Merge3_2_1_3_11 = Merge {
 			Inputs = {
@@ -4846,7 +4868,7 @@ Composition {
 			},
 			ViewInfo = OperatorInfo { Pos = { -495, 1501.5 } },
 		},
-		ColorCorrector1_2 = ColorCorrector {
+		ColorCorrector1_2_3 = ColorCorrector {
 			Inputs = {
 				WheelSaturation1 = Input { Value = 0, },
 				MasterRGBGain = Input { Value = 0, },
@@ -4874,11 +4896,82 @@ Composition {
 				},
 				HistogramIgnoreTransparent = Input { Value = 1, },
 				Input = Input {
-					SourceOp = "Transform4",
+					SourceOp = "Instance_Transform4_6",
 					Source = "Output",
 				},
 			},
-			ViewInfo = OperatorInfo { Pos = { -605, 346.5 } },
+			ViewInfo = OperatorInfo { Pos = { -605, 841.5 } },
+		},
+		Merge4_1_3_6 = Merge {
+			Inputs = {
+				Background = Input {
+					SourceOp = "Background2",
+					Source = "Output",
+				},
+				Foreground = Input {
+					SourceOp = "ColorCorrector1_2_6",
+					Source = "Output",
+				},
+				Center = Input { Value = { 0.5, 0.490328820116054 }, },
+				PerformDepthMerge = Input { Value = 0, },
+			},
+			ViewInfo = OperatorInfo { Pos = { -495, 1336.5 } },
+		},
+		Text1_1_1_10 = TextPlus {
+			Inputs = {
+				HorizontalJustificationNew = Input { Value = 3, },
+				VerticalJustificationNew = Input { Value = 3, },
+				GlobalOut = Input { Value = 1, },
+				Width = Input { Value = 1920, },
+				Height = Input { Value = 1080, },
+				Center = Input { Value = { 0.5, 0.545083011716293 }, },
+				Font = Input { Value = "DejaVu Sans", },
+				StyledText = Input { Value = "K", },
+				Style = Input { Value = "Bold", },
+				ManualFontKerningPlacement = Input {
+					Value = StyledText {
+						Array = {
+						},
+						Value = ""
+					},
+				},
+				Alignment = Input { Value = 1, },
+				HorizontalJustification = Input { Value = 1, },
+				Red1 = Input { Value = 0.778792858123779, },
+				Green1 = Input { Value = 0.0274509191513062, },
+				Blue1 = Input { Value = 0.0961014628410339, },
+			},
+			ViewInfo = OperatorInfo { Pos = { -825, 2161.5 } },
+		},
+		Merge4_1_1_2_6 = Merge {
+			Inputs = {
+				Background = Input {
+					SourceOp = "Background2",
+					Source = "Output",
+				},
+				Foreground = Input {
+					SourceOp = "Instance_Transform4_9",
+					Source = "Output",
+				},
+				Center = Input { Value = { 0.5, 0.490328820116054 }, },
+				PerformDepthMerge = Input { Value = 0, },
+			},
+			ViewInfo = OperatorInfo { Pos = { -495, 1402.5 } },
+		},
+		Instance_Scale1_4_4 = Scale {
+			SourceOp = "Instance_Scale1_2_1_4",
+			Inputs = {
+				StartRenderScripts = Input { },
+				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				FrameRenderScriptNest = Input { },
+				CommentsNest = Input { },
+				Input = Input {
+					SourceOp = "Instance_Crop1_4_4",
+					Source = "Output",
+				},
+			},
+			ViewInfo = OperatorInfo { Pos = { 330, 1072.5 } },
 		},
 		Merge3_2_2_9 = Merge {
 			Inputs = {
@@ -4897,6 +4990,113 @@ Composition {
 			},
 			ViewInfo = OperatorInfo { Pos = { 0, 2062.5 } },
 		},
+		Instance_Scale1_1_1_7 = Scale {
+			SourceOp = "Instance_Scale1_2_1_7",
+			Inputs = {
+				StartRenderScripts = Input { },
+				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				FrameRenderScriptNest = Input { },
+				CommentsNest = Input { },
+				Input = Input {
+					SourceOp = "Instance_Crop1_1_1_7",
+					Source = "Output",
+				},
+			},
+			ViewInfo = OperatorInfo { Pos = { 330, 1666.5 } },
+		},
+		Instance_Transform4_12 = Transform {
+			SourceOp = "Transform4",
+			Inputs = {
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
+				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				TransformNest = Input { },
+				ReferenceSize = Input { },
+				Input = Input {
+					SourceOp = "Text1_1_1_8",
+					Source = "Output",
+				},
+				EffectMask = Input { }
+			},
+			ViewInfo = OperatorInfo { Pos = { -715, 1831.5 } },
+		},
+		Instance_Scale1_1_1_8 = Scale {
+			SourceOp = "Instance_Scale1_2_1_8",
+			Inputs = {
+				StartRenderScripts = Input { },
+				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				FrameRenderScriptNest = Input { },
+				CommentsNest = Input { },
+				Input = Input {
+					SourceOp = "Instance_Crop1_1_1_8",
+					Source = "Output",
+				},
+			},
+			ViewInfo = OperatorInfo { Pos = { 330, 1831.5 } },
+		},
+		Instance_Scale1_4_10 = Scale {
+			SourceOp = "Instance_Scale1_2_1_10",
+			Inputs = {
+				StartRenderScripts = Input { },
+				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				FrameRenderScriptNest = Input { },
+				CommentsNest = Input { },
+				Input = Input {
+					SourceOp = "Instance_Crop1_4_10",
+					Source = "Output",
+				},
+			},
+			ViewInfo = OperatorInfo { Pos = { 330, 2227.5 } },
+		},
+		Merge3_2_1_2_1_4 = Merge {
+			Inputs = {
+				Background = Input {
+					SourceOp = "Merge4_1_3_4",
+					Source = "Output",
+				},
+				Foreground = Input {
+					SourceOp = "Instance_Transform4",
+					Source = "Output",
+				},
+				Center = Input { Value = { 0.5, 0.348452853538338 }, },
+				Size = Input { Value = 0.864555848724714, },
+				FilterMethod = Input { Value = 5, },
+				PerformDepthMerge = Input { Value = 0, },
+			},
+			ViewInfo = OperatorInfo { Pos = { -220, 1006.5 } },
+		},
+		Merge4_1_3_1 = Merge {
+			Inputs = {
+				Background = Input {
+					SourceOp = "Background2",
+					Source = "Output",
+				},
+				Foreground = Input {
+					SourceOp = "ColorCorrector1_2_1",
+					Source = "Output",
+				},
+				Center = Input { Value = { 0.5, 0.490328820116054 }, },
+				PerformDepthMerge = Input { Value = 0, },
+			},
+			ViewInfo = OperatorInfo { Pos = { -495, 511.5 } },
+		},
+		Scale1 = Scale {
+			Inputs = {
+				XSize = Input { Value = 0.3333, },
+				HiQOnly = Input { Value = 0, },
+				PixelAspect = Input { Value = { 1, 1 }, },
+				Input = Input {
+					SourceOp = "Crop1",
+					Source = "Output",
+				},
+			},
+			ViewInfo = OperatorInfo { Pos = { 330, 214.5 } },
+		},
 		Merge3_2_2_3 = Merge {
 			Inputs = {
 				Background = Input {
@@ -4914,124 +5114,14 @@ Composition {
 			},
 			ViewInfo = OperatorInfo { Pos = { 0, 907.5 } },
 		},
-		Instance_Crop1_3_1_8 = Crop {
-			SourceOp = "Instance_Crop1_2_1_8",
-			Inputs = {
-				SettingsNest = Input { },
-				ResetSize = Input { },
-				ResetOffset = Input { },
-				Input = Input {
-					SourceOp = "Merge3_2_1_3_8",
-					Source = "Output",
-				},
-				AutoCrop = Input { },
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
-			},
-			ViewInfo = OperatorInfo { Pos = { 220, 1930.5 } },
-		},
-		Instance_Scale1_1_1_8 = Scale {
-			SourceOp = "Instance_Scale1_2_1_8",
-			Inputs = {
-				SettingsNest = Input { },
-				Input = Input {
-					SourceOp = "Instance_Crop1_1_1_8",
-					Source = "Output",
-				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
-			},
-			ViewInfo = OperatorInfo { Pos = { 330, 1831.5 } },
-		},
-		Instance_Scale1_4_10 = Scale {
-			SourceOp = "Instance_Scale1_2_1_10",
-			Inputs = {
-				SettingsNest = Input { },
-				Input = Input {
-					SourceOp = "Instance_Crop1_4_10",
-					Source = "Output",
-				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
-			},
-			ViewInfo = OperatorInfo { Pos = { 330, 2227.5 } },
-		},
-		Instance_Crop1_1 = Crop {
-			SourceOp = "Crop1",
-			Inputs = {
-				SettingsNest = Input { },
-				ResetSize = Input { },
-				ResetOffset = Input { },
-				Input = Input {
-					SourceOp = "Merge3_2_1_2",
-					Source = "Output",
-				},
-				AutoCrop = Input { },
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
-			},
-			ViewInfo = OperatorInfo { Pos = { 220, 1501.5 } },
-		},
-		Merge4_1_3_1 = Merge {
-			Inputs = {
-				Background = Input {
-					SourceOp = "Background2",
-					Source = "Output",
-				},
-				Foreground = Input {
-					SourceOp = "ColorCorrector1_2_1",
-					Source = "Output",
-				},
-				Center = Input { Value = { 0.5, 0.490328820116054 }, },
-				PerformDepthMerge = Input { Value = 0, },
-			},
-			ViewInfo = OperatorInfo { Pos = { -495, 511.5 } },
-		},
-		Instance_Transform4_12 = Transform {
-			SourceOp = "Transform4",
-			Inputs = {
-				EffectMask = Input { },
-				SettingsNest = Input { },
-				TransformNest = Input { },
-				ReferenceSize = Input { },
-				Input = Input {
-					SourceOp = "Text1_1_1_8",
-					Source = "Output",
-				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
-			},
-			ViewInfo = OperatorInfo { Pos = { -715, 1831.5 } },
-		},
-		Instance_Scale1_4_4 = Scale {
-			SourceOp = "Instance_Scale1_2_1_4",
-			Inputs = {
-				SettingsNest = Input { },
-				Input = Input {
-					SourceOp = "Instance_Crop1_4_4",
-					Source = "Output",
-				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
-			},
-			ViewInfo = OperatorInfo { Pos = { 330, 1072.5 } },
-		},
 		Instance_Crop1_3_1_1 = Crop {
 			SourceOp = "Instance_Crop1_2_1_1",
 			Inputs = {
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
 				ResetSize = Input { },
 				ResetOffset = Input { },
 				Input = Input {
@@ -5039,19 +5129,11 @@ Composition {
 					Source = "Output",
 				},
 				AutoCrop = Input { },
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 220, 610.5 } },
 		},
 		Merge1_2_1 = Merge {
 			Inputs = {
-				EffectMask = Input {
-					SourceOp = "Rectangle2",
-					Source = "Mask",
-				},
 				Background = Input {
 					SourceOp = "Background1_1_2",
 					Source = "Output",
@@ -5062,6 +5144,10 @@ Composition {
 				},
 				Center = Input { Value = { 0.668324613462439, 0.231103286384977 }, },
 				PerformDepthMerge = Input { Value = 0, },
+				EffectMask = Input {
+					SourceOp = "Rectangle2",
+					Source = "Mask",
+				}
 			},
 			ViewInfo = OperatorInfo { Pos = { -220, 115.5 } },
 		},
@@ -5137,67 +5223,57 @@ Composition {
 			},
 			ViewInfo = OperatorInfo { Pos = { 440, 742.5 } },
 		},
-		Scale1 = Scale {
-			Inputs = {
-				XSize = Input { Value = 0.3333, },
-				HiQOnly = Input { Value = 0, },
-				PixelAspect = Input { Value = { 1, 1 }, },
-				Input = Input {
-					SourceOp = "Crop1",
-					Source = "Output",
-				},
-			},
-			ViewInfo = OperatorInfo { Pos = { 330, 214.5 } },
-		},
 		Instance_Scale1_4_5 = Scale {
 			SourceOp = "Instance_Scale1_2_1_5",
 			Inputs = {
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				FrameRenderScriptNest = Input { },
+				CommentsNest = Input { },
 				Input = Input {
 					SourceOp = "Instance_Crop1_4_5",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 330, 1237.5 } },
 		},
-		Instance_Crop1_4_8 = Crop {
-			SourceOp = "Instance_Crop1_2_1_8",
+		Transform1 = Transform {
 			Inputs = {
-				SettingsNest = Input { },
-				ResetSize = Input { },
-				ResetOffset = Input { },
+				Center = Input { Value = { 0.8742804276316, 0.493 }, },
 				Input = Input {
-					SourceOp = "Merge3_2_2_8",
+					SourceOp = "Loader2",
 					Source = "Output",
 				},
-				AutoCrop = Input { },
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
-			ViewInfo = OperatorInfo { Pos = { 220, 1897.5 } },
+			ViewInfo = OperatorInfo { Pos = { -825, 214.5 } },
+		},
+		Instance_Scale1_3_1_1 = Scale {
+			SourceOp = "Instance_Scale1_2_1_1",
+			Inputs = {
+				StartRenderScripts = Input { },
+				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				FrameRenderScriptNest = Input { },
+				CommentsNest = Input { },
+				Input = Input {
+					SourceOp = "Instance_Crop1_3_1_1",
+					Source = "Output",
+				},
+			},
+			ViewInfo = OperatorInfo { Pos = { 330, 610.5 } },
 		},
 		Text1_1_1_11 = TextPlus {
 			Inputs = {
-				HorizontalJustification = Input { Value = 1, },
-				Alignment = Input { Value = 1, },
+				HorizontalJustificationNew = Input { Value = 3, },
+				VerticalJustificationNew = Input { Value = 3, },
 				GlobalOut = Input { Value = 1, },
 				Width = Input { Value = 1920, },
 				Height = Input { Value = 1080, },
 				Center = Input { Value = { 0.5, 0.545083011716293 }, },
-				Red1 = Input { Value = 0.778792858123779, },
-				Green1 = Input { Value = 0.0274509191513062, },
-				Blue1 = Input { Value = 0.0961014628410339, },
-				StyledText = Input { Value = "A", },
 				Font = Input { Value = "DejaVu Sans", },
+				StyledText = Input { Value = "A", },
 				Style = Input { Value = "Bold", },
-				VerticalJustificationNew = Input { Value = 3, },
-				HorizontalJustificationNew = Input { Value = 3, },
 				ManualFontKerningPlacement = Input {
 					Value = StyledText {
 						Array = {
@@ -5205,25 +5281,13 @@ Composition {
 						Value = ""
 					},
 				},
+				Alignment = Input { Value = 1, },
+				HorizontalJustification = Input { Value = 1, },
+				Red1 = Input { Value = 0.778792858123779, },
+				Green1 = Input { Value = 0.0274509191513062, },
+				Blue1 = Input { Value = 0.0961014628410339, },
 			},
 			ViewInfo = OperatorInfo { Pos = { -825, 2326.5 } },
-		},
-		Merge3_2_1 = Merge {
-			Inputs = {
-				Background = Input {
-					SourceOp = "Merge4_1_1",
-					Source = "Output",
-				},
-				Foreground = Input {
-					SourceOp = "Instance_Transform4_3",
-					Source = "Output",
-				},
-				Center = Input { Value = { 0.5, 0.354255561468705 }, },
-				Size = Input { Value = 0.883932231992637, },
-				FilterMethod = Input { Value = 5, },
-				PerformDepthMerge = Input { Value = 0, },
-			},
-			ViewInfo = OperatorInfo { Pos = { 110, 1600.5 } },
 		},
 		ColorCorrector1_2_8 = ColorCorrector {
 			Inputs = {
@@ -5258,6 +5322,23 @@ Composition {
 				},
 			},
 			ViewInfo = OperatorInfo { Pos = { -605, 1831.5 } },
+		},
+		Merge3_2_1 = Merge {
+			Inputs = {
+				Background = Input {
+					SourceOp = "Merge4_1_1",
+					Source = "Output",
+				},
+				Foreground = Input {
+					SourceOp = "Instance_Transform4_3",
+					Source = "Output",
+				},
+				Center = Input { Value = { 0.5, 0.354255561468705 }, },
+				Size = Input { Value = 0.883932231992637, },
+				FilterMethod = Input { Value = 5, },
+				PerformDepthMerge = Input { Value = 0, },
+			},
+			ViewInfo = OperatorInfo { Pos = { 110, 1600.5 } },
 		},
 		Saver1_5_9 = Saver {
 			Inputs = {
@@ -5304,15 +5385,15 @@ Composition {
 		Instance_Scale1_3_1_5 = Scale {
 			SourceOp = "Instance_Scale1_2_1_5",
 			Inputs = {
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				FrameRenderScriptNest = Input { },
+				CommentsNest = Input { },
 				Input = Input {
 					SourceOp = "Instance_Crop1_3_1_5",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 330, 1270.5 } },
 		},
@@ -5384,7 +5465,11 @@ Composition {
 		Instance_Crop1_1_1_2 = Crop {
 			SourceOp = "Instance_Crop1_2_1_2",
 			Inputs = {
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
 				ResetSize = Input { },
 				ResetOffset = Input { },
 				Input = Input {
@@ -5392,38 +5477,8 @@ Composition {
 					Source = "Output",
 				},
 				AutoCrop = Input { },
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 220, 676.5 } },
-		},
-		Text1_1_1_1 = TextPlus {
-			Inputs = {
-				HorizontalJustification = Input { Value = 1, },
-				Alignment = Input { Value = 1, },
-				GlobalOut = Input { Value = 1, },
-				Width = Input { Value = 1920, },
-				Height = Input { Value = 1080, },
-				Center = Input { Value = { 0.5, 0.545083011716293 }, },
-				Red1 = Input { Value = 0.778792858123779, },
-				Green1 = Input { Value = 0.0274509191513062, },
-				Blue1 = Input { Value = 0.0961014628410339, },
-				StyledText = Input { Value = "3", },
-				Font = Input { Value = "DejaVu Sans", },
-				Style = Input { Value = "Bold", },
-				VerticalJustificationNew = Input { Value = 3, },
-				HorizontalJustificationNew = Input { Value = 3, },
-				ManualFontKerningPlacement = Input {
-					Value = StyledText {
-						Array = {
-						},
-						Value = ""
-					},
-				},
-			},
-			ViewInfo = OperatorInfo { Pos = { -825, 511.5 } },
 		},
 		Saver1_4_1_10 = Saver {
 			Inputs = {
@@ -5455,20 +5510,141 @@ Composition {
 			},
 			ViewInfo = OperatorInfo { Pos = { 440, 2260.5 } },
 		},
+		Merge4_1_1_2_10 = Merge {
+			Inputs = {
+				Background = Input {
+					SourceOp = "Background2",
+					Source = "Output",
+				},
+				Foreground = Input {
+					SourceOp = "Instance_Transform4_14",
+					Source = "Output",
+				},
+				Center = Input { Value = { 0.5, 0.490328820116054 }, },
+				PerformDepthMerge = Input { Value = 0, },
+			},
+			ViewInfo = OperatorInfo { Pos = { -495, 2227.5 } },
+		},
 		Instance_Scale1_2 = Scale {
 			SourceOp = "Scale1",
 			Inputs = {
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				FrameRenderScriptNest = Input { },
+				CommentsNest = Input { },
 				Input = Input {
 					SourceOp = "Instance_Crop1_2",
 					Source = "Output",
 				},
+			},
+			ViewInfo = OperatorInfo { Pos = { 330, 1534.5 } },
+		},
+		Text1_1_1_1 = TextPlus {
+			Inputs = {
+				HorizontalJustificationNew = Input { Value = 3, },
+				VerticalJustificationNew = Input { Value = 3, },
+				GlobalOut = Input { Value = 1, },
+				Width = Input { Value = 1920, },
+				Height = Input { Value = 1080, },
+				Center = Input { Value = { 0.5, 0.545083011716293 }, },
+				Font = Input { Value = "DejaVu Sans", },
+				StyledText = Input { Value = "3", },
+				Style = Input { Value = "Bold", },
+				ManualFontKerningPlacement = Input {
+					Value = StyledText {
+						Array = {
+						},
+						Value = ""
+					},
+				},
+				Alignment = Input { Value = 1, },
+				HorizontalJustification = Input { Value = 1, },
+				Red1 = Input { Value = 0.778792858123779, },
+				Green1 = Input { Value = 0.0274509191513062, },
+				Blue1 = Input { Value = 0.0961014628410339, },
+			},
+			ViewInfo = OperatorInfo { Pos = { -825, 511.5 } },
+		},
+		Instance_Crop1_4_9 = Crop {
+			SourceOp = "Instance_Crop1_2_1_9",
+			Inputs = {
 				CommentsNest = Input { },
 				FrameRenderScriptNest = Input { },
 				StartRenderScripts = Input { },
+				SettingsNest = Input { },
 				EndRenderScripts = Input { },
+				ResetSize = Input { },
+				ResetOffset = Input { },
+				Input = Input {
+					SourceOp = "Merge3_2_2_9",
+					Source = "Output",
+				},
+				AutoCrop = Input { },
 			},
-			ViewInfo = OperatorInfo { Pos = { 330, 1534.5 } },
+			ViewInfo = OperatorInfo { Pos = { 220, 2062.5 } },
+		},
+		Text1_1_1_6 = TextPlus {
+			Inputs = {
+				HorizontalJustificationNew = Input { Value = 3, },
+				VerticalJustificationNew = Input { Value = 3, },
+				GlobalOut = Input { Value = 1, },
+				Width = Input { Value = 1920, },
+				Height = Input { Value = 1080, },
+				Center = Input { Value = { 0.5, 0.545083011716293 }, },
+				Font = Input { Value = "DejaVu Sans", },
+				StyledText = Input { Value = "8", },
+				Style = Input { Value = "Bold", },
+				ManualFontKerningPlacement = Input {
+					Value = StyledText {
+						Array = {
+						},
+						Value = ""
+					},
+				},
+				Alignment = Input { Value = 1, },
+				HorizontalJustification = Input { Value = 1, },
+				Red1 = Input { Value = 0.778792858123779, },
+				Green1 = Input { Value = 0.0274509191513062, },
+				Blue1 = Input { Value = 0.0961014628410339, },
+			},
+			ViewInfo = OperatorInfo { Pos = { -825, 1336.5 } },
+		},
+		Transform4 = Transform {
+			Inputs = {
+				Size = Input { Value = 0.89634765625, },
+				Input = Input {
+					SourceOp = "Text1_1_1",
+					Source = "Output",
+				},
+			},
+			ViewInfo = OperatorInfo { Pos = { -715, 346.5 } },
+		},
+		Text1_1_1 = TextPlus {
+			Inputs = {
+				HorizontalJustificationNew = Input { Value = 3, },
+				VerticalJustificationNew = Input { Value = 3, },
+				GlobalOut = Input { Value = 1, },
+				Width = Input { Value = 1920, },
+				Height = Input { Value = 1080, },
+				Center = Input { Value = { 0.5, 0.545083011716293 }, },
+				Font = Input { Value = "DejaVu Sans", },
+				StyledText = Input { Value = "2", },
+				Style = Input { Value = "Bold", },
+				ManualFontKerningPlacement = Input {
+					Value = StyledText {
+						Array = {
+						},
+						Value = ""
+					},
+				},
+				Alignment = Input { Value = 1, },
+				HorizontalJustification = Input { Value = 1, },
+				Red1 = Input { Value = 0.778792858123779, },
+				Green1 = Input { Value = 0.0274509191513062, },
+				Blue1 = Input { Value = 0.0961014628410339, },
+			},
+			ViewInfo = OperatorInfo { Pos = { -825, 346.5 } },
 		},
 		Merge4_1_1_2_3 = Merge {
 			Inputs = {
@@ -5485,90 +5661,14 @@ Composition {
 			},
 			ViewInfo = OperatorInfo { Pos = { -495, 907.5 } },
 		},
-		Instance_Crop1_4_9 = Crop {
-			SourceOp = "Instance_Crop1_2_1_9",
-			Inputs = {
-				SettingsNest = Input { },
-				ResetSize = Input { },
-				ResetOffset = Input { },
-				Input = Input {
-					SourceOp = "Merge3_2_2_9",
-					Source = "Output",
-				},
-				AutoCrop = Input { },
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
-			},
-			ViewInfo = OperatorInfo { Pos = { 220, 2062.5 } },
-		},
-		Text1_1_1_6 = TextPlus {
-			Inputs = {
-				HorizontalJustification = Input { Value = 1, },
-				Alignment = Input { Value = 1, },
-				GlobalOut = Input { Value = 1, },
-				Width = Input { Value = 1920, },
-				Height = Input { Value = 1080, },
-				Center = Input { Value = { 0.5, 0.545083011716293 }, },
-				Red1 = Input { Value = 0.778792858123779, },
-				Green1 = Input { Value = 0.0274509191513062, },
-				Blue1 = Input { Value = 0.0961014628410339, },
-				StyledText = Input { Value = "8", },
-				Font = Input { Value = "DejaVu Sans", },
-				Style = Input { Value = "Bold", },
-				VerticalJustificationNew = Input { Value = 3, },
-				HorizontalJustificationNew = Input { Value = 3, },
-				ManualFontKerningPlacement = Input {
-					Value = StyledText {
-						Array = {
-						},
-						Value = ""
-					},
-				},
-			},
-			ViewInfo = OperatorInfo { Pos = { -825, 1336.5 } },
-		},
-		Transform4 = Transform {
-			Inputs = {
-				Size = Input { Value = 0.89634765625, },
-				Input = Input {
-					SourceOp = "Text1_1_1",
-					Source = "Output",
-				},
-			},
-			ViewInfo = OperatorInfo { Pos = { -715, 346.5 } },
-		},
-		Text1_1_1 = TextPlus {
-			Inputs = {
-				HorizontalJustification = Input { Value = 1, },
-				Alignment = Input { Value = 1, },
-				GlobalOut = Input { Value = 1, },
-				Width = Input { Value = 1920, },
-				Height = Input { Value = 1080, },
-				Center = Input { Value = { 0.5, 0.545083011716293 }, },
-				Red1 = Input { Value = 0.778792858123779, },
-				Green1 = Input { Value = 0.0274509191513062, },
-				Blue1 = Input { Value = 0.0961014628410339, },
-				StyledText = Input { Value = "2", },
-				Font = Input { Value = "DejaVu Sans", },
-				Style = Input { Value = "Bold", },
-				VerticalJustificationNew = Input { Value = 3, },
-				HorizontalJustificationNew = Input { Value = 3, },
-				ManualFontKerningPlacement = Input {
-					Value = StyledText {
-						Array = {
-						},
-						Value = ""
-					},
-				},
-			},
-			ViewInfo = OperatorInfo { Pos = { -825, 346.5 } },
-		},
 		Instance_Crop1_3_1_6 = Crop {
 			SourceOp = "Instance_Crop1_2_1_6",
 			Inputs = {
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
 				ResetSize = Input { },
 				ResetOffset = Input { },
 				Input = Input {
@@ -5576,27 +5676,8 @@ Composition {
 					Source = "Output",
 				},
 				AutoCrop = Input { },
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 220, 1435.5 } },
-		},
-		Instance_Scale1_3_1_6 = Scale {
-			SourceOp = "Instance_Scale1_2_1_6",
-			Inputs = {
-				SettingsNest = Input { },
-				Input = Input {
-					SourceOp = "Instance_Crop1_3_1_6",
-					Source = "Output",
-				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
-			},
-			ViewInfo = OperatorInfo { Pos = { 330, 1435.5 } },
 		},
 		Saver1_4_1_11 = Saver {
 			CtrlWZoom = false,
@@ -5629,15 +5710,20 @@ Composition {
 			},
 			ViewInfo = OperatorInfo { Pos = { 440, 2425.5 } },
 		},
-		Transform1 = Transform {
+		Instance_Scale1_3_1_6 = Scale {
+			SourceOp = "Instance_Scale1_2_1_6",
 			Inputs = {
-				Center = Input { Value = { 0.8742804276316, 0.493 }, },
+				StartRenderScripts = Input { },
+				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				FrameRenderScriptNest = Input { },
+				CommentsNest = Input { },
 				Input = Input {
-					SourceOp = "Loader2",
+					SourceOp = "Instance_Crop1_3_1_6",
 					Source = "Output",
 				},
 			},
-			ViewInfo = OperatorInfo { Pos = { -825, 214.5 } },
+			ViewInfo = OperatorInfo { Pos = { 330, 1435.5 } },
 		},
 		Merge9 = Merge {
 			Inputs = {
@@ -5669,6 +5755,42 @@ Composition {
 				PerformDepthMerge = Input { Value = 0, },
 			},
 			ViewInfo = OperatorInfo { Pos = { 110, 610.5 } },
+		},
+		Instance_Crop1_4_8 = Crop {
+			SourceOp = "Instance_Crop1_2_1_8",
+			Inputs = {
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
+				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				ResetSize = Input { },
+				ResetOffset = Input { },
+				Input = Input {
+					SourceOp = "Merge3_2_2_8",
+					Source = "Output",
+				},
+				AutoCrop = Input { },
+			},
+			ViewInfo = OperatorInfo { Pos = { 220, 1897.5 } },
+		},
+		Instance_Crop1_4_6 = Crop {
+			SourceOp = "Instance_Crop1_2_1_6",
+			Inputs = {
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
+				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				ResetSize = Input { },
+				ResetOffset = Input { },
+				Input = Input {
+					SourceOp = "Merge3_2_2_6",
+					Source = "Output",
+				},
+				AutoCrop = Input { },
+			},
+			ViewInfo = OperatorInfo { Pos = { 220, 1402.5 } },
 		},
 		ColorCorrector1_2_5 = ColorCorrector {
 			Inputs = {
@@ -5704,41 +5826,6 @@ Composition {
 			},
 			ViewInfo = OperatorInfo { Pos = { -605, 1171.5 } },
 		},
-		Instance_Crop1_4_6 = Crop {
-			SourceOp = "Instance_Crop1_2_1_6",
-			Inputs = {
-				SettingsNest = Input { },
-				ResetSize = Input { },
-				ResetOffset = Input { },
-				Input = Input {
-					SourceOp = "Merge3_2_2_6",
-					Source = "Output",
-				},
-				AutoCrop = Input { },
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
-			},
-			ViewInfo = OperatorInfo { Pos = { 220, 1402.5 } },
-		},
-		Merge3_2_1_2_1_4 = Merge {
-			Inputs = {
-				Background = Input {
-					SourceOp = "Merge4_1_3_4",
-					Source = "Output",
-				},
-				Foreground = Input {
-					SourceOp = "Instance_Transform4",
-					Source = "Output",
-				},
-				Center = Input { Value = { 0.5, 0.348452853538338 }, },
-				Size = Input { Value = 0.864555848724714, },
-				FilterMethod = Input { Value = 5, },
-				PerformDepthMerge = Input { Value = 0, },
-			},
-			ViewInfo = OperatorInfo { Pos = { -220, 1006.5 } },
-		},
 		Saver1_2_1_9 = Saver {
 			Inputs = {
 				ProcessWhenBlendIs00 = Input { Value = 0, },
@@ -5769,31 +5856,39 @@ Composition {
 			},
 			ViewInfo = OperatorInfo { Pos = { 440, 2029.5 } },
 		},
-		Text1_1_1_10 = TextPlus {
+		ColorCorrector1_2 = ColorCorrector {
 			Inputs = {
-				HorizontalJustification = Input { Value = 1, },
-				Alignment = Input { Value = 1, },
-				GlobalOut = Input { Value = 1, },
-				Width = Input { Value = 1920, },
-				Height = Input { Value = 1080, },
-				Center = Input { Value = { 0.5, 0.545083011716293 }, },
-				Red1 = Input { Value = 0.778792858123779, },
-				Green1 = Input { Value = 0.0274509191513062, },
-				Blue1 = Input { Value = 0.0961014628410339, },
-				StyledText = Input { Value = "K", },
-				Font = Input { Value = "DejaVu Sans", },
-				Style = Input { Value = "Bold", },
-				VerticalJustificationNew = Input { Value = 3, },
-				HorizontalJustificationNew = Input { Value = 3, },
-				ManualFontKerningPlacement = Input {
-					Value = StyledText {
-						Array = {
-						},
-						Value = ""
+				WheelSaturation1 = Input { Value = 0, },
+				MasterRGBGain = Input { Value = 0, },
+				ColorRanges = Input {
+					Value = ColorCurves {
+						Curves = {
+							{
+								Points = {
+									{ 0, 1 },
+									{ 0.4, 0.2 },
+									{ 0.6, 0 },
+									{ 1, 0 }
+								}
+							},
+							{
+								Points = {
+									{ 0, 0 },
+									{ 0.4, 0 },
+									{ 0.6, 0.2 },
+									{ 1, 1 }
+								}
+							}
+						}
 					},
 				},
+				HistogramIgnoreTransparent = Input { Value = 1, },
+				Input = Input {
+					SourceOp = "Transform4",
+					Source = "Output",
+				},
 			},
-			ViewInfo = OperatorInfo { Pos = { -825, 2161.5 } },
+			ViewInfo = OperatorInfo { Pos = { -605, 346.5 } },
 		},
 		Saver1_5_5 = Saver {
 			Inputs = {
@@ -5828,7 +5923,11 @@ Composition {
 		Instance_Crop1_4_10 = Crop {
 			SourceOp = "Instance_Crop1_2_1_10",
 			Inputs = {
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
 				ResetSize = Input { },
 				ResetOffset = Input { },
 				Input = Input {
@@ -5836,10 +5935,6 @@ Composition {
 					Source = "Output",
 				},
 				AutoCrop = Input { },
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 220, 2227.5 } },
 		},
@@ -5877,50 +5972,41 @@ Composition {
 			},
 			ViewInfo = OperatorInfo { Pos = { -110, 544.5 } },
 		},
-		Merge4_1_1_2_6 = Merge {
+		Instance_Crop1_1 = Crop {
+			SourceOp = "Crop1",
 			Inputs = {
-				Background = Input {
-					SourceOp = "Background2",
-					Source = "Output",
-				},
-				Foreground = Input {
-					SourceOp = "Instance_Transform4_9",
-					Source = "Output",
-				},
-				Center = Input { Value = { 0.5, 0.490328820116054 }, },
-				PerformDepthMerge = Input { Value = 0, },
-			},
-			ViewInfo = OperatorInfo { Pos = { -495, 1402.5 } },
-		},
-		Saver1_4_1_8 = Saver {
-			Inputs = {
-				ProcessWhenBlendIs00 = Input { Value = 0, },
-				Clip = Input {
-					Value = Clip {
-						Filename = "/home/pp/projects/pypoks/gui/cards/dfR/JD.png",
-						FormatID = "PNGFormat",
-						Length = 0,
-						Saving = true,
-						TrimIn = 0,
-						ExtendFirst = 0,
-						ExtendLast = 0,
-						Loop = 1,
-						AspectMode = 0,
-						Depth = 0,
-						TimeCode = 0,
-						GlobalStart = -2000000000,
-						GlobalEnd = 0
-					},
-				},
-				OutputFormat = Input { Value = FuID { "PNGFormat" }, },
-				["Gamut.SLogVersion"] = Input { Value = FuID { "SLog2" }, },
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
+				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				ResetSize = Input { },
+				ResetOffset = Input { },
 				Input = Input {
-					SourceOp = "Instance_Scale1_3_1_8",
+					SourceOp = "Merge3_2_1_2",
 					Source = "Output",
 				},
-				["PNGFormat.PreDivide"] = Input { Value = 1, },
+				AutoCrop = Input { },
 			},
-			ViewInfo = OperatorInfo { Pos = { 440, 1930.5 } },
+			ViewInfo = OperatorInfo { Pos = { 220, 1501.5 } },
+		},
+		Instance_Crop1_3_1_8 = Crop {
+			SourceOp = "Instance_Crop1_2_1_8",
+			Inputs = {
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
+				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				ResetSize = Input { },
+				ResetOffset = Input { },
+				Input = Input {
+					SourceOp = "Merge3_2_1_3_8",
+					Source = "Output",
+				},
+				AutoCrop = Input { },
+			},
+			ViewInfo = OperatorInfo { Pos = { 220, 1930.5 } },
 		},
 		Polygon4 = PolylineMask {
 			DrawMode = "InsertAndModify",
@@ -5943,54 +6029,56 @@ Composition {
 			},
 			ViewInfo = OperatorInfo { Pos = { -385, 181.5 } },
 		},
+		Instance_Crop1_1_1_8 = Crop {
+			SourceOp = "Instance_Crop1_2_1_8",
+			Inputs = {
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
+				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				ResetSize = Input { },
+				ResetOffset = Input { },
+				Input = Input {
+					SourceOp = "Merge3_2_1_2_1_8",
+					Source = "Output",
+				},
+				AutoCrop = Input { },
+			},
+			ViewInfo = OperatorInfo { Pos = { 220, 1831.5 } },
+		},
+		Instance_Transform4_15 = Transform {
+			SourceOp = "Transform4",
+			Inputs = {
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
+				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				TransformNest = Input { },
+				ReferenceSize = Input { },
+				Input = Input {
+					SourceOp = "Text1_1_1_11",
+					Source = "Output",
+				},
+				EffectMask = Input { }
+			},
+			ViewInfo = OperatorInfo { Pos = { -715, 2326.5 } },
+		},
 		Instance_Scale1_1_1_1 = Scale {
 			SourceOp = "Instance_Scale1_2_1_1",
 			Inputs = {
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				FrameRenderScriptNest = Input { },
+				CommentsNest = Input { },
 				Input = Input {
 					SourceOp = "Instance_Crop1_1_1_1",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 330, 511.5 } },
-		},
-		Merge3_2_1_3 = Merge {
-			Inputs = {
-				Background = Input {
-					SourceOp = "Merge4_1_1_2",
-					Source = "Output",
-				},
-				Foreground = Input {
-					SourceOp = "Instance_Transform4_3",
-					Source = "Output",
-				},
-				Center = Input { Value = { 0.5, 0.354255561468705 }, },
-				Size = Input { Value = 0.883932231992637, },
-				FilterMethod = Input { Value = 5, },
-				PerformDepthMerge = Input { Value = 0, },
-			},
-			ViewInfo = OperatorInfo { Pos = { 110, 445.5 } },
-		},
-		Merge3_2_2_1 = Merge {
-			Inputs = {
-				Background = Input {
-					SourceOp = "Merge4_1_1_2_1",
-					Source = "Output",
-				},
-				Foreground = Input {
-					SourceOp = "Instance_Transform4_2",
-					Source = "Output",
-				},
-				Center = Input { Value = { 0.5, 0.336847437677603 }, },
-				Size = Input { Value = 0.949970674486804, },
-				FilterMethod = Input { Value = 5, },
-				PerformDepthMerge = Input { Value = 0, },
-			},
-			ViewInfo = OperatorInfo { Pos = { 0, 577.5 } },
 		},
 		ColorCorrector1_2_7 = ColorCorrector {
 			Inputs = {
@@ -6029,7 +6117,11 @@ Composition {
 		Instance_Crop1_4_2 = Crop {
 			SourceOp = "Instance_Crop1_2_1_2",
 			Inputs = {
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
 				ResetSize = Input { },
 				ResetOffset = Input { },
 				Input = Input {
@@ -6037,37 +6129,23 @@ Composition {
 					Source = "Output",
 				},
 				AutoCrop = Input { },
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 220, 742.5 } },
 		},
-		Text1_2 = TextPlus {
+		Instance_Scale1_1 = Scale {
+			SourceOp = "Scale1",
 			Inputs = {
-				GlobalOut = Input { Value = 1, },
-				Width = Input { Value = 1920, },
-				Height = Input { Value = 1080, },
-				["Gamut.SLogVersion"] = Input { Value = FuID { "SLog2" }, },
-				Center = Input { Value = { 0.499178403755869, 0.505575467941059 }, },
-				Green1 = Input { Value = 0.0156862754374743, },
-				Blue1 = Input { Value = 0.0156862754374743, },
-				StyledText = Input { Value = "AI", },
-				Font = Input { Value = "Open Sans", },
-				Style = Input { Value = "Extrabold Italic", },
-				Size = Input { Value = 0.0302, },
-				VerticalJustificationNew = Input { Value = 3, },
-				HorizontalJustificationNew = Input { Value = 3, },
-				ManualFontKerningPlacement = Input {
-					Value = StyledText {
-						Array = {
-						},
-						Value = ""
-					},
+				StartRenderScripts = Input { },
+				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				FrameRenderScriptNest = Input { },
+				CommentsNest = Input { },
+				Input = Input {
+					SourceOp = "Instance_Crop1_1",
+					Source = "Output",
 				},
 			},
-			ViewInfo = OperatorInfo { Pos = { -165, -412.5 } },
+			ViewInfo = OperatorInfo { Pos = { 330, 1501.5 } },
 		},
 		Instance_Scale1_2_1_9 = Scale {
 			Inputs = {
@@ -6081,40 +6159,46 @@ Composition {
 			},
 			ViewInfo = OperatorInfo { Pos = { 330, 2029.5 } },
 		},
-		Merge4_1_1_2_8 = Merge {
+		Merge3_2_1_3_4 = Merge {
 			Inputs = {
 				Background = Input {
-					SourceOp = "Background2",
+					SourceOp = "Merge4_1_1_2_4",
 					Source = "Output",
 				},
 				Foreground = Input {
-					SourceOp = "Instance_Transform4_12",
+					SourceOp = "Instance_Transform4_3",
 					Source = "Output",
 				},
-				Center = Input { Value = { 0.5, 0.490328820116054 }, },
+				Center = Input { Value = { 0.5, 0.354255561468705 }, },
+				Size = Input { Value = 0.883932231992637, },
+				FilterMethod = Input { Value = 5, },
 				PerformDepthMerge = Input { Value = 0, },
 			},
-			ViewInfo = OperatorInfo { Pos = { -495, 1897.5 } },
+			ViewInfo = OperatorInfo { Pos = { 110, 1105.5 } },
 		},
 		Instance_Scale1_3_1 = Scale {
 			SourceOp = "Instance_Scale1_2_1",
 			Inputs = {
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
+				FrameRenderScriptNest = Input { },
+				CommentsNest = Input { },
 				Input = Input {
 					SourceOp = "Instance_Crop1_3_1",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 330, 445.5 } },
 		},
 		Instance_Crop1_4_3 = Crop {
 			SourceOp = "Instance_Crop1_2_1_3",
 			Inputs = {
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
 				ResetSize = Input { },
 				ResetOffset = Input { },
 				Input = Input {
@@ -6122,34 +6206,26 @@ Composition {
 					Source = "Output",
 				},
 				AutoCrop = Input { },
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 220, 907.5 } },
 		},
-		Merge4_1_1_2_9 = Merge {
+		Merge4_1_1_2_2 = Merge {
 			Inputs = {
 				Background = Input {
 					SourceOp = "Background2",
 					Source = "Output",
 				},
 				Foreground = Input {
-					SourceOp = "Instance_Transform4_13",
+					SourceOp = "Instance_Transform4_5",
 					Source = "Output",
 				},
 				Center = Input { Value = { 0.5, 0.490328820116054 }, },
 				PerformDepthMerge = Input { Value = 0, },
 			},
-			ViewInfo = OperatorInfo { Pos = { -495, 2062.5 } },
+			ViewInfo = OperatorInfo { Pos = { -495, 742.5 } },
 		},
 		Merge7 = Merge {
 			Inputs = {
-				EffectMask = Input {
-					SourceOp = "Ellipse3_1",
-					Source = "Mask",
-				},
 				Background = Input {
 					SourceOp = "Background4_1_1",
 					Source = "Output",
@@ -6161,23 +6237,42 @@ Composition {
 				Center = Input { Value = { 0.5, 0.448598130841121 }, },
 				Size = Input { Value = 0.084, },
 				PerformDepthMerge = Input { Value = 0, },
+				EffectMask = Input {
+					SourceOp = "Ellipse3_1",
+					Source = "Mask",
+				}
 			},
 			ViewInfo = OperatorInfo { Pos = { -440, -379.5 } },
 		},
-		Merge4_1_1_2_5 = Merge {
+		Saver1_2_1 = Saver {
 			Inputs = {
-				Background = Input {
-					SourceOp = "Background2",
+				ProcessWhenBlendIs00 = Input { Value = 0, },
+				Clip = Input {
+					Value = Clip {
+						Filename = "/home/pp/projects/pypoks/gui/cards/dfR/2C.png",
+						FormatID = "PNGFormat",
+						Length = 0,
+						Saving = true,
+						TrimIn = 0,
+						ExtendFirst = 0,
+						ExtendLast = 0,
+						Loop = 1,
+						AspectMode = 0,
+						Depth = 0,
+						TimeCode = 0,
+						GlobalStart = -2000000000,
+						GlobalEnd = 0
+					},
+				},
+				OutputFormat = Input { Value = FuID { "PNGFormat" }, },
+				["Gamut.SLogVersion"] = Input { Value = FuID { "SLog2" }, },
+				Input = Input {
+					SourceOp = "Instance_Scale1_2_1",
 					Source = "Output",
 				},
-				Foreground = Input {
-					SourceOp = "Instance_Transform4_8",
-					Source = "Output",
-				},
-				Center = Input { Value = { 0.5, 0.490328820116054 }, },
-				PerformDepthMerge = Input { Value = 0, },
+				["PNGFormat.PreDivide"] = Input { Value = 1, },
 			},
-			ViewInfo = OperatorInfo { Pos = { -495, 1237.5 } },
+			ViewInfo = OperatorInfo { Pos = { 440, 379.5 } },
 		},
 		Merge3_2_1_1_1_10 = Merge {
 			Inputs = {
@@ -6196,12 +6291,27 @@ Composition {
 			},
 			ViewInfo = OperatorInfo { Pos = { -110, 2194.5 } },
 		},
-		Saver1_2_1_10 = Saver {
+		Merge4_1_1_2_5 = Merge {
+			Inputs = {
+				Background = Input {
+					SourceOp = "Background2",
+					Source = "Output",
+				},
+				Foreground = Input {
+					SourceOp = "Instance_Transform4_8",
+					Source = "Output",
+				},
+				Center = Input { Value = { 0.5, 0.490328820116054 }, },
+				PerformDepthMerge = Input { Value = 0, },
+			},
+			ViewInfo = OperatorInfo { Pos = { -495, 1237.5 } },
+		},
+		Saver1_3 = Saver {
 			Inputs = {
 				ProcessWhenBlendIs00 = Input { Value = 0, },
 				Clip = Input {
 					Value = Clip {
-						Filename = "/home/pp/projects/pypoks/gui/cards/dfR/KC.png",
+						Filename = "/home/pp/projects/pypoks/gui/cards/dfR/9S.png",
 						FormatID = "PNGFormat",
 						Length = 0,
 						Saving = true,
@@ -6219,17 +6329,21 @@ Composition {
 				OutputFormat = Input { Value = FuID { "PNGFormat" }, },
 				["Gamut.SLogVersion"] = Input { Value = FuID { "SLog2" }, },
 				Input = Input {
-					SourceOp = "Instance_Scale1_2_1_10",
+					SourceOp = "Instance_Scale1_1",
 					Source = "Output",
 				},
 				["PNGFormat.PreDivide"] = Input { Value = 1, },
 			},
-			ViewInfo = OperatorInfo { Pos = { 440, 2194.5 } },
+			ViewInfo = OperatorInfo { Pos = { 440, 1501.5 } },
 		},
 		Instance_Crop1_3_1_5 = Crop {
 			SourceOp = "Instance_Crop1_2_1_5",
 			Inputs = {
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
 				ResetSize = Input { },
 				ResetOffset = Input { },
 				Input = Input {
@@ -6237,10 +6351,6 @@ Composition {
 					Source = "Output",
 				},
 				AutoCrop = Input { },
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 220, 1270.5 } },
 		},
@@ -6277,54 +6387,20 @@ Composition {
 		Instance_Transform4_5 = Transform {
 			SourceOp = "Transform4",
 			Inputs = {
-				EffectMask = Input { },
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
 				TransformNest = Input { },
 				ReferenceSize = Input { },
 				Input = Input {
 					SourceOp = "Text1_1_1_2",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
+				EffectMask = Input { }
 			},
 			ViewInfo = OperatorInfo { Pos = { -715, 676.5 } },
-		},
-		ColorCorrector1_2_2 = ColorCorrector {
-			Inputs = {
-				WheelSaturation1 = Input { Value = 0, },
-				MasterRGBGain = Input { Value = 0, },
-				ColorRanges = Input {
-					Value = ColorCurves {
-						Curves = {
-							{
-								Points = {
-									{ 0, 1 },
-									{ 0.4, 0.2 },
-									{ 0.6, 0 },
-									{ 1, 0 }
-								}
-							},
-							{
-								Points = {
-									{ 0, 0 },
-									{ 0.4, 0 },
-									{ 0.6, 0.2 },
-									{ 1, 1 }
-								}
-							}
-						}
-					},
-				},
-				HistogramIgnoreTransparent = Input { Value = 1, },
-				Input = Input {
-					SourceOp = "Instance_Transform4_5",
-					Source = "Output",
-				},
-			},
-			ViewInfo = OperatorInfo { Pos = { -605, 676.5 } },
 		},
 		Background1 = Background {
 			Inputs = {
@@ -6340,37 +6416,32 @@ Composition {
 		Instance_Transform4_4 = Transform {
 			SourceOp = "Transform4",
 			Inputs = {
-				EffectMask = Input { },
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
 				TransformNest = Input { },
 				ReferenceSize = Input { },
 				Input = Input {
 					SourceOp = "Text1_1_1_1",
 					Source = "Output",
 				},
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
+				EffectMask = Input { }
 			},
 			ViewInfo = OperatorInfo { Pos = { -715, 511.5 } },
 		},
 		Text1_1_1_7 = TextPlus {
 			Inputs = {
-				HorizontalJustification = Input { Value = 1, },
-				Alignment = Input { Value = 1, },
+				HorizontalJustificationNew = Input { Value = 3, },
+				VerticalJustificationNew = Input { Value = 3, },
 				GlobalOut = Input { Value = 1, },
 				Width = Input { Value = 1920, },
 				Height = Input { Value = 1080, },
 				Center = Input { Value = { 0.5, 0.545083011716293 }, },
-				Red1 = Input { Value = 0.778792858123779, },
-				Green1 = Input { Value = 0.0274509191513062, },
-				Blue1 = Input { Value = 0.0961014628410339, },
-				StyledText = Input { Value = "T", },
 				Font = Input { Value = "DejaVu Sans", },
+				StyledText = Input { Value = "T", },
 				Style = Input { Value = "Bold", },
-				VerticalJustificationNew = Input { Value = 3, },
-				HorizontalJustificationNew = Input { Value = 3, },
 				ManualFontKerningPlacement = Input {
 					Value = StyledText {
 						Array = {
@@ -6378,6 +6449,11 @@ Composition {
 						Value = ""
 					},
 				},
+				Alignment = Input { Value = 1, },
+				HorizontalJustification = Input { Value = 1, },
+				Red1 = Input { Value = 0.778792858123779, },
+				Green1 = Input { Value = 0.0274509191513062, },
+				Blue1 = Input { Value = 0.0961014628410339, },
 			},
 			ViewInfo = OperatorInfo { Pos = { -825, 1666.5 } },
 		},
@@ -6399,7 +6475,11 @@ Composition {
 		Instance_Crop1_1_1_4 = Crop {
 			SourceOp = "Instance_Crop1_2_1_4",
 			Inputs = {
+				CommentsNest = Input { },
+				FrameRenderScriptNest = Input { },
+				StartRenderScripts = Input { },
 				SettingsNest = Input { },
+				EndRenderScripts = Input { },
 				ResetSize = Input { },
 				ResetOffset = Input { },
 				Input = Input {
@@ -6407,10 +6487,6 @@ Composition {
 					Source = "Output",
 				},
 				AutoCrop = Input { },
-				CommentsNest = Input { },
-				FrameRenderScriptNest = Input { },
-				StartRenderScripts = Input { },
-				EndRenderScripts = Input { },
 			},
 			ViewInfo = OperatorInfo { Pos = { 220, 1006.5 } },
 		},
@@ -6428,10 +6504,6 @@ Composition {
 		},
 		Merge4 = Merge {
 			Inputs = {
-				EffectMask = Input {
-					SourceOp = "Polygon3",
-					Source = "Mask",
-				},
 				Background = Input {
 					SourceOp = "Background2",
 					Source = "Output",
@@ -6441,6 +6513,10 @@ Composition {
 					Source = "Output",
 				},
 				PerformDepthMerge = Input { Value = 0, },
+				EffectMask = Input {
+					SourceOp = "Polygon3",
+					Source = "Mask",
+				}
 			},
 			ViewInfo = OperatorInfo { Pos = { -495, 247.5 } },
 		},
@@ -6454,6 +6530,23 @@ Composition {
 				},
 			},
 			ViewInfo = OperatorInfo { Pos = { -605, 214.5 } },
+		},
+		Merge3_2_1_1_1_11 = Merge {
+			Inputs = {
+				Background = Input {
+					SourceOp = "Merge4_1_3_11",
+					Source = "Output",
+				},
+				Foreground = Input {
+					SourceOp = "Instance_Transform4_1",
+					Source = "Output",
+				},
+				Center = Input { Value = { 0.5, 0.34458438158476 }, },
+				Size = Input { Value = 0.961301671064204, },
+				FilterMethod = Input { Value = 5, },
+				PerformDepthMerge = Input { Value = 0, },
+			},
+			ViewInfo = OperatorInfo { Pos = { -110, 2359.5 } },
 		},
 		Merge4_1_3_11 = Merge {
 			Inputs = {
@@ -6469,23 +6562,6 @@ Composition {
 				PerformDepthMerge = Input { Value = 0, },
 			},
 			ViewInfo = OperatorInfo { Pos = { -495, 2326.5 } },
-		},
-		Merge3_2_1_1 = Merge {
-			Inputs = {
-				Background = Input {
-					SourceOp = "Merge4_1",
-					Source = "Output",
-				},
-				Foreground = Input {
-					SourceOp = "Instance_Transform4_1",
-					Source = "Output",
-				},
-				Center = Input { Value = { 0.5, 0.34458438158476 }, },
-				Size = Input { Value = 0.961301671064204, },
-				FilterMethod = Input { Value = 5, },
-				PerformDepthMerge = Input { Value = 0, },
-			},
-			ViewInfo = OperatorInfo { Pos = { -110, 1534.5 } },
 		},
 		Rectangle2 = RectangleMask {
 			Inputs = {
@@ -6587,9 +6663,39 @@ Composition {
 				["PNGFormat.PreDivide"] = Input { Value = 1, },
 			},
 			ViewInfo = OperatorInfo { Pos = { 440, 2359.5 } },
+		},
+		Background3_1_1 = Background {
+			Inputs = {
+				GlobalOut = Input { Value = 1, },
+				Width = Input { Value = 400, },
+				Height = Input { Value = 34, },
+				["Gamut.SLogVersion"] = Input { Value = FuID { "SLog2" }, },
+				TopLeftRed = Input { Value = 1, },
+				TopLeftGreen = Input { Value = 1, },
+				TopLeftBlue = Input { Value = 1, },
+				TopLeftAlpha = Input { Value = 0, },
+			},
+			ViewInfo = OperatorInfo { Pos = { 275, -544.5 } },
+		},
+		Instance_Merge11_1 = Merge {
+			SourceOp = "Merge11_1",
+			Inputs = {
+				Background = Input {
+					SourceOp = "Background3_1_1",
+					Source = "Output",
+				},
+				Foreground = Input {
+					SourceOp = "Loader7",
+					Source = "Output",
+				},
+				ReferenceSize = Input { },
+				StartEndRenderScripts = Input { },
+				EffectMask = Input { }
+			},
+			ViewInfo = OperatorInfo { Pos = { 385, -544.5 } },
 		}
 	},
-	Frames = {
+	Views = {
 		{
 			FrameTypeID = "ChildFrame",
 			Mode = 3,
@@ -6597,79 +6703,19 @@ Composition {
 			Left = 0,
 			Top = 27,
 			Width = 2560,
-			Height = 1296,
-			ZoneInfo = {
-				["!Right"] = {
-				},
-				["!Left"] = {
-				},
-				AuxLeft = { Expanded = true },
-				Right = { Expanded = true, },
-				Left = { Expanded = false, },
-				AuxRight = { Expanded = true }
-			},
-			ViewInfo = {
-				Viewer1 = { Show = true, RatioY = 1, RatioX = 0.500784108729744, },
-				InnerLeft = {
-				},
-				MainSplit = {
-					RatioX = 1,
-					RatioY = 0.559362549800797,
-				},
-				CenterSplit = {
-					RatioX = 0.748533437622214,
-					RatioY = 1,
-				},
-				Viewer2 = { Show = true, RatioY = 1, RatioX = 0.499215891270256, },
-				Comments = { Show = false },
-				Time = { Show = true, PixelY = 83, RatioX = 1, },
-				InnerColumns = {
-					RatioX = 1,
-					RatioY = 0.400796812749004,
-				},
-				Keyframes = { Show = false, },
-				LayoutStrip = { Show = true, RatioX = 1, },
-				Inspector = { Show = true, RatioX = 1, RatioY = 1, MRU = 1, Adjust = false, },
-				InnerRight = {
-				},
-				ActionStrip = { Show = true, RatioX = 1, },
-				OuterColumns = {
-					RatioX = 1,
-					RatioY = 0.97215777262181,
-				},
-				Effects = { Show = false, },
-				Clips = { Show = false, },
-				Metadata = { Show = false, },
-				OuterLeft = {
-				},
-				ViewerSplit = {
-					RatioX = 1,
-					RatioY = 0.834661354581673,
-				},
-				Nodes = { Show = true, RatioY = 1, RatioX = 1, },
-				OuterRight = {
-					RatioY = 1,
-					PixelX = 643,
-				},
-				MediaPool = { Show = false, },
-				Spline = { Show = false, }
-			},
+			Height = 1227,
 			Views = ordered() {
-				Effects = MultiView {
-					Active = "EffectView",
+				Main = MultiView {
+					Active = "Flow",
 					ViewList = ordered() {
-						EffectView = "EffectView"
+						Flow = "FlowView",
+						Console = "ConsoleView",
+						Timeline = "TimelineView",
+						Spline = "SplineEditorView",
+						Info = "InfoView",
+						Chat = "ChatView"
 					},
-				},
-				Nodes = MultiView {
-					Active = "FlowView",
-					ViewList = ordered() {
-						FlowView = "FlowView"
-					},
-					Names = {
-						FlowView = "FlowView"
-					},
-					FlowView = FlowView {
+					Flow = FlowView {
 						Flags = {
 							Navigator = true,
 							AutoHideNavigator = true,
@@ -6680,19 +6726,10 @@ Composition {
 						NavigatorSize = { 200, 140 },
 						Direction = "Horizontal",
 						PipeStyle = "Direct",
-						RootScale = 0.723485,
-						RootOffset = { 906.64, 738.488 }
-					}
-				},
-				Keyframes = MultiView {
-					Active = "TimelineView",
-					ViewList = ordered() {
-						TimelineView = "TimelineView"
+						Scale = 1,
+						Offset = { 1228, 772 }
 					},
-					Names = {
-						TimelineView = "TimelineView"
-					},
-					TimelineView = TimelineView {
+					Timeline = TimelineView {
 						TreeControlState = {
 						},
 						DisplayMode = "All Tools",
@@ -6702,7 +6739,7 @@ Composition {
 						ShowAnimatedToolsOnly = false,
 						ShowEditBoxes = false,
 						KeyFrameView = {
-							Position = { Left = 232, Bottom = 320 },
+							Position = { Left = 150, Bottom = 343 },
 							ScaleX = 0.00214424951267057,
 							OffsetX = -0.0514619883040936,
 							OffsetY = 0,
@@ -6712,22 +6749,13 @@ Composition {
 							GuidelinesGrabEnabled = true,
 							GuidelinesSnapTo = "frame"
 						},
-						Spreadsheet = { LeftPos = 232, Visible = false }
-					}
-				},
-				Spline = MultiView {
-					Active = "SplineView",
-					ViewList = ordered() {
-						SplineView = "SplineEditorView"
+						Spreadsheet = { LeftPos = 150, Visible = false }
 					},
-					Names = {
-						SplineView = "SplineView"
-					},
-					SplineView = SplineEditorView {
-						LeftPos = 264,
+					Spline = SplineEditorView {
+						LeftPos = 256,
 						ScaleX = 0.2,
 						ScaleY = 0.00338983050847458,
-						OffsetX = -3.4,
+						OffsetX = -4,
 						OffsetY = 0,
 						AutoScaling = "scroll",
 						AutoSnapTo = "frame",
@@ -6741,86 +6769,70 @@ Composition {
 						ShowSelectedTools = false,
 						ShowAllInputs = false,
 						Filter = "Show All"
-					}
+					},
 				},
-				Inspector = MultiView {
+				Controls = MultiView {
 					Active = "Tools",
 					ViewList = ordered() {
 						Tools = "ControlView",
 						Modifiers = "ModifierView"
 					},
 				},
-				Viewer1 = MultiView {
-					Active = "LeftView",
-					ViewList = ordered() {
-						LeftView = "PreviewContainer"
-					},
-					Names = {
-						LeftView = "LeftView"
-					},
-				},
-				Viewer2 = MultiView {
-					Active = "RightView",
-					ViewList = ordered() {
-						RightView = "PreviewContainer"
-					},
-					Names = {
-						RightView = "RightView"
-					},
-				},
-				Time = "TimeView",
-				ActionStrip = "ActionStripView",
-				LayoutStrip = "LayoutStripView"
+				Left = "PreviewContainer",
+				Right = "PreviewContainer",
+				Transport = "TransportView",
+				Time = "TimeView"
 			},
 			Layout = {
-				Rows = 2,
+				Columns = 2,
 				RatioX = 1,
 				RatioY = 1,
-				{ ID = "LayoutStrip", RatioX = 1, FixedY = 36, Flat = true },
 				{
-					Columns = 2,
-					RatioY = 0.97215777262181,
+					Rows = 3,
+					RatioX = 0.865362035225049,
+					RatioY = 0.00979591836734694,
 					{
-						Rows = 3,
-						RatioX = 0.748533437622214,
-						RatioY = 1,
-						{
-							Rows = 2,
-							RatioX = 1,
-							RatioY = 1,
-							{
-								Columns = 2,
-								RatioX = 1,
-								RatioY = 0.834661354581673,
-								{ ID = "Viewer1", RatioX = 0.500784108729744, RatioY = 1 },
-								{ ID = "Viewer2", RatioX = 0.499215891270256 }
-							},
-							{ ID = "Time", FixedY = 83, Flat = true }
-						},
-						{ ID = "ActionStrip", FixedY = 50, Flat = true },
-						{ ID = "Nodes", RatioX = 1, RatioY = 1 }
+						Columns = 2,
+						RatioX = 1,
+						RatioY = 0.4766201804758,
+						{ ID = "Left", RatioX = 0.5, RatioY = 0.0103270223752151, Pop = true },
+						{ ID = "Right", RatioX = 0.5, Pop = true },
+						Pop = true
 					},
-					{ ID = "Inspector", RatioX = 1, RatioY = 1 }
+					{ ID = "Main", RatioY = 0.475799835931091, Pop = true },
+					{ ID = "Time", SnapY = 56, Flat = true }
+				},
+				{
+					Rows = 2,
+					PixelX = 342,
+					{ ID = "Controls", RatioX = 1, RatioY = 1 },
+					{ ID = "Transport", FixedY = -2 }
 				}
 			}
 		}
 	},
 	Prefs = {
 		Comp = {
+			Interactive = {
+				Proxy = {
+					Auto = false
+				},
+			},
 			Views = {
 				Right = {
 					Viewer = {
-						ScaleMode = 1
-					}
+						ScaleMode = 0,
+						Channel = 4294967295,
+					},
 				},
 				Left = {
 					Viewer = {
 						ScaleMode = 0,
-						Channel = 4294967295
+						Channel = 4294967295,
 					},
 					Guides = {
-						Show = false
-					}
+						Show = false,
+					},
 				},
 				View1 = {
 					PickH = 1,
@@ -6841,7 +6853,7 @@ Composition {
 					PickW = 1,
 					Viewer = {
 						ScaleMode = 0
-					},
+					}
 				},
 				View2 = {
 					PickW = 1,
@@ -6850,12 +6862,12 @@ Composition {
 				LeftView = {
 					PickH = 1,
 					Guides = {
-						Show = false,
+						Show = false
 					},
 					PickW = 1,
 					Viewer = {
-						ScaleMode = 0,
-					},
+						ScaleMode = 0
+					}
 				}
 			},
 			FrameFormat = {
@@ -6917,7 +6929,7 @@ Composition {
 			QuickTime = {
 			},
 		}
-	},
+	}
 }
 
  

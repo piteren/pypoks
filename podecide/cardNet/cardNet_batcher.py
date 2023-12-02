@@ -1,25 +1,27 @@
-import random
-from tqdm import tqdm
-from typing import Dict, Optional
-
+from ompr.runner import RunningWorker, OMPRunner
 from pypaq.lipytools.files import r_pickle, w_pickle
 from pypaq.lipytools.pylogger import get_pylogger
+import random
+from tqdm import tqdm
+from typing import Dict, Optional, List
 
-from pologic.podeck import PDeck, ASC
+from envy import CACHE_FD
+from pologic.podeck import PDeck, ASC, monte_carlo_prob_won
 
 
-# prepares batch of 2x 7cards with regression, MP ready
 def prep2X7batch(
-        deck: Optional[PDeck]=  None,
-        task=                   None,   # needed by QMP, here passed avoid_tuples - list of sorted_card tuples (from test batch) to avoid in batch
-        batch_size=             1000,   # batch size
-        r_balance=              True,   # rank balance (forces to balance ranks)
-        d_balance=              0.1,    # draw balance (False or fraction of draws)
-        no_maskP=               None,   # probability of not masking (all cards are known), for None uses full random
-        n_monte=                30,     # num of montecarlo samples for A win chance estimation
-        asc: dict=              None,
-        verbosity=              0
-) -> Dict[str,list]:
+        deck: Optional[PDeck]=      None,
+        task=                       None,   # needed by OMPR, here passed avoid_tuples - list of sorted_card tuples (from test batch) to avoid in batch
+        batch_size=                 1000,   # batch size
+        r_balance=                  True,   # rank balance (forces to balance ranks)
+        d_balance=                  0.1,    # draw balance (False or fraction of draws)
+        no_maskP: Optional[float]=  None,   # probability of not masking (all cards are known), for None uses full random
+        n_monte=                    30,     # num of montecarlo samples for A win chance estimation
+        asc: ASC=                   None,
+        verbosity=                  0
+) -> Dict[str, List]:
+    """ prepares batch of 2x 7cards
+    MP ready """
 
     if not deck:
         deck = PDeck()
@@ -30,12 +32,11 @@ def prep2X7batch(
     rank_counter = [0]*9
     won_counter =  [0]*3
 
-    iter = range(batch_size)
-    if verbosity: iter = tqdm(iter)
-    for _ in iter:
+    it = range(batch_size)
+    for _ in tqdm(it) if verbosity else it:
         deck.reset()
 
-        # look 4 the last freq rank
+        # look for the last freq rank
         n_min_rank = min(rank_counter)
         desired_rank = rank_counter.index(n_min_rank)
 
@@ -51,7 +52,7 @@ def prep2X7batch(
         got_all_cards = False  # got all (proper) cards
         while not got_all_cards:
 
-            cards_7A = deck.get7of_rank(desired_rank) if r_balance else [deck.get_card() for _ in range(7)] # 7 cards for A
+            cards_7A = deck.get_7of_rank(desired_rank) if r_balance else [deck.get_card() for _ in range(7)] # 7 cards for A
             cards_7B = [deck.get_card() for _ in range(2)] + cards_7A[2:] # 2+5 cards for B
 
             # randomly swap hands of A and B (to avoid win bias)
@@ -87,33 +88,20 @@ def prep2X7batch(
         elif random.random() > no_maskP: nMask = [5,2,1]
         random.shuffle(nMask)
         nMask = nMask[0]
-        for ix in range(2+5-nMask,7): cards_7A[ix] = 52
+        for ix in range(2+5-nMask,7):
+            cards_7A[ix] = 52
 
-        # estimate A win chance with montecarlo
-        n_wins = 0
-        if diff > 0: n_wins = 1
-        if diff == 0: n_wins = 0.5
-        if n_monte > 0:
-            got_cards = {c for c in cards_7A if c!=52} # set
-            for it in range(n_monte):
-                nine_cards = got_cards.copy()
-                while len(nine_cards) < 9: nine_cards.add(int(52 * random.random())) # much faster than random.randrange(52), use numpy.random.randint(52, size=10..) for more
-                nine_cards = sorted(nine_cards)
-                if asc:
-                    aR = asc[tuple(nine_cards[:7])]
-                    bR = asc[tuple(nine_cards[2:])]
-                else:
-                    aR = PDeck.cards_rank(nine_cards[:7])[1]
-                    bR = PDeck.cards_rank(nine_cards[2:])[1]
-                if aR >  bR: n_wins += 1
-                if aR == bR: n_wins += 0.5
-        mcAChance = n_wins / (n_monte + 1)
+        # A win prob
+        mcAChance = monte_carlo_prob_won(
+            cards=      cards_7A,
+            n_samples=  n_monte,
+            asc=        asc)
 
-        b_cA.append(cards_7A)             # 7 cards of A
-        b_cB.append(cards_7B)             # 7 cards of B
+        b_cA.append(cards_7A)       # 7 cards of A
+        b_cB.append(cards_7B)       # 7 cards of B
         b_wins.append(wins)         # who wins {0,1,2}
-        b_rA.append(rank_A)             # rank of A
-        b_rB.append(rank_B)             # rank ok B
+        b_rA.append(rank_A)         # rank of A
+        b_rB.append(rank_B)         # rank ok B
         b_mAWP.append(mcAChance)    # win chances for A
 
     return {
@@ -126,38 +114,149 @@ def prep2X7batch(
         'rank_counter': rank_counter,
         'won_counter':  won_counter}
 
-# prepares tests batch
+
+class Batch2X7_RW(RunningWorker):
+
+    def __init__(
+            self,
+            batch_size: int,
+            n_monte: int):
+        self.deck = PDeck()
+        self.batch_size = batch_size
+        self.n_monte = n_monte
+
+    def process(self, **kwargs) -> Dict[str,List]:
+        batch = prep2X7batch(
+            deck=       self.deck,
+            batch_size= self.batch_size,
+            n_monte=    self.n_monte)
+        batch.pop('rank_counter')
+        batch.pop('won_counter')
+        return batch
+
+
+class OMPRunner_Batch2X7(OMPRunner):
+
+    def __init__(
+            self,
+            rw_class=       Batch2X7_RW,
+            batch_size=     1000,
+            n_monte=        100,
+            devices=        1.0,
+            **kwargs):
+        OMPRunner.__init__(
+            self,
+            rw_class=           rw_class,
+            rw_init_kwargs=     {'batch_size':batch_size, 'n_monte':n_monte},
+            devices=            devices,
+            ordered_results=    False,
+            **kwargs)
+
+
+def _get_batches(
+        logger,
+        n_batches=  10000,
+        batch_size= 1000,
+        n_monte=    10,
+        devices=    1.0,
+) -> List:
+    """ prepares list of batches """
+    logger.info(f'preparing batches {n_batches} x({batch_size},{n_monte})..')
+    ompr = OMPRunner_Batch2X7(
+        batch_size= batch_size,
+        n_monte=    n_monte,
+        devices=    devices,
+        logger=     logger)
+    ompr.process(tasks=[{}] * n_batches)
+    batches = ompr.get_all_results()
+    ompr.exit()
+    return batches
+
+
+def get_train_batches(
+        n_batches=  50000,
+        batch_size= 1000,
+        n_monte=    100,
+        devices=    1.0,
+        logger=     None,
+        loglevel=   20,
+) -> Dict:
+    """ prepares dict with train batches """
+
+    if not logger:
+        logger = get_pylogger(name='get_train_batches', level=loglevel)
+
+    fn = f'{CACHE_FD}/tr{n_batches}_s{batch_size}_m{n_monte}.batches'
+    logger.info(f'Reading train batches from file: {fn} ..')
+    batches = r_pickle(fn)
+    if batches:
+        logger.info(f'got train batches from file: {fn}')
+    else:
+        batches = _get_batches(
+            logger=     logger,
+            n_batches=  n_batches,
+            batch_size= batch_size,
+            n_monte=    n_monte,
+            devices=    devices)
+        w_pickle(batches, fn)
+
+    return batches
+
+
 def get_test_batch(
-        size :int,         # batch size
-        mcs :int,          # n montecarlo samples
-        use_ASC=    True,  # with all seven cards (dict)
-        logger=     None):
+        batch_size :int,
+        n_monte :int,
+        devices=        1.0,
+        logger=         None,
+        loglevel=       20,
+):
+    """ prepares tests batch """
 
-    if not logger: logger = get_pylogger()
+    if not logger:
+        logger = get_pylogger(name='get_test_batch', level=loglevel)
 
-    fn = f'_cache/s{size}_m{mcs}.batch'
+    fn = f'{CACHE_FD}/s{batch_size}_m{n_monte}.batch'
+    logger.info(f'Reading test batch from file: {fn} ..')
     test_batch = r_pickle(fn)
     if test_batch:
         logger.info(f'got test batch from file: {fn}')
     else:
-        logger.info(f'preparing test batch ({size},{mcs})..')
-        test_batch = prep2X7batch(
-            deck=       PDeck(),
-            batch_size= size,
-            n_monte=    mcs,
-            asc=        ASC('_cache/asc.dict') if use_ASC else None,
-            verbosity=  1)
+
+        # prepare batches of size 1
+        batches = _get_batches(
+            logger=     logger,
+            n_batches=  batch_size,
+            batch_size= 1,
+            n_monte=    n_monte,
+            devices=    devices)
+
+        test_batch = {k: [] for k in batches[0]}
+        for b in batches:
+            for k in test_batch:
+                test_batch[k] += b[k]
+
+        logger.info(f'writing the batch ({batch_size},{n_monte}) to {fn} ..')
         w_pickle(test_batch, fn)
+
     c_tuples = []
-    for ix in range(size):
+    for ix in range(batch_size):
         c_tuples.append(tuple(sorted(test_batch['cards_A'][ix])))
         c_tuples.append(tuple(sorted(test_batch['cards_B'][ix])))
-    logger.info(f'got {len(c_tuples)} of hands in test_batch, of which {len(set(c_tuples))} is unique')
+    logger.info(f'got {len(c_tuples)} of hands in test_batch, of which {len(set(c_tuples))} are unique')
     return test_batch, c_tuples
 
 
 if __name__ == "__main__":
 
-    #get_test_batch(2000, 10000)
-     get_test_batch(2000, 100000)
-    #get_test_batch(2000, 10000000)
+    for nm in [
+        10,
+        100,
+    ]:
+        get_train_batches(n_monte=nm)
+
+    for size,mcs in [
+        (2000, 1000),
+        (2000, 100000),
+        (2000, 10000000),
+    ]:
+        get_test_batch(batch_size=size, n_monte=mcs)

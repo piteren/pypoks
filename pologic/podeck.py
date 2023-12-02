@@ -1,11 +1,18 @@
 import itertools
+import numpy as np
 from ompr.runner import RunningWorker, OMPRunner
 from pypaq.lipytools.files import r_pickle, w_pickle
+from pypaq.lipytools.pylogger import get_pylogger
 import random
 import time
-from typing import Any, Union, Tuple, Optional, List
+from torchness.types import NUM, NPL
+from typing import Any, Union, Tuple, Optional, List, Iterable
 from tqdm import tqdm
 
+from envy import ASC_FP
+
+
+ALL_CARDS = np.arange(52) # used by monte_carlo_prob_won()
 
 # card figures
 CRD_FIG = {
@@ -69,49 +76,58 @@ HND_RNK = {
 
 
 class PDeck:
+    """ Poker Cards Deck """
 
     def __init__(self):
-
-        self.__full_init_deck = [PDeck.ctt(ci) for ci in range(52)]
+        self.__full_init_deck = [PDeck._ctt_NUM(ci) for ci in range(52)]
         self.cards = None
         self.reset()
 
-    # resets deck to initial state
+
     def reset(self):
+        """ resets deck to initial state """
         self.cards = [] + self.__full_init_deck
         random.shuffle(self.cards)
 
-    # returns one card from deck
-    def get_card(self) -> int:
+
+    def get_card(self) -> Tuple[int,int]:
+        """ returns one card from deck """
         return self.cards.pop()
 
-    # returns exact card from deck, if id not present >> return None
-    def getex_card(self, card:Union[int,tuple,str]) -> Optional[int]:
-        if type(card) is int or type(card) is str: card = PDeck.ctt(card)
+
+    def get_ex_card(self, card:Union[int,tuple,str]) -> Optional[int]:
+        """ returns exact card from deck
+        if id not present returns None """
+        if type(card) is int or type(card) is str:
+            card = PDeck.ctt(card)
         if card in self.cards:
             self.cards.remove(card)
             return card
         return None
 
-    # returns seven card of given rank
-    def get7of_rank(self, rank :int):
+
+    def get_7of_rank(self, rank:int) -> List[int]:
+        """ returns seven card of given rank """
 
         seven = []
         if rank == 0:
             while True:
                 self.reset()
                 seven = [self.get_card() for _ in range(7)]
-                if self.cards_rank(seven)[0] == 0: break
+                if self.cards_rank(seven)[0] == 0:
+                    break
         if rank == 1:
             while True:
                 self.reset()
                 seven = [self.get_card() for _ in range(7)]
-                if self.cards_rank(seven)[0] == 1: break
+                if self.cards_rank(seven)[0] == 1:
+                    break
         if rank == 2:
             while True:
                 self.reset()
                 seven = [self.get_card() for _ in range(7)]
-                if self.cards_rank(seven)[0] == 2: break
+                if self.cards_rank(seven)[0] == 2:
+                    break
         if rank == 3:
             while True:
                 self.reset()
@@ -122,7 +138,8 @@ class PDeck:
                 seven = [(fig,c) for c in col]
                 for card in seven: self.cards.remove(card)
                 seven += [self.get_card() for _ in range(4)]
-                if self.cards_rank(seven)[0] == 3: break
+                if self.cards_rank(seven)[0] == 3:
+                    break
         if rank == 4:
             while True:
                 self.reset()
@@ -130,7 +147,8 @@ class PDeck:
                 seven = [(fig+ix,random.randrange(4)) for ix in range(5)]
                 for card in seven: self.cards.remove(card)
                 seven += [self.get_card() for _ in range(2)]
-                if self.cards_rank(seven)[0] == 4: break
+                if self.cards_rank(seven)[0] == 4:
+                    break
         if rank == 5:
             while True:
                 self.reset()
@@ -141,7 +159,8 @@ class PDeck:
                 seven = [(f,col) for f in fig]
                 for card in seven: self.cards.remove(card)
                 seven += [self.get_card() for _ in range(2)]
-                if self.cards_rank(seven)[0] == 5: break
+                if self.cards_rank(seven)[0] == 5:
+                    break
         if rank == 6:
             while True:
                 self.reset()
@@ -158,7 +177,8 @@ class PDeck:
                 seven += [(fig[1],c) for c in col]
                 for card in seven: self.cards.remove(card)
                 seven += [self.get_card() for _ in range(2)]
-                if self.cards_rank(seven)[0] == 6: break
+                if self.cards_rank(seven)[0] == 6:
+                    break
         if rank == 7:
             while True:
                 self.reset()
@@ -166,7 +186,8 @@ class PDeck:
                 seven = [(fig,c) for c in range(4)]
                 for card in seven: self.cards.remove(card)
                 seven += [self.get_card() for _ in range(3)]
-                if self.cards_rank(seven)[0] == 7: break
+                if self.cards_rank(seven)[0] == 7:
+                    break
         if rank == 8:
             while True:
                 self.reset()
@@ -175,41 +196,60 @@ class PDeck:
                 seven = [(fig + ix, col) for ix in range(5)]
                 for card in seven: self.cards.remove(card)
                 seven += [self.get_card() for _ in range(2)]
-                if self.cards_rank(seven)[0] == 8: break
+                if self.cards_rank(seven)[0] == 8:
+                    break
         random.shuffle(seven)
         return seven
 
-    # card(str) >> tuple
     @staticmethod
     def _stt(card:str) -> Tuple[int,int]:
+        """ card str to tuple """
         return CF_I[card[0]],CC_I[card[1]]
 
-    # card(any) >> int
     @staticmethod
     def cti(card:Union[int,tuple,str]) -> int:
-        if type(card) is str: card = PDeck._stt(card) # to tuple
-        if type(card) is tuple: return card[0]*4+card[1]
+        """ any card representation to int """
+        if type(card) is str:
+            card = PDeck._stt(card) # to tuple
+        if type(card) is tuple:
+            return card[0]*4+card[1]
         return card
 
-    # card(any) >> tuple
+    @staticmethod
+    def _ctt_NUM(card:NUM) -> Tuple[int,int]:
+        """ NUM fast implementation """
+        return int(card / 4), card % 4
+
     @staticmethod
     def ctt(card:Union[int,tuple,str]) -> Tuple[int,int]:
-        if type(card) is str: return PDeck._stt(card)
-        if type(card) is int: return int(card/4), card%4
-        return card
+        """ any card representation to Tuple[int,int] """
 
-    # card(any) >> str
+        if type(card) is tuple:
+            return card
+        if type(card) is str:
+            return PDeck._stt(card)
+
+        return PDeck._ctt_NUM(card)
+
     @staticmethod
     def cts(card:Union[int,tuple,str]) -> str:
-        if type(card) is int: card = PDeck.ctt(card) # to tuple
-        if type(card) is tuple: return CRD_FIG[card[0]] + CRD_COL[card[1]]
+        """ any card representation to str """
+        # to tuple
+        if type(card) is int:
+            card = PDeck.ctt(card)
+        if type(card) is tuple:
+            return CRD_FIG[card[0]] + CRD_COL[card[1]]
         return card
 
-    # returns rank of 5 from 7 given cards (evaluates about 68K * 7cards/sec)
     @staticmethod
-    def cards_rank(cards:List[Union[int,tuple,str]]):
+    def cards_rank_tuples(
+            cards: List[Tuple[int,int]]
+    ) -> Tuple[int, int, List[Tuple[int,int]], str]:
+        """ returns rank given cards
+        core implementation for Iterable[Tuple[int,int]]
+        selects 5 best from given 7 cards
+        evaluates about 100K 7cards /sec  """
 
-        cards = [PDeck.ctt(c) for c in cards] # to tuplesL
         cards = sorted(cards)
 
         # calc possible multiFig and colours
@@ -238,9 +278,11 @@ class PDeck:
         prev_ix = -1
         for ix,c in enumerate(sc_fig):
             if c:
-                if prev_ix + 1 == ix: seq.append(c)
+                if prev_ix + 1 == ix:
+                    seq.append(c)
                 else:
-                    if seq: sequences.append(seq)
+                    if seq:
+                        sequences.append(seq)
                     seq = [c]
                 prev_ix = ix
         if seq: sequences.append(seq)
@@ -279,15 +321,20 @@ class PDeck:
 
         # find five cards
         five_cards = []
-        if top_rank == 8: five_cards = col_in_row
+
+        if top_rank == 8:
+            five_cards = col_in_row
+
         if top_rank == 7:
             four = []
             for cL in c_fig:
                 if len(cL) == 4:
                     four = cL
                     break
-            for c in four: cards.remove(c)
+            for c in four:
+                cards.remove(c)
             five_cards = [cards[-1]] + four
+
         if top_rank == 6:
             five_cards = []
             for cL in c_fig:
@@ -295,72 +342,107 @@ class PDeck:
             for cL in c_fig:
                 if len(cL) == 3: five_cards += cL
             five_cards = five_cards[-5:]
+
         if top_rank == 5:
-            if len(col_cards) > 5: col_cards = col_cards[len(col_cards)-5:]
+            if len(col_cards) > 5:
+                col_cards = col_cards[len(col_cards)-5:]
             five_cards = col_cards
+
         if top_rank == 4:
-            if len(in_row) > 5: in_row = in_row[len(in_row)-5:]
+            if len(in_row) > 5:
+                in_row = in_row[len(in_row)-5:]
             five_cards = in_row
+
         if top_rank == 3:
             three = []
             for cL in c_fig:
-                if len(cL) == 3: three = cL
-            for c in three: cards.remove(c)
+                if len(cL) == 3:
+                    three = cL
+            for c in three:
+                cards.remove(c)
             five_cards = cards[-2:] + three
+
         if top_rank == 2:
             two2 = []
             for cL in c_fig:
-                if len(cL) == 2: two2 += cL
-            if len(two2) > 4: two2 = two2[len(two2)-4:]
-            for c in two2: cards.remove(c)
+                if len(cL) == 2:
+                    two2 += cL
+            if len(two2) > 4:
+                two2 = two2[len(two2)-4:]
+            for c in two2:
+                cards.remove(c)
             five_cards = cards[-1:] + two2
+
         if top_rank == 1:
             two = []
             for cL in c_fig:
-                if len(cL) == 2: two = cL
-            for c in two: cards.remove(c)
+                if len(cL) == 2:
+                    two = cL
+            for c in two:
+                cards.remove(c)
             five_cards = cards[-3:] + two
+
         if top_rank == 0:
             five_cards = cards[-5:]
 
-        # calc rank_value
-        rank_value = 0
-        for ix in range(5): rank_value += five_cards[ix][0]*13**ix
-        rank_value += 1000000*top_rank
+        rank_value = 1000000*top_rank
+        for ix in range(5):
+            rank_value += five_cards[ix][0]*13**ix
 
-        # prep string
-        string = HND_RNK[top_rank] + ' %7s' % rank_value
-        for c in five_cards: string += ' %s' % PDeck.cts(c)
+        string = f'{HND_RNK[top_rank]} {rank_value:7} {" ".join([PDeck.cts(c) for c in five_cards])}'
 
         return top_rank, rank_value, five_cards, string
 
-# a dictionary with rank values of every (tuple of sorted ints (7 cards))
+    @staticmethod
+    def cards_rank_NPL(cards:NPL):
+        """ fast implementation for NPL """
+        return PDeck.cards_rank_tuples(cards=[PDeck._ctt_NUM(c) for c in cards])
+
+    @staticmethod
+    def cards_rank(cards: Iterable[Union[int, Tuple[int,int], str]]):
+        """ basic implementation for any type """
+        return PDeck.cards_rank_tuples(cards=[PDeck.ctt(c) for c in cards])
+
+
 class ASC(dict):
+    """ a dictionary with rank value of every sorted 7 cards ints
+    example: {(0,1,9,20,30,34,43): 1001801}
+    it speeds up rank "computation" massively:
+    100K/sec with PDeck.cards_rank() to 500K/sec with ASC
+    but ASC because of its size cannot be used with MP """
 
     def __init__(
             self,
-            file_FP :str,
-            use_QMP=    True):
+            file_FP: str=   ASC_FP,
+            use_QMP=        True,
+            logger=         None,
+            loglevel=       20,
+    ):
 
         super().__init__()
 
-        print('\nReading ASC dict cache...')
-        as_cards = r_pickle(file_FP)
-        if as_cards: print(' > using cached ASC dict')
+        if not logger:
+            logger = get_pylogger(name='ASC', level=loglevel)
+
+        logger.info(f'Loading ASC dict cache from: {file_FP} ..')
+        s_time = time.time()
+        asc_ranks = r_pickle(file_FP)
+
+        if asc_ranks:
+            taken = time.time() - s_time
+            logger.info(f' > using cached ASC dict (read taken {taken:.1f}s)')
         else:
-            print(' > cache not found, building All Seven Cards rank dict..')
+            logger.info(' > cache not found, building All-Seven-Cards rank dict ..')
             comb_list = list(itertools.combinations([x for x in range(52)], 7))
-            print(f' > got {len(comb_list)} combinations')
+            logger.info(f' > got {len(comb_list)} combinations')
 
             if use_QMP:
 
                 class CRW(RunningWorker):
                     def process(self, **kwargs) -> Any:
-                        return [(t,PDeck.cards_rank(t)[1]) for t in kwargs['tasks']]
+                        return [(t, PDeck.cards_rank(t)[1]) for t in kwargs['tasks']]
 
-                omp = OMPRunner(rw_class=CRW)
-
-                print(f' > preparing tasks..')
+                logger.info(f' > preparing tasks..')
                 tasks = []
                 task_bunch = []
                 for cmb in tqdm(comb_list):
@@ -368,100 +450,69 @@ class ASC(dict):
                     if len(task_bunch) > 10000:
                         tasks.append({'tasks':task_bunch})
                         task_bunch = []
-                if task_bunch: tasks.append({'tasks':task_bunch})
+                if task_bunch:
+                    tasks.append({'tasks':task_bunch})
 
-                res = omp.process(tasks=tasks)
-                as_cards = {}
-                for r in res:
-                    for c,cr in r:
-                        as_cards[c] = [cr]
-                omp.exit()
+                ompr = OMPRunner(rw_class=CRW)
+                ompr.process(tasks=tasks)
 
-            else: as_cards = {cmb: PDeck.cards_rank(cmb)[1] for cmb in tqdm(comb_list)}
+                asc_ranks = {}
+                for r in ompr.get_all_results():
+                    for c, cr in r:
+                        asc_ranks[c] = cr
+                ompr.exit()
 
-            w_pickle(as_cards, file_FP)
+            else:
+                asc_ranks = {cmb: PDeck.cards_rank(cmb)[1] for cmb in tqdm(comb_list)}
 
-        self.update(as_cards)
+            logger.info(f'writing ASC to {file_FP} ..')
+            w_pickle(asc_ranks, file_FP)
 
-    # returns rank for 7 cards (cards have to be sorted!)
-    def cards_rank(self, c :tuple): return self[c]
+        self.update(asc_ranks)
 
-# tests speed of ranking
-def test_rank_speed(num_ask=123000):
 
-    tdeck = PDeck()
-    scL = []
-    print('\nPreparing cards..')
-    for _ in tqdm(range(num_ask)):
-        scL.append([tdeck.get_card() for _ in range(7)])
-        tdeck.reset()
+    def cards_rank(self, c:Tuple[int]) -> int:
+        """ returns rank for 7 cards (cards have to be sorted!) """
+        return self[c]
 
-    x = int(num_ask/2)
-    for c in scL[x:x+10]: print(c)
 
-    s_time = time.time()
-    for sc in scL:
-        #print(' ', end='')
-        #for card in sorted(sc): print(PDeck.cts(card), end=' ')
-        #print()
+def monte_carlo_prob_won(
+        cards: Iterable[int],  # cards as an iterable of ints
+        n_samples: int,
+        asc: Optional[ASC] = None,
+) -> float:
+    """ winning probability estimation (Monte Carlo) for given cards """
 
-        cR = PDeck.cards_rank(sc)
-        #if cR[0]==8: print(cR[-1])
-        #print(cR[-1])
-    e_time = time.time()
+    rng = np.random.default_rng()
 
-    print('time taken %.2fsec'%(e_time-s_time))
-    print('speed %d/sec' % (num_ask/(e_time-s_time)))
+    got_cards = np.asarray(cards)
+    got_cards = np.delete(got_cards, np.where(got_cards == 52))
 
-# some tests on deck
-def test_deck():
+    all_cards_left = np.setdiff1d(ALL_CARDS, got_cards)
+    n_missing = 9-len(got_cards)
 
-    tdeck = PDeck()
-    for ix in range(9):
-        cards = tdeck.get7of_rank(ix)
-        print(ix, cards, PDeck.cards_rank(cards)[-1])
+    # TODO: it may be numpyized with batches of cards
 
-    cards = [(12,0),(0,1),(1,2),(2,0),(3,0),(5,1),(9,2)]
-    print(PDeck.cards_rank(cards)[-1])
-    cards = [(12,0),(0,1),(1,2),(2,0),(3,0),(4,1),(9,2)]
-    print(PDeck.cards_rank(cards)[-1])
+    n_wins = 0
+    for it in range(n_samples):
 
-    cards = [1,5,8,22,36]
-    print(PDeck.cards_rank(cards)[-1])
-    cards = [0,1,6,3,45]
-    print(PDeck.cards_rank(cards)[-1])
+        sampled_cards = rng.choice(all_cards_left, size=n_missing, replace=False)
+        nine_cards = np.concatenate([got_cards, sampled_cards])
 
-# compares speed of ASC and PDeck
-def compare_ranks(num_ask=1000000):
+        my_cards = nine_cards[:7]
+        op_cards = nine_cards[2:]
+        if asc:
+            my_rank_value = asc[tuple(sorted(my_cards))]
+            op_rank_value = asc[tuple(sorted(op_cards))]
+        else:
+            my_rank_value = PDeck.cards_rank_NPL(my_cards)[1]
+            op_rank_value = PDeck.cards_rank_NPL(op_cards)[1]
 
-    print('\nPreparing combinations of 7 from 52..',end='')
-    comb_list = list(itertools.combinations([x for x in range(52)], 7))
-    print(' done!, got %d'%len(comb_list))
-    x = 1235143
-    for c in comb_list[x:x+10]: print(c)
+        if my_rank_value > op_rank_value:  n_wins += 1
+        if my_rank_value == op_rank_value: n_wins += 0.5
 
-    ask_cards = [comb_list[random.randint(0, len(comb_list))] for _ in range(num_ask)]
-
-    asc = ASC('_cache/asc.dict')
-    s_time = time.time()
-    for c in tqdm(ask_cards): res = asc.cards_rank(c)
-    print('speed %d/sec' % (num_ask / (time.time() - s_time)))
-
-    s_time = time.time()
-    for c in tqdm(ask_cards): res = PDeck.cards_rank(c)
-    print('speed %d/sec' % (num_ask / (time.time() - s_time)))
+    return n_wins / n_samples
 
 
 if __name__ == "__main__":
-
-    #test_rank_speed(1234321)
-    #compare_ranks(1000000)
-    #cards = [(12, 3), (11, 0), (10, 3), (9, 3), (8, 0), (1, 1), (3, 2)]
-    #print(PDeck.cards_rank(cards)[-1])
-    #cards = [(12, 3), (11, 0), (10, 3), (9, 3), (8, 0), (1, 0), (0, 1)]
-    #print(PDeck.cards_rank(cards)[-1])
-    #cards = [(12, 3), (11, 0), (10, 3), (10, 0), (9, 3), (8, 0), (0, 1)]
-    #print(PDeck.cards_rank(cards)[-1])
-
-    asc = ASC('_cache/asc.dict')
-    print(len(asc))
+    asc = ASC()

@@ -1,0 +1,12 @@
+table_size:       3      # number of table players, supported are 2,3,6,9
+table_cash_start: 500    # amount of cash player starts with every hand
+table_cash_sb:    2      # small blind
+table_cash_bb:    5      # big blind
+
+# [[name, preflop x, flop %pot]]
+table_moves:
+    - [CCK]              # check
+    - [FLD]              # fold
+    - [CLL]              # call
+    - [BR1, 2.4,  0.5 ]
+    - [BR2, 3.8,  1.4 ]
