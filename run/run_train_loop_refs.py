@@ -229,16 +229,11 @@ def run(game_config_name: str):
 
         w_pickle(points_data, f'{DMK_MODELS_FD}/points.data')
 
-        tr_results = {
-            'loop_ix':      loop_ix,
-            'lifemarks':    {
-                dn: dmk_results[dn]['lifemark'] if 'lifemark' in dmk_results[dn] else ''
-                for dn in dmk_results},
-            'dmk_ranked':   dmk_ranked}
+        tr_results = {'loop_ix':loop_ix, 'dmk_ranked':dmk_ranked}
         w_json(tr_results, TR_RESULTS_FP)
 
         loop_ix += 1
 
 
 if __name__ == "__main__":
-    run('2players_2bets')
+    run('3players_2bets')
