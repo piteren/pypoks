@@ -2,28 +2,29 @@ import time
 from tqdm import tqdm
 import unittest
 
-from envy import N_TABLE_PLAYERS
 from pologic.potable import PTable
 from pologic.hand_history import HHistory
 
+table_size = 3
 
-class TestPDeck(unittest.TestCase):
+
+class TestPTable(unittest.TestCase):
 
     def test_base(self):
         table = PTable(
             name=       'table',
-            pl_ids=     [f'pl{ix}' for ix in range(N_TABLE_PLAYERS)])
+            pl_ids=     [f'pl{ix}' for ix in range(table_size)])
         hh = table.run_hand()
 
         print(f'\nHHistory:\n{hh}')
 
         print(f'\nreadable events:')
         for e in hh.events:
-            re = HHistory.readable_event(e)
+            re = hh.readable_event(e)
             if re: print(re)
 
     def test_table_speed(self, n_hands=100000):
-        table = PTable(name='table_speed', pl_ids=[f'pl{ix}' for ix in range(N_TABLE_PLAYERS)])
+        table = PTable(name='table_speed', pl_ids=[f'pl{ix}' for ix in range(table_size)])
         stime = time.time()
         for _ in tqdm(range(n_hands)):
             table.run_hand()
@@ -33,7 +34,7 @@ class TestPDeck(unittest.TestCase):
     def test_run_with_hh(self):
         table = PTable(
             name=       'table',
-            pl_ids=     [f'pl{ix}' for ix in range(N_TABLE_PLAYERS)])
+            pl_ids=     [f'pl{ix}' for ix in range(table_size)])
         hh1 = table.run_hand()
         print(f'\nHHistory1:\n{hh1}')
 

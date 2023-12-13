@@ -1,26 +1,26 @@
 from pypaq.lipytools.files import w_json, r_json
 from typing import List, Tuple, Optional, Union
 
-from envy import TBL_STT, TBL_MOV, DEBUG_MODE
+from envy import TBL_STT, DEBUG_MODE, get_pos_names
 
 STATE = Tuple[str,Tuple] # state type
 
 
 # poker hand history
 class HHistory:
+    """ Hand History
 
-    """
-    Hand History is build by the table, while playing a hand, below are implemented states:
+    HH is build by the table, while playing a hand, below are implemented states:
 
     HST: (table_name:str, hand_id:int)                                          hand starts
     TST: (state:int,)                                                           table state
     POS: (pl_id:str, pos:int, pl.cash)                                          player position and starting cash
     PSB: (pl_id:str, SB$:int)                                                   player puts SB
     PBB: (pl_id:str, BB$:int)                                                   player puts BB
-    T$$: (pot:int, cash_cr:int, cash_tc:int)                                    table cash, added after each player MOV (PSB+PBB <- together)
+    T$$: (pot:int, cash_cs:int, cash_tc:int, cash_rs:int)                       table cash, added after each player MOV (PSB+PBB <- together)
     PLH: (pl_id:str, ca:str, cb:str)                                            player hand
     TCD: (c0,c1,c2..:str)                                                       table cards dealt, only new cards are shown
-    MOV: (pl_id:str, mv:int, mv_cash:int, (pl.cash, pl.cash_ch, pl.cash_cr))    player move (pl.cashes BEFORE move)
+    MOV: (pl_id:str, mv:int, mv_cash:int, (pl.cash, pl.cash_ch, pl.cash_cs))    player move (pl.cashes BEFORE move)
     PRS: (pl_id:str, won:int, full_rank)                                        player result (full_rank is a tuple returned by PDeck.cards_rank)
     HFN: (table_name:str, hand_id:int)                                          hand finished
 
@@ -41,31 +41,26 @@ class HHistory:
         TCD
          --loop of MOV > T$$
 
-        .. (next rivers like flop)
+        .. (next streets like flop)
 
         TST(5)                          <- showdown [optional]
         PRS,PRS,..
-        HFN                             <- hand finished
-    """
+        HFN                             <- hand finished """
 
-    def __init__(self):
+    def __init__(self, table_size:int, table_moves:List):
+        self.pos_names = get_pos_names(table_size)
+        self.table_moves = table_moves
         self.events: List[STATE] = []
-
-    # adds action-value to history
-    def add(self, act:str, val:Tuple):
-        self.events.append((act,val))
 
     def translated(
             self,
             pls: List[str],             # players (list of ids)
             fr: Optional[int]=  None,   # starting index
             to: Optional[int]=  None,   # ending index
-    ) -> List[Tuple]:
-        """
-        returns events translated into "player perspective" - I am 0
+    ) -> List[STATE]:
+        """ returns events translated into "player perspective" - I am 0
         - player names (pl_id:str) is replaced with int, where 0 means "me" and other players are marked with 1,2..
-        - PLH of other players are removed (if not DEBUG_MODE)
-        """
+        - PLH of other players are removed (if not DEBUG_MODE) """
 
         if fr is None: fr = 0
         if to is None: to = len(self.events)
@@ -91,9 +86,10 @@ class HHistory:
 
         return trns
 
-    # extracts moves and hands from HH or list[readable_events] <- those events are needed to run the table same hand again
     @staticmethod
     def extract_mvh(hh:Union["HHistory",List[str]]) -> List[Tuple]:
+        """ extracts moves and hands from HH or list[readable_events]
+        those events are needed to run the table same hand again """
         if type(hh) is HHistory:
             mvh = []
             for e in hh.events:
@@ -113,12 +109,17 @@ class HHistory:
                 for e in mvh
             ]
 
-    # extracts simple readable events
-    @staticmethod
-    def readable_event(st:STATE) -> Optional[str]:
+    def readable_event(
+            self,
+            st:STATE,
+    ) -> Optional[str]:
+        """ extracts simple readable events """
 
         if st[0] == 'HST':
-            return '***** hand starts'
+            return f'***** hand #{st[1][1]} starts'
+
+        if st[0] == 'POS':
+            return f'{st[1][0]} at {self.pos_names[st[1][1]]} with ${st[1][2]}'
 
         if st[0] in ['PSB','PBB']:
             return f'{st[1][0]} {st[0][1:]} {st[1][1]}'
@@ -134,7 +135,7 @@ class HHistory:
             return f'table cards: {" ".join(st[1])}'
 
         if st[0] == 'MOV':
-            return f'{st[1][0]} {TBL_MOV[st[1][1]][0]} {st[1][2]}'
+            return f'{st[1][0]} {self.table_moves[st[1][1]][0]} {st[1][2]}'
 
         if st[0] == 'PRS':
             r = st[1][2] if type(st[1][2]) is str else st[1][2][-1]
@@ -142,7 +143,7 @@ class HHistory:
 
     def save(self, file:str):
         w_json(self.events, file)
-        re = [HHistory.readable_event(e) for e in self.events]
+        re = [self.readable_event(e) for e in self.events]
         re = [e for e in re if e]
         with open(f'{file}_txt', 'w') as file:
             for e in re:
@@ -151,11 +152,10 @@ class HHistory:
     def load(self, file:str):
         self.events = r_json(file)
 
-    # returns HH as a str of readable events
     def __str__(self):
         hstr = ''
         for e in self.events:
-            re = HHistory.readable_event(e)
+            re = self.readable_event(e)
             if re:
                 hstr += f'{re}\n'
         if hstr: hstr = hstr[:-1]

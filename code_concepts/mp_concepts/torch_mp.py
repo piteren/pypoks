@@ -10,9 +10,9 @@ from torchness.layers import LayDense
 
 class NNModule(Module):
 
-    def __init__(self):
+    def __init__(self, **kwargs):
 
-        Module.__init__(self)
+        Module.__init__(self, **kwargs)
 
         self.dns = LayDense(
             in_features=    200,

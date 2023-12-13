@@ -1,5 +1,8 @@
+GPUtil
 numpy
 ompr
 pypaq
+pyyaml
+tqdm
 torch
 torchness

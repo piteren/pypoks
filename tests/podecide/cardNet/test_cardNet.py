@@ -1,29 +1,69 @@
 import numpy as np
+from pypaq.lipytools.files import prep_folder
 import time
 import unittest
 
 from podecide.cardNet.cardNet_module import CardNet_MOTorch
 from podecide.cardNet.cardNet_batcher import prep2X7batch
 
+TMP_MODELS_DIR = f'tests/podecide/_tmp/_models/cn'
+CardNet_MOTorch.SAVE_TOPDIR = TMP_MODELS_DIR
+
 
 class Test_cardNet(unittest.TestCase):
 
-    def test_base(self):
+    def setUp(self) -> None:
+        prep_folder(TMP_MODELS_DIR, flush_non_empty=True)
 
-        cnet = CardNet_MOTorch(cards_emb_width=12)
-        #print(cnet)
+    def test_base_init(self):
 
+        cnet = CardNet_MOTorch(
+            name=               'cn12',
+            cards_emb_width=    12,
+            read_only=          False,
+            device=             -1,
+            loglevel=           10,
+            flat_child=         True,
+        )
+        cnet.save()
+
+        cnet = CardNet_MOTorch(
+            name=               'cn24',
+            cards_emb_width=    24,
+            read_only=          False,
+            device=             -1,
+            loglevel=           10,
+            flat_child=         True,
+        )
+        cnet.save()
+
+    def test_base_fwd(self):
+
+        cnet = CardNet_MOTorch(
+            cards_emb_width=    12,
+            loglevel=           10,
+            flat_child=         True,
+        )
+
+        # cards
         out = cnet(
             cards_A=    [1,2,3,4,5,6,7],
             cards_B=    [8,9,10,11,12,13,14])
         for k in ['logits_rank_A','logits_rank_B','reg_won_A','logits_winner']:
             print(k, out[k].shape)
+        self.assertTrue(list(out['logits_rank_A'].shape) == list(out['logits_rank_B'].shape) == [9])
+        self.assertTrue(list(out['reg_won_A'].shape) == [1])
+        self.assertTrue(list(out['logits_winner'].shape) == [3])
 
+        # bach of cards
         out = cnet(
             cards_A=    [[1,2,3,4,5,6,7]],
             cards_B=    [[8,9,10,11,12,13,14]])
         for k in ['logits_rank_A','logits_rank_B','reg_won_A','logits_winner']:
             print(k, out[k].shape)
+        self.assertTrue(list(out['logits_rank_A'].shape) == list(out['logits_rank_B'].shape) == [1,9])
+        self.assertTrue(list(out['reg_won_A'].shape) == [1,1])
+        self.assertTrue(list(out['logits_winner'].shape) == [1,3])
 
 
     def test_card_enc(self):
@@ -62,4 +102,4 @@ class Test_cardNet(unittest.TestCase):
         for ix in range(runs):
             out = cnet(**infer_batch)
             print(ix)
-        print('Finished, speed: %d/sec'%(int(batch_size*runs/(time.time()-s_time))))
+        print(f'Finished, speed: {int(batch_size*runs/(time.time()-s_time))}d/sec')
