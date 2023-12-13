@@ -45,7 +45,7 @@ if __name__ == "__main__":
         dmk_names=      dmk_names_ai,
         logger=         logger,
         #debug_dmks=     True,
-        debug_tables=   True,
+        #debug_tables=   True,
     )
     gm.start_games()
     gm.run_gui_loop()
