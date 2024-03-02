@@ -17,9 +17,9 @@ LOOP_CONFIG = {
         # general
     'exit_after':               None,       # exits loop for given int
     'pause':                    False,      # pauses loop after test till Enter pressed
-    'families':                 'ap',        # active families (forced to be present)
+    'families':                 'a',        # active families (forced to be present)
     'n_dmk':                    20,         # number of DMKs
-    'n_dmk_refs':               0,#20,         # number of refs DMKs
+    'n_dmk_refs':               0,          # number of refs DMKs
     'n_gpu':                    2,
     'n_tables':                 1000,       # target number of tables (for any game: TR, PMT)
     'game_size_TR':             100000,
@@ -295,6 +295,4 @@ def run(game_config_name:str, use_saved_dmks=True, del_removed_dmks=False):
 
 
 if __name__ == "__main__":
-    #run('2players_2bets')
-    #run('2players_9bets')
-    run('6players_9bets')
+    run('3players_2bets')
