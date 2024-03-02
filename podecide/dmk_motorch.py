@@ -58,6 +58,19 @@ class DMK_MOTorch(MOTorch):
         else:
             self._log.info(f'{self.name} has not loaded pretrained CN checkpoint (DMK saved_already:{saved_already}, load_cardnet_pretrained:{load_cardnet_pretrained})')
 
+        self.zero_state = self.convert(self.module.enc_cnn.get_zero_history())
+        self._last_fwd_state: Dict[str,TNS] = {pa: self.zero_state for pa in self._player_ids}  # state after last fwd
+        self._last_upd_state: Dict[str,TNS] = {pa: self.zero_state for pa in self._player_ids}  # state after last upd
+
+        self._ze_pro_enc = ZeroesProcessor(
+            intervals=      (5,20),
+            tag_pfx=        'nane_enc',
+            tbwr=           self._TBwr) if self._TBwr else None
+        self._ze_pro_cnn = ZeroesProcessor(
+            intervals=      (5,20),
+            tag_pfx=        'nane_cnn',
+            tbwr=           self._TBwr) if self._TBwr else None
+
     def load_cardnet_pretrained(self):
         """ loads CN checkpoint from pretrained """
 
@@ -72,6 +85,14 @@ class DMK_MOTorch(MOTorch):
             self._log.info(f'> {cn_model_name} (CN) checkpoint loaded from {ckpt_path}')
         except Exception as e:
             self._log.info(f'> {cn_model_name} (CN) checkpoint NOT loaded because of exception: {e}')
+
+    def reset_fwd_state(self):
+        """ resets agent FWD state,
+        designed for inference mode <- single player game """
+        if len(self._last_fwd_state) > 1:
+            raise PyPoksException('reset_fwd_state is valid only for one player')
+        pid = list(self._last_fwd_state.keys())[0]
+        self._last_fwd_state[pid] = self.zero_state
 
     def build_batch(
             self,
@@ -92,7 +113,7 @@ class DMK_MOTorch(MOTorch):
         return out['probs'].cpu().detach().numpy()
 
     def update_policy(self, player_ids:List[str], batch:DTNS) -> None:
-        """ baseline implementation """
+        """ backward + data wrangling, baseline implementation """
         out = self.backward(bypass_data_conv=True, **batch)
 
         # save UPD states
@@ -179,22 +200,7 @@ class DMK_MOTorch(MOTorch):
 class DMK_MOTorch_PG(DMK_MOTorch):
 
     def __init__(self, module_type=ProCNN_DMK_PG, **kwargs):
-
         DMK_MOTorch.__init__(self, module_type=module_type, **kwargs)
-
-        zero_state = self.module.enc_cnn.get_zero_history()
-        zero_state = self.convert(zero_state)
-        self._last_fwd_state: Dict[str,TNS] = {pa: zero_state for pa in self._player_ids}  # state after last fwd
-        self._last_upd_state: Dict[str,TNS] = {pa: zero_state for pa in self._player_ids}  # state after last upd
-
-        self._ze_pro_enc = ZeroesProcessor(
-            intervals=      (5,20),
-            tag_pfx=        'nane_enc',
-            tbwr=           self._TBwr) if self._TBwr else None
-        self._ze_pro_cnn = ZeroesProcessor(
-            intervals=      (5,20),
-            tag_pfx=        'nane_cnn',
-            tbwr=           self._TBwr) if self._TBwr else None
 
     def fwd_logprob(
             self,
@@ -302,71 +308,55 @@ class DMK_MOTorch_PG(DMK_MOTorch):
         return batch
 
     def update_policy(self, player_ids:List[str], batch:DTNS) -> None:
-        """ saves NN states + publish """
+        """ + compute logprob + publish """
+
+        # compute old_logprob before update
+        batchFWD = {}
+        batchFWD.update(batch)
+        batchFWD.pop('reward')
+        batchFWD.pop('allowed_moves')
+        pre_logprob_out = self.fwd_logprob(**batchFWD)
+        batch['old_logprob'] = pre_logprob_out['logprob']
 
         out = self.backward(bypass_data_conv=True, **batch)
 
-        # save upd states
-        for pid,state in zip(player_ids, out.pop('fin_state')):
+        # save UPD states
+        for pid,state in zip(player_ids, out['fin_state']):
             self._last_upd_state[pid] = state
 
         if self._TBwr:
 
-            self._ze_pro_enc.process(out['zeroes_enc'], self.train_step)
-            self._ze_pro_cnn.process(out['zeroes_cnn'], self.train_step)
+            self._ze_pro_enc.process(zeroes=out['zeroes_enc'], step=self.train_step)
+            self._ze_pro_cnn.process(zeroes=out['zeroes_cnn'], step=self.train_step)
 
-            batch_width = batch['cards'].shape[0]
-            batch_height = batch['cards'].shape[1]
-
-            out['batchsize'] = batch_height * batch_width
-            out['batch.width'] = batch_width
-            out['batch.height'] = batch_height
+            out['batchsize'] = batch['cards'].shape[1] * batch['cards'].shape[0]
             pkeys = [
                 'batchsize',
-                'batch.width',
-                'batch.height',
                 'currentLR',
+                'entropy',
                 'loss',
                 'loss_actor',
-                'loss_not_allowed_moves',
-                'loss_actor',
-                'loss_entropy',
+                'loss_nam',
                 'gg_norm',
-                'gg_norm_clip',
-                'entropy',
-                'min_probs_mean',
-                'max_probs_mean',
-                'probs_1mean',
-                'probs_2mean',
-                'probs_3mean',
-            ]
+                'gg_norm_clip']
             for l,k in zip('abcdefghijklmnopqrstuvwxyz', pkeys):
                 if k in out:
-                    self.log_TB(value=out[k], tag=f'backprop/{l}.{k}')
+                    self.log_TB(value=out[k], tag=f'backprop/{l}.{k}', step=self.train_step)
 
             # INFO: stats below may be NOT computed for PG, those are only for info / monitoring / debug
             ### ratio stats + policy histograms
 
-            batch.pop('reward')
-            batch.pop('allowed_moves')
-
-            if 'old_logprob' not in out:
-                pre_logprob_out = self.fwd_logprob(**batch)
-                old_logprob = pre_logprob_out['logprob']
-            else:
-                old_logprob = out['old_logprob']
-
-            ratio_out = self.fwd_logprob_ratio(old_logprob=old_logprob, **batch)
+            ratio_out = self.fwd_logprob_ratio(old_logprob=batch['old_logprob'], **batchFWD)
             for l,k in zip('ab', ['approx_kl','clipfracs']):
-                self.log_TB(value=ratio_out[k], tag=f'backprop.ratio_full/{l}.{k}') # ratio stats "after full batch"
-                if k in out:
-                    self.log_TB(value=out[k], tag=f'backprop.ratio_in/{l}.{k}') # average ratio stats "in batch" / while UPD
+                self.log_TB(value=ratio_out[k], tag=f'backprop.ratio_full/{l}.{k}', step=self.train_step) # ratio stats "after full batch"
+                if k in out: # PPO case
+                    self.log_TB(value=out[k], tag=f'backprop.ratio_in/{l}.{k}', step=self.train_step) # average ratio stats "in batch" / while UPD
 
             self.log_histogram_TB(values=ratio_out['ratio'], tag=f'policy/a.ratio')
             self.log_histogram_TB(values=out['probs'], tag=f'policy/b.probs')
             for l,k in zip('cd',['reward', 'reward_norm']):
                 if k in out:
-                    self.log_histogram_TB(values=out[k], tag=f'policy/{l}.{k}')
+                    self.log_histogram_TB(values=out[k], tag=f'policy/{l}.{k}', step=self.train_step)
 
         torch.cuda.empty_cache()
 
@@ -399,16 +389,9 @@ class DMK_MOTorch_PPO(DMK_MOTorch_PG):
         """ backward in PPO mode """
 
         batch = kwargs
-        batch_logpob = {}
-        batch_logpob.update(batch)
-        batch_logpob.pop('reward')
-        batch_logpob.pop('allowed_moves')
-        pre_logprob_out = self.fwd_logprob(**batch_logpob)
-        old_logprob = pre_logprob_out['logprob']
-        batch['old_logprob'] = old_logprob
-        # until now batch is a dict {key: TNS}, where TNS is a rectangle [len(upd_pid), n_states_upd, feats]
 
-        batch_width = old_logprob.shape[0]
+        # until now batch is a dict {key: TNS}, where TNS is a rectangle [len(upd_pid), n_states_upd, feats]
+        batch_width = batch['old_logprob'].shape[0]
         mb_size = batch_width // self.minibatch_num
         batch_spl = {k: torch.split(batch[k], mb_size, dim=0) for k in batch} # split along 0 axis into chunks of mb_size
         minibatches = [
@@ -447,7 +430,7 @@ class DMK_MOTorch_PPO(DMK_MOTorch_PG):
 
         ### merge outputs
 
-        res_prep = {'old_logprob': old_logprob}
+        res_prep = {}
         for k in [
             'probs',
             'fin_state',
@@ -459,18 +442,12 @@ class DMK_MOTorch_PPO(DMK_MOTorch_PG):
             res_prep[k] = torch.cat(res[k], dim=0)
 
         for k in [
+            'entropy',
             'loss',
             'loss_actor',
-            'loss_entropy',
-            'loss_not_allowed_moves',
-            'entropy',
+            'loss_nam',
             'gg_norm',
             'gg_norm_clip',
-            'min_probs_mean',
-            'max_probs_mean',
-            'probs_1mean',
-            'probs_2mean',
-            'probs_3mean',
             'approx_kl',
             'clipfracs']:
             res_prep[k] = torch.Tensor(res[k]).mean()

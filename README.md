@@ -1,16 +1,19 @@
 ![](images/pypoks_logo.png)
 
-## Deep Reinforcement Learning (DRL) with Neural Network (NN) Agent @poker game environment with Python & PyTorch
+## Deep Reinforcement Learning (DRL) with neural network (NN) agent @poker game environment with Python & PyTorch
 
 ### Machine Learning areas:
 - DRL (NN Agent) to make good decisions (building the strategy)
-- limited observation data, noisy input - high poker variance
-- efficient environment (data) representation for NN & RL
-- genetic algorithms (GA) for Agents with PyTorch
+- limited observation data, noisy input
+- efficient environment (data) representation for NN & RL 
+- backpropagation & high poker variance
+- genetic algorithms (GA) implementation  
 
 ### Tech scope:
-- advanced Neural Network architectures @PyTorch
+- advanced neural networks architectures @PyTorch
+- data processing with Python
 - Python Multiprocessing & PyTorch (many processes, many GPUs and a lot of data for parallel computing)
+- GA with PyTorch
 
 ![](images/pypoks_ques.png)
 
@@ -18,11 +21,10 @@
 
 ### Setup
 
-To run **training** scripts you will need about 50 CPU cores, 120GB RAM and 2x GPU system.<br>
-You may just play `run_human_game.py` with trained agents downloaded
-from [here](https://drive.google.com/file/d/1e4QEdch2SVgloQjSNzftAohn_Y_lji-U/view?usp=sharing)
-(to be extracted in main repo folder).<br>
+The project may be set up with python=<3.11. Install requirements from ```requirements.txt```
 
+To run training scripts you will need about 50 CPU cores, 120GB RAM and 2x GPU system.<br>
+You may just play `run_human_game.py` with trained agents downloaded from [here](https://drive.google.com/file/d/1e4QEdch2SVgloQjSNzftAohn_Y_lji-U/view?usp=sharing)
 To play human game with agents you will also need `tkinter` for GUI, please install it.
 For instructions how to install tkinter for python 3.11 please go to gui/tkinter folder.
 
@@ -62,5 +64,8 @@ $ python run/run_human_game.py
 ```
 ![](images/pypoks_HDMK.png)
 
-Allowed moves are defined with table_moves in game_config yaml file. Hand history is saved to a file in `hg_hands` folder.
+Allowed moves are defined with table_moves in game_config yaml file.
 
+While playing debug of a game is logged to terminal. You can always check what cards played each agent.
+
+![](images/terminal_HDMK.png)

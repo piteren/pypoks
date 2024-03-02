@@ -93,12 +93,12 @@ class UpdSync(ExSubprocess):
                             idl = sum(self._stime_log[dev]['idle']) / self._tb_freq
                             upd = sum(self._stime_log[dev]['update']) / self._tb_freq
                             all = idl + upd
-                            tbwr.add(value=idl,     tag=f'UpdSync/avg_idle_time_dev{dev}', step=self._tb_counter[dev])
-                            tbwr.add(value=upd,     tag=f'UpdSync/avg_upd_time_dev{dev}',  step=self._tb_counter[dev])
-                            tbwr.add(value=upd/all, tag=f'UpdSync/upd_factor_dev{dev}',    step=self._tb_counter[dev])
+                            tbwr.add(value=idl,     tag=f'UpdSync/GPU{dev}_time_idle',  step=self._tb_counter[dev])
+                            tbwr.add(value=upd,     tag=f'UpdSync/GPU{dev}_time_upd',   step=self._tb_counter[dev])
+                            tbwr.add(value=upd/all, tag=f'UpdSync/GPU{dev}_factor_upd', step=self._tb_counter[dev])
 
                             waiting = len(self.dmks_waiting_for_ticket[dev])
-                            tbwr.add(value=waiting, tag=f'UpdSync/waiting_dmk_dev{dev}',   step=self._tb_counter[dev])
+                            tbwr.add(value=waiting, tag=f'UpdSync/GPU{dev}_waiting',    step=self._tb_counter[dev])
 
                             self._tb_counter[dev] += 1
 

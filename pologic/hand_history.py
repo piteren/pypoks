@@ -1,7 +1,8 @@
-from pypaq.lipytools.files import w_json, r_json
-from typing import List, Tuple, Optional, Union
+from pypaq.lipytools.files import w_jsonl, r_jsonl
+from typing import List, Tuple, Optional, Dict
 
 from envy import TBL_STT, DEBUG_MODE, get_pos_names
+from pologic.game_config import GameConfig
 
 STATE = Tuple[str,Tuple] # state type
 
@@ -9,48 +10,14 @@ STATE = Tuple[str,Tuple] # state type
 # poker hand history
 class HHistory:
     """ Hand History
+    HH is build by the table while playing a hand.
+    For more details and syntax check pologic.md file """
 
-    HH is build by the table, while playing a hand, below are implemented states:
-
-    HST: (table_name:str, hand_id:int)                                          hand starts
-    TST: (state:int,)                                                           table state
-    POS: (pl_id:str, pos:int, pl.cash)                                          player position and starting cash
-    PSB: (pl_id:str, SB$:int)                                                   player puts SB
-    PBB: (pl_id:str, BB$:int)                                                   player puts BB
-    T$$: (pot:int, cash_cs:int, cash_tc:int, cash_rs:int)                       table cash, added after each player MOV (PSB+PBB <- together)
-    PLH: (pl_id:str, ca:str, cb:str)                                            player hand
-    TCD: (c0,c1,c2..:str)                                                       table cards dealt, only new cards are shown
-    MOV: (pl_id:str, mv:int, mv_cash:int, (pl.cash, pl.cash_ch, pl.cash_cs))    player move (pl.cashes BEFORE move)
-    PRS: (pl_id:str, won:int, full_rank)                                        player result (full_rank is a tuple returned by PDeck.cards_rank)
-    HFN: (table_name:str, hand_id:int)                                          hand finished
-
-    below generic flow of states:
-
-        HST                             <- hand starts
-        TST(0)                          <- idle
-        T$$
-        POS,POS,..
-        PSB,PBB
-        T$$
-        PLH,PLH,..
-
-        TST(1)                          <- preflop
-         --loop of MOV > T$$
-
-        TST(2)                          <- flop
-        TCD
-         --loop of MOV > T$$
-
-        .. (next streets like flop)
-
-        TST(5)                          <- showdown [optional]
-        PRS,PRS,..
-        HFN                             <- hand finished """
-
-    def __init__(self, table_size:int, table_moves:List):
-        self.pos_names = get_pos_names(table_size)
-        self.table_moves = table_moves
+    def __init__(self, game_config:GameConfig):
+        self.gc = game_config
+        self.pos_names = get_pos_names(self.gc.table_size)
         self.events: List[STATE] = []
+        self.events.append(('GCF',(self.gc.name,)))
 
     def translated(
             self,
@@ -87,76 +54,82 @@ class HHistory:
         return trns
 
     @staticmethod
-    def extract_mvh(hh:Union["HHistory",List[str]]) -> List[Tuple]:
-        """ extracts moves and hands from HH or list[readable_events]
-        those events are needed to run the table same hand again """
-        if type(hh) is HHistory:
-            mvh = []
-            for e in hh.events:
-                if e[0] in ['PSB','PBB']:
-                    mvh.append((e[1][0], e[0][1:], e[1][1]))
-                if e[0] in ['MOV','PLH']:
-                    mvh.append((e[1][0], e[1][1], e[1][2]))
-                if e[0] == 'TCD':
-                    for c in e[1]:
-                        mvh.append(('tc',c))
-            return mvh
-        else:
-            mvh = [e.split() for e in hh if e.startswith('pl')]
-            print(mvh)
-            return [
-                (e[0], e[1], int(e[2])) if e[1] != 'cards:' else (e[0], e[2], e[3])
-                for e in mvh
-            ]
+    def extract_mvh(hh:List[str]) -> List[List[str]]:
+        """ extracts some essential states from given List[str] (HHtexts) """
+        mvh = [e.split() for e in hh]
+        return [e for e in mvh if e[0] in ['POS:','PLH:','MOV:','TCD:']]
 
-    def readable_event(
-            self,
-            st:STATE,
-    ) -> Optional[str]:
-        """ extracts simple readable events """
+    @staticmethod
+    def gc_from_events(events: List[STATE]) -> GameConfig:
+        game_config_name = events[0][1][0]
+        return GameConfig.from_name(game_config_name)
 
-        if st[0] == 'HST':
-            return f'***** hand #{st[1][1]} starts'
+    def save(self, file:str):
+        w_jsonl(self.events, file)
+
+    @classmethod
+    def from_file(cls, file:str) -> "HHistory":
+        events = r_jsonl(file)
+        hh = cls(cls.gc_from_events(events))
+        hh.events = events
+        return hh
+
+    def __str__(self):
+        return '\n'.join(states2HHtexts(self.events, game_config=self.gc))
+
+
+def states2HHtexts(
+        states: List[STATE],
+        game_config: Optional[GameConfig]=  None,
+        add_probs: bool=                    False,
+        rename: Optional[Dict]=             None,
+) -> List[str]:
+
+    if not game_config:
+        game_config = HHistory.gc_from_events(states)
+
+    texts = []
+
+    for st in states:
+        text = None
+
+        if st[0] == 'GCF':
+            text = f'GCF: {st[1][0]}'
 
         if st[0] == 'POS':
-            return f'{st[1][0]} at {self.pos_names[st[1][1]]} with ${st[1][2]}'
+            pos_names = get_pos_names(game_config.table_size)
+            text = f'POS: {st[1][0]} {pos_names[st[1][1]]} {st[1][2]}'
 
         if st[0] in ['PSB','PBB']:
-            return f'{st[1][0]} {st[0][1:]} {st[1][1]}'
+            text = f'{st[1][0]} {st[0][1:]} {st[1][1]}'
+
+        if st[0] == 'T$$':
+            text = f'table POT: {st[1][0]}'
 
         if st[0] == 'PLH':
-            return f'{st[1][0]} cards: {st[1][1]} {st[1][2]}'
+            text = f'PLH: {st[1][0]} {st[1][1]} {st[1][2]}'
 
         if st[0] == 'TST':
             if st[1][0] != 0: # not idle
-                return f'** {TBL_STT[st[1][0]]}'
+                text = f'** {TBL_STT[st[1][0]]}'
 
         if st[0] == 'TCD':
-            return f'table cards: {" ".join(st[1])}'
+            text = f'TCD: {" ".join(st[1])}'
 
         if st[0] == 'MOV':
-            return f'{st[1][0]} {self.table_moves[st[1][1]][0]} {st[1][2]}'
+            text = f'MOV: {st[1][0]} {game_config.table_moves[st[1][1]][0]} {st[1][2]}'
+            if add_probs and st[1][3]:
+                text += f' {st[1][3]}'
 
         if st[0] == 'PRS':
             r = st[1][2] if type(st[1][2]) is str else st[1][2][-1]
-            return f'$$$: {st[1][0]} {st[1][1]} {r}'
+            text = f'result: {st[1][0]} {st[1][1]} {r}'
 
-    def save(self, file:str):
-        w_json(self.events, file)
-        re = [self.readable_event(e) for e in self.events]
-        re = [e for e in re if e]
-        with open(f'{file}_txt', 'w') as file:
-            for e in re:
-                file.write(f'{e}\n')
+        if text:
+            texts.append(text)
 
-    def load(self, file:str):
-        self.events = r_json(file)
+    if rename:
+        for k in rename:
+            texts = [t.replace(k,rename[k]) for t in texts]
 
-    def __str__(self):
-        hstr = ''
-        for e in self.events:
-            re = self.readable_event(e)
-            if re:
-                hstr += f'{re}\n'
-        if hstr: hstr = hstr[:-1]
-        return hstr
+    return texts

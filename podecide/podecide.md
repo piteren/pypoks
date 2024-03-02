@@ -5,7 +5,7 @@ Podecide folder contains code responsible for making poker decisions using polic
 - **DMK** - Decision MaKer, the top layer of abstraction responsible for learning and making decisions 
 - **DMK Module** - PyTorch definition of NN used for learning / storing / and running policy 
 - **StatsManager** - a component that provides statistics to support DMK durring learning and decision-making 
-- **GamesManager** - manages many DMKs while playing poker games on multiple tables
+- **GameManager** - manages many DMKs while playing poker game on multiple tables
 ---
 
 ### DMK - Decision MaKer
@@ -14,7 +14,7 @@ The Decision MaKer (DMK) defines basic interface for making decisions for poker 
 A single DMK handles one policy and makes decisions for multiple players (n_players).
 Decisions are made using the **Many States One Decision** (MSOD) concept.
 MSOD assumes that a table player can send multiple (1-N) states to DMK before asking DMK for a move decision.
-DMK computes policy moves probabilities for all the sent states, even for those
+DMK computes policy moves probabilities for all sent states, even for those
 that do not require table decisions from a player. 
 
 The two main functions of DMK are:

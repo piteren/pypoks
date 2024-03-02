@@ -1,15 +1,15 @@
 from functools import partial
 from PIL import Image, ImageTk
 from pypaq.lipytools.pylogger import get_pylogger
-from pypaq.lipytools.files import prep_folder
 from pypaq.mpython.mptools import Que, QMessage
 import time
 from tkinter import Tk, Label, Button, Frame, IntVar
 from typing import List, Optional
 
 from envy import get_pos_names
+from pologic.game_config import GameConfig
 from pologic.podeck import CRD_FIG, CRD_COL
-from pologic.hand_history import HHistory, STATE
+from pologic.hand_history import STATE
 from podecide.stats.player_stats import PStatsEx
 
 GUI_DELAY = 0.1 # seconds of delay for every message
@@ -42,15 +42,10 @@ class HumanGameGUI:
     def __init__(
             self,
             players: List[str],         # ids of players
-            table_size: int,
-            table_cash_start: int,
-            table_cash_sb: int,
-            table_cash_bb: int,
-            table_moves: List,
-            imgs_FD=                        'gui/imgs',
-            save_hands_FD: Optional[str]=   'hg_hands',
-            logger=                         None,
-            loglevel=                       20,
+            game_config: GameConfig,
+            imgs_FD=        'gui/imgs',
+            logger=         None,
+            loglevel=       20,
     ):
         if not logger:
             logger = get_pylogger(name=self.__class__.__name__, level=loglevel)
@@ -59,24 +54,19 @@ class HumanGameGUI:
         self.players = players
         self.logger.info(f'*** {self.__class__.__name__} *** starts with players: {self.players}')
 
-        self.table_size = table_size
-        self.table_cash_start = table_cash_start
-        self.table_cash_sb = table_cash_sb
-        self.table_cash_bb = table_cash_bb
-        self.table_moves = table_moves
+        self.gc = game_config
 
-        self.save_hands_FD = save_hands_FD
-        if self.save_hands_FD:
-            prep_folder(self.save_hands_FD)
-
+        # ques to communicate with DMK
         self.queI = Que()
         self.queO = Que()
+
+        self.que_to_gm = Que() # here GUI sends next_hand / exit decision to GM
 
         self.tk = Tk()
         self.tk.title('pypoks HumanGame')
         self.tk.tk_setPalette(background='gray80')
         self.tk.resizable(False,False)
-        self.tk.protocol("WM_DELETE_WINDOW", self.__on_closing)
+        self.tk.protocol("WM_DELETE_WINDOW", self.close_window)
 
         ico = ImageTk.PhotoImage(Image.open(f'{imgs_FD}/aiico.png'))
         self.tk.iconphoto(False, ico)
@@ -86,12 +76,13 @@ class HumanGameGUI:
         self.pl_won = [0 for _ in range(len(self.players))]
         self.n_hands = 0
         self.players_cards = {ix:[] for ix in range(len(self.players))}
+        self.hand_is_finished = True
 
         self.states = [] # current hand states cache
         self.human_stats = PStatsEx(
             player=         0,
-            table_size=     self.table_size,
-            table_moves=    table_moves,
+            table_size=     self.gc.table_size,
+            table_moves=    self.gc.table_moves,
             use_initial=    False,
             upd_freq=       1,
             logger=         self.logger)
@@ -102,7 +93,7 @@ class HumanGameGUI:
 
         ### players frame ******************************************************************************** players frame
 
-        self.__btn_pos = get_pos_names(self.table_size).index('BTN') # index of BTN position (for given table_size)
+        self.__btn_pos = get_pos_names(self.gc.table_size).index('BTN') # index of BTN position (for given table_size)
 
         pl_frm = Frame(self.tk, padx=5, pady=5)
         pl_frm.grid(row=1, column=0)
@@ -179,10 +170,10 @@ class HumanGameGUI:
         dec_frm = Frame(self.tk, padx=5, pady=5)
         dec_frm.grid(row=3, column=0)
 
-        move_names = [f'{mov[0]}' for mov in self.table_moves]
+        move_names = [f'{mov[0]}' for mov in self.gc.table_moves]
         self.move_math = {
-            1: ['' if len(mov) == 1 else f'{mov[1]}x' for mov in self.table_moves],
-            2: ['' if len(mov) == 1 else f'{int(mov[2]*100)}%' for mov in self.table_moves]}
+            1: ['' if len(mov) == 1 else f'{mov[1]}x' for mov in self.gc.table_moves],
+            2: ['' if len(mov) == 1 else f'{int(mov[2]*100)}%' for mov in self.gc.table_moves]}
 
         # prepare fg colors in a frame
         lcolL = []
@@ -213,17 +204,26 @@ class HumanGameGUI:
             self.dec_btnL.append(btn)
         self.__set_dec_btn_act()
 
-        # GO
+        # next hand / exit
         go_frm = Frame(self.tk, padx=5, pady=5)
         go_frm.grid(row=4, column=0)
         self.next_go = IntVar()
-        self.next_btn = Button(go_frm, text='GO', command=lambda: self.next_go.set(1), pady=2, padx=2, width=15)
+        self.next_btn = Button(go_frm, text='next hand', command=lambda: self.next_go.set(1), pady=2, padx=2, width=15)
         self.next_btn.grid(row=0, column=0, pady=5)
         self.next_btn['state'] = 'disabled'
         self.nHlbl = Label(go_frm, text=0, font=('Helvetica bold', 11), width=5)  # n_hands
         self.nHlbl.grid(row=0, column=1)
+        self.exit_btn = Button(go_frm, text='exit', command=self.close_window, pady=2, padx=2, width=15)
+        self.exit_btn.grid(row=0, column=2, pady=5)
+        self.exit_btn['state'] = 'disabled'
 
     ### GUI main logic methods ****************************************************************** GUI main logic methods
+
+    def close_window(self):
+        if self.hand_is_finished:
+            self.que_to_gm.put(QMessage(type='exit'))
+            self.next_btn.invoke()  # this button may hold exit, needs to be invoked
+            self.tk.quit()
 
     def run_loop(self):
         """ runs main loop """
@@ -242,7 +242,7 @@ class HumanGameGUI:
                 break
             if message.type == 'allowed_moves':
                 data = message.data
-                cv = [data['moves_cash'][ix] if data['allowed_moves'][ix] else '-' for ix in range(len(self.table_moves))]
+                cv = [data['moves_cash'][ix] if data['allowed_moves'][ix] else '-' for ix in range(len(self.gc.table_moves))]
                 self.__set_dec_cash_val(cv)
                 self.__set_dec_btn_act(data['allowed_moves'])
             if message.type == 'state':
@@ -256,9 +256,13 @@ class HumanGameGUI:
 
         prn = True # to catch unhandled states below
 
+        if state[0] == 'GCF':
+            prn = False
+
         if state[0] == 'HST':
             self.n_hands += 1
             self.nHlbl['text'] = self.n_hands
+            self.hand_is_finished = False
             prn = False
 
         if state[0] in ['PSB', 'PBB']:
@@ -273,7 +277,7 @@ class HumanGameGUI:
                 self.__upd_tcash()
                 self.__set_dec_math_text(1)
                 for plix in self.plx_elD:
-                    self.__upd_plcsh(plix, self.table_cash_start)
+                    self.__upd_plcsh(plix, self.gc.table_cash_start)
                     self.__set_pl_active(plix)
 
             # postflop
@@ -283,15 +287,16 @@ class HumanGameGUI:
             if state[1][0] != 1: # not preflop
                 for plix in self.plx_elD:
                     self.__upd_plcsh(plix, True, None)
+
             prn = False
 
         if state[0] == 'POS':
             # SB
             if state[1][1] == 0:
-                self.__upd_plcsh(state[1][0], self.table_cash_start - self.table_cash_sb, self.table_cash_sb)
+                self.__upd_plcsh(state[1][0], self.gc.table_cash_start - self.gc.table_cash_sb, self.gc.table_cash_sb)
             # BB
             if state[1][1] == 1:
-                self.__upd_plcsh(state[1][0], self.table_cash_start - self.table_cash_bb, self.table_cash_bb)
+                self.__upd_plcsh(state[1][0], self.gc.table_cash_start - self.gc.table_cash_bb, self.gc.table_cash_bb)
             # is BTN
             if state[1][1] == self.__btn_pos:
                 self.__set_button(state[1][0])
@@ -313,11 +318,11 @@ class HumanGameGUI:
 
         if state[0] == 'MOV':
             # FLD case
-            if self.table_moves[state[1][1]][0] == 'FLD':
-                self.__upd_plcsh(state[1][0], state[1][3][0]) # sets cash_cs to '-'
+            if self.gc.table_moves[state[1][1]][0] == 'FLD':
+                self.__upd_plcsh(state[1][0], state[1][4][0]) # sets cash_cs to '-'
                 self.__set_pl_active(state[1][0], False)
             else:
-                self.__upd_plcsh(state[1][0], state[1][3][0] - state[1][2], state[1][3][2] + state[1][2])
+                self.__upd_plcsh(state[1][0], state[1][4][0] - state[1][2], state[1][4][2] + state[1][2])
             prn = False
 
         if state[0] == 'PRS':
@@ -325,21 +330,14 @@ class HumanGameGUI:
             prn = False
 
         if state[0] == 'HFN':
-
-            hh = HHistory(table_size=self.table_size, table_moves=self.table_moves)
-            hh.events = self.states
-            if self.save_hands_FD:
-                hh.save(file=f'{self.save_hands_FD}/human_{self.n_hands:02}.hh')
-            self.logger.debug(str(hh))
-
-            self.human_stats.process_states(self.states)
-            self.logger.debug(f'human_stats: {self.human_stats.player_stats}')
-            self.states = []
-
+            self.hand_is_finished = True
             self.next_btn['state'] = 'normal'
-            print('\npress GO to start next hand')
+            self.exit_btn['state'] = 'normal'
             self.next_btn.wait_variable(self.next_go)
+            message = QMessage(type='next_hand')
+            self.que_to_gm.put(message)
             self.next_btn['state'] = 'disabled'
+            self.exit_btn['state'] = 'disabled'
             prn = False
 
         #prn = True
@@ -397,7 +395,7 @@ class HumanGameGUI:
             self.tcards += cl
 
         # update GUI
-        cl = [] + self.tcards # copy (!)
+        cl = [] + self.tcards # copy
         cl += [None]*(5-len(cl))
         for ix in range(5):
             set_image(self.tblc_lblL[ix], self.cards_imagesD[cl[ix]])
@@ -416,14 +414,14 @@ class HumanGameGUI:
 
     def __set_dec_cash_val(self, val:Optional[List]=None):
         """ sets $ values of cash labels """
-        if not val: val = ['-']*len(self.table_moves)
+        if not val: val = ['-']*len(self.gc.table_moves)
         for lbl,v in zip(self.dec_cashL,val):
             lbl['text'] = v
 
     def __set_dec_btn_act(self, act:Optional[List[bool]]=None):
         """ sets state of buttons """
         if not act:
-            act = [False]*len(self.table_moves)
+            act = [False]*len(self.gc.table_moves)
         for ix in range(len(self.dec_btnL)):
             self.dec_btnL[ix]['state'] = 'normal' if act[ix] else 'disabled'
 
@@ -431,7 +429,3 @@ class HumanGameGUI:
         """ sets text math labels """
         for lbl,nm in zip(self.dec_mathL, self.move_math[phase]):
             lbl['text'] = nm
-
-    def __on_closing(self):
-        self.next_btn.invoke() # this button may hold exit (#286), we need to invoke it
-        self.tk.quit()

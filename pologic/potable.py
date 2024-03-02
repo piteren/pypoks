@@ -4,9 +4,10 @@ from pypaq.lipytools.pylogger import get_pylogger
 from pypaq.pytypes import NPL
 from pypaq.mpython.mptools import Que, QMessage
 import time
-from typing import List, Dict, Tuple, Optional, Union
+from typing import List, Dict, Tuple, Optional
 
-from envy import DEBUG_MODE
+from envy import get_pos_names, DEBUG_MODE, PyPoksException
+from pologic.game_config import GameConfig
 from pologic.hand_history import HHistory, STATE
 from pologic.podeck import PDeck
 
@@ -19,7 +20,7 @@ class PPlayer:
 
     def __init__(
             self,
-            id:str,
+            id: str,
             table_moves: List,
             logger=     None,
             loglevel=   20,
@@ -131,7 +132,6 @@ class PPlayer:
 
         return allowed_moves, moves_cash
 
-
     def _make_decision(
             self,
             allowed_moves :List[bool],
@@ -141,7 +141,7 @@ class PPlayer:
         baseline implementation with random
         in "brained" implementations all the data (HH) may be used to make a decision
         returns move IX + list of probs """
-        n_moves = len(self.table.moves)
+        n_moves = len(self.table.gc.table_moves)
         probs = self.rng.random(n_moves)
         probs *= allowed_moves
         probs /= sum(probs)
@@ -174,6 +174,12 @@ class PPlayer:
         s = (f'player {self.id} selected move #{selected_move} {self.table_moves[selected_move][0]} ({moves_cash[selected_move]}$):\n'
              f'{self._after_decision_str(moves_cash, allowed_moves, probs, selected_move)}')
         self.logger.debug(s)
+
+        """ here NAM probs are finally removed
+        up to now DMK keeps its NAM probs, it is useful for NAM monitoring
+        probs cleaned here will be saved in HH by the table """
+        probs = np.multiply(probs, allowed_moves)
+        probs = probs / sum(probs)
 
         return selected_move, moves_cash[selected_move], probs
 
@@ -210,25 +216,17 @@ class PTable:
     def __init__(
             self,
             name: str,
-            moves: List[Tuple],
-            cash_start: int,
-            cash_sb: int,
-            cash_bb: int,
-            pl_ids: Optional[List[str]]=    None,
-            logger=                         None,
-            loglevel=                       20,
+            game_config: GameConfig,
+            pl_ids: List[str],
+            logger=     None,
+            loglevel=   20,
     ):
         if not logger:
             logger = get_pylogger(name='PTable', level=loglevel)
         self.logger = logger
 
         self.name = name
-
-        self.moves = moves
-        self.cash_sb = cash_sb
-        self.cash_bb = cash_bb
-        self.cash_start = cash_start
-
+        self.gc = game_config
         self.deck =     PDeck()
 
         self.state =   0            # table state while running hand (int)
@@ -238,15 +236,17 @@ class PTable:
         self.pot =     0            # table pot (main)
         self.cash_cs = 0            # cash of current street
         self.cash_tc = 0            # cash to call by player (on current street) = highest bet on street
-        self.cash_rs = self.cash_bb # legal raise size (recent raise)
+        self.cash_rs = self.gc.table_cash_bb  # legal raise size (recent raise)
 
-        self.hand_ID: int=  0   # hand counter
+        self.hand_ID: int=  0       # hand counter
+        self.hh: Optional[HHistory] = None  # current hand HH
 
-        self.players = None
+
         # create players and put on the table, order of players reflects their current positions at table
-        if pl_ids:
-            self.players = self._build_players(pl_ids)
-            self._early_update_players()
+        self.players = self._build_players(pl_ids)
+        self._early_update_players()
+
+        self.move_id = {m[0]: ix for ix,m in enumerate(self.gc.table_moves)}
 
         size_nfo = f'(size:{len(pl_ids)}) ' if pl_ids else ''
         self.logger.info(f'*** PTable : {self.name} {size_nfo}*** initialized')
@@ -255,7 +255,7 @@ class PTable:
         players = [
             PPlayer(
                 id=             id,
-                table_moves=    self.moves,
+                table_moves=    self.gc.table_moves,
                 logger=         self.logger,
             ) for id in pl_ids]
         return players
@@ -277,7 +277,7 @@ class PTable:
         pls = [pl.id for pl in self.players] # list of ids
         for pl in self.players:
             pl.pls = [] + pls # copy
-            # rotate for every player to put his on first position
+            # rotate for every player to put him on the first position
             while pl.pls[0] != pl.id:
                 pl.pls.append(pl.pls.pop(0))
 
@@ -285,17 +285,26 @@ class PTable:
         """ rotates table players (moves BTN right) """
         self.players.append(self.players.pop(0))
 
-    def run_hand(self, hh_given:Optional[Union["HHistory",List[str]]]=None) -> HHistory:
+    def add_hh_event(self, event:STATE):
+        self.hh.events.append(event)
+        """
+        # eventually use states2texts
+        readable_event = self.hh.readable_event(event)
+        if readable_event:
+            self.logger.debug(readable_event)
+        """
+
+    def run_hand(self, hh_given:Optional[List[str]]=None) -> HHistory:
         """ runs single hand
         if hh_given is given -> runs hand with given moves and cards """
 
         time_reset = time.time()
         tt, mt = 0, 0 # table & move time
 
-        hh = HHistory(table_size=len(self.players), table_moves=self.moves)
-        state = ('HST', (self.name, self.hand_ID))
-        hh.events.append(state)
-        self.logger.debug(hh.readable_event(state))
+        break_hand = False
+
+        self.hh = HHistory(game_config=self.gc)
+        self.add_hh_event(event=('HST', (self.name, self.hand_ID)))
 
         hh_mvh = HHistory.extract_mvh(hh_given) if hh_given else None
         if hh_mvh:
@@ -303,17 +312,15 @@ class PTable:
 
         # idle
         self.state = 0
-        state = ('TST', (self.state,))
-        hh.events.append(state)
+        self.add_hh_event(event=('TST', (self.state,)))
 
-        self.pot, self.cash_cs, self.cash_tc, self.cash_rs = 0, 0, 0, self.cash_bb
-        state = ('T$$', (self.pot, self.cash_cs, self.cash_tc, self.cash_rs))
-        hh.events.append(state)
+        self.pot, self.cash_cs, self.cash_tc, self.cash_rs = 0, 0, 0, 0
+        self.add_hh_event(event=('T$$', (self.pot, self.cash_cs, self.cash_tc, self.cash_rs)))
 
         # reset player data (cash, cards)
         for pl in self.players:
             pl.hand = None  # players return cards
-            pl.cash = self.cash_start
+            pl.cash = self.gc.table_cash_start
             pl.cash_ch = 0
             pl.cash_cs = 0
             pl.nhs_IX = 0
@@ -322,44 +329,55 @@ class PTable:
         self.cards = []
         self.deck.reset()
 
-        # rotate table to match mvh, remove SB move
+        # rotate table to match mvh
         if hh_mvh:
-            sb_pl_id = hh_mvh.pop(0)[0]
+
+            hh_pos = hh_mvh[:len(self.players)]
+
+            if list(set([e[0] for e in hh_pos]))[0] != 'POS:':
+                raise PyPoksException('hh_mvh number of POS: not valid')
+
+            if set([e[1] for e in hh_pos]) != set([p.id for p in self.players]):
+                raise PyPoksException('hh_mvh set of players not valid')
+
+            if [e[2] for e in hh_pos] != get_pos_names(len(self.players)):
+                raise PyPoksException('hh_mvh pos_names not valid')
+
+            cs = list(set([e[3] for e in hh_pos]))
+            if len(cs) != 1 or int(cs[0]) != self.gc.table_cash_start:
+                raise PyPoksException('hh_mvh player cash start not valid')
+
+            sb_pl_id = hh_pos[0][1]
             while sb_pl_id != self.players[0].id:
                 self.rotate_players()
-        # remove also BB move
-        if hh_mvh:
-            hh_mvh.pop(0)
+
+            if [e[1] for e in hh_pos] != [p.id for p in self.players]:
+                raise PyPoksException('hh_mvh order of players not valid')
+
+            hh_mvh = hh_mvh[len(hh_pos):] # remove all other POS:
 
         hand_pls = [] + self.players  # copy order of players for current hand (SB, BB, ..)
 
         for ix in range(len(hand_pls)):
-            state = ('POS', (hand_pls[ix].id, ix, hand_pls[ix].cash))
-            hh.events.append(state)
-            self.logger.debug(hh.readable_event(state))
+            self.add_hh_event(event=('POS', (hand_pls[ix].id, ix, hand_pls[ix].cash)))
 
         ### put blinds on table
 
-        hand_pls[0].cash -= self.cash_sb
-        hand_pls[0].cash_ch = self.cash_sb
-        hand_pls[0].cash_cs = self.cash_sb
-        state = ('PSB', (hand_pls[0].id, self.cash_sb))
-        hh.events.append(state)
-        self.logger.debug(hh.readable_event(state))
+        hand_pls[0].cash -= self.gc.table_cash_sb
+        hand_pls[0].cash_ch = self.gc.table_cash_sb
+        hand_pls[0].cash_cs = self.gc.table_cash_sb
+        self.add_hh_event(event=('PSB', (hand_pls[0].id, self.gc.table_cash_sb)))
 
-        hand_pls[1].cash -= self.cash_bb
-        hand_pls[1].cash_ch = self.cash_bb
-        hand_pls[1].cash_cs = self.cash_bb
-        state = ('PBB', (hand_pls[1].id, self.cash_bb))
-        hh.events.append(state)
-        self.logger.debug(hh.readable_event(state))
+        hand_pls[1].cash -= self.gc.table_cash_bb
+        hand_pls[1].cash_ch = self.gc.table_cash_bb
+        hand_pls[1].cash_cs = self.gc.table_cash_bb
+        self.add_hh_event(event=('PBB', (hand_pls[1].id, self.gc.table_cash_bb)))
 
-        self.pot = self.cash_sb + self.cash_bb
+        self.pot = self.gc.table_cash_sb + self.gc.table_cash_bb
         self.cash_cs = self.pot
-        self.cash_tc = self.cash_bb
-        self.cash_rs = self.cash_bb
-        state = ('T$$', (self.pot, self.cash_cs, self.cash_tc, self.cash_rs))
-        hh.events.append(state)
+        self.cash_tc = self.gc.table_cash_bb
+        self.cash_rs = self.gc.table_cash_bb
+        self.add_hh_event(event=('T$$', (self.pot, self.cash_cs, self.cash_tc, self.cash_rs)))
 
         ### hand cards
 
@@ -371,15 +389,16 @@ class PTable:
 
         for pl in c_pls:
             if hh_mvh:
-                cas, cbs = hh_mvh.pop(0)[1:]
-                self.deck.get_ex_card(cas)
-                self.deck.get_ex_card(cbs)
+                cas, cbs = hh_mvh.pop(0)[2:]
+                ca = self.deck.get_ex_card(cas)
+                cb = self.deck.get_ex_card(cbs)
+                if ca is None or cb is None:
+                    raise PyPoksException(f'hh_mvh player {pl.id} cards not valid')
                 pl.hand = cas, cbs
             else:
                 ca, cb = self.deck.get_card(), self.deck.get_card()
                 pl.hand = PDeck.cts(ca), PDeck.cts(cb)
-            state = ('PLH', (pl.id, pl.hand[0], pl.hand[1]))
-            hh.events.append(state)
+            self.add_hh_event(event=('PLH', (pl.id, pl.hand[0], pl.hand[1])))
 
         # set preflop values
         lc_pIX = 1                           # loop closing player index
@@ -390,9 +409,7 @@ class PTable:
 
             # next street starts
             self.state += 1
-            state = ('TST', (self.state,))
-            hh.events.append(state)
-            self.logger.debug(hh.readable_event(state))
+            self.add_hh_event(event=('TST', (self.state,)))
 
             # reset some values for postflop
             if self.state > 1:
@@ -402,21 +419,21 @@ class PTable:
 
                 self.cash_cs = 0
                 self.cash_tc = 0
-                self.cash_rs = self.cash_bb
+                self.cash_rs = self.gc.table_cash_bb
                 for pl in self.players:
                     pl.cash_cs = 0
 
-                state = ('T$$', (self.pot, self.cash_cs, self.cash_tc, self.cash_rs))
-                hh.events.append(state)
+                self.add_hh_event(event=('T$$', (self.pot, self.cash_cs, self.cash_tc, self.cash_rs)))
 
             # manage table cards
             new_table_cards = []
             if self.state == 2:
                 # try to get table cards from mvh
-                for _ in range(3):
-                    if hh_mvh:
-                        c = hh_mvh.pop(0)[1]
-                        self.deck.get_ex_card(c)
+                if hh_mvh:
+                    for c in hh_mvh.pop(0)[1:]:
+                        tc = self.deck.get_ex_card(c)
+                        if tc is None:
+                            raise PyPoksException(f'hh_mvh table card {c} at state {self.state} not valid')
                         new_table_cards.append(c)
                 # eventually fill with random
                 while len(new_table_cards) < 3:
@@ -424,18 +441,18 @@ class PTable:
             if self.state in [3,4]:
                 if hh_mvh:
                     c = hh_mvh.pop(0)[1]
-                    self.deck.get_ex_card(c)
+                    tc = self.deck.get_ex_card(c)
+                    if tc is None:
+                        raise PyPoksException(f'hh_mvh table card {c} at state {self.state} not valid')
                     new_table_cards = [c]
                 else:
                     new_table_cards = [PDeck.cts(self.deck.get_card())]
             if new_table_cards:
                 self.cards += new_table_cards
-                state = ('TCD', tuple(new_table_cards))
-                hh.events.append(state)
-                self.logger.debug(hh.readable_event(state))
+                self.add_hh_event(event=('TCD', tuple(new_table_cards)))
 
             # ask players for moves
-            while len(hand_pls)>1:
+            while len(hand_pls)>1 and not break_hand:
 
                 # next loop
                 if mv_pIX == len(hand_pls):
@@ -446,28 +463,47 @@ class PTable:
                 player_raised = False
                 if pl.cash: # player has cash (not all-in-ed yet)
 
+                    mv_id = None
+
                     # move is taken from mvh
                     if hh_mvh:
+
                         mv = hh_mvh.pop(0)
-                        mv_id = mv[1]
-                        mv_cash = mv[2]
-                    # player makes move
-                    else:
-                        pl.take_hh(hh)  # takes actual hh from table
+
+                        if mv[1] == '??':
+                            break_hand = True
+                        else:
+
+                            mv_id = self.move_id[mv[2]]
+                            mv_cash = int(mv[3])
+                            probs = []
+
+                            allowed_moves, moves_cash = pl._amc()
+
+                            if not allowed_moves[mv_id]:
+                                raise PyPoksException(f'hh_mvh given move {mv} is not allowed')
+
+                            if moves_cash[mv_id] != mv_cash:
+                                raise PyPoksException(f'hh_mvh given move {mv} has wrong cash value, should have {moves_cash[mv_id]}')
+
+                    # player makes a move
+                    if mv_id is None:
+
+                        pl.take_hh(self.hh)  # takes actual hh from table
 
                         ct = time.time()
                         tt += ct-time_reset
                         time_reset = ct
 
                         mv_id, mv_cash, probs = pl.select_move()
+                        probs = probs.tolist()
 
                         ct = time.time()
                         self.logger.debug(f'decision taken: {ct-time_reset:.7f}s')
                         mt += ct-time_reset
                         time_reset = ct
 
-                    state = ('MOV', (pl.id, mv_id, mv_cash, (pl.cash, pl.cash_ch, pl.cash_cs)))
-                    hh.events.append(state)
+                    self.add_hh_event(event=('MOV', (pl.id, mv_id, mv_cash, probs, (pl.cash, pl.cash_ch, pl.cash_cs))))
 
                     pl.cash -= mv_cash
                     pl.cash_ch += mv_cash
@@ -487,8 +523,7 @@ class PTable:
                         self.cash_tc = pl.cash_cs
                         lc_pIX = mv_pIX-1 if mv_pIX>0 else len(hand_pls) - 1 # player before in loop
 
-                    state = ('T$$', (self.pot, self.cash_cs, self.cash_tc, self.cash_rs))
-                    hh.events.append(state)
+                    self.add_hh_event(event=('T$$', (self.pot, self.cash_cs, self.cash_tc, self.cash_rs)))
 
                 # player closing loop made decision (without raise)
                 if lc_pIX == mv_pIX and not player_raised:
@@ -498,67 +533,63 @@ class PTable:
                 elif lc_pIX > mv_pIX: lc_pIX -= 1 # move index left because of del
 
             # EXIT if river finished or everybody folded (to one player)
-            if self.state == 4 or len(hand_pls) == 1:
+            if self.state == 4 or len(hand_pls) == 1 or break_hand:
                 break
 
-        winnersD = {
-            pl.id: {
-                'winner':       False,
-                'full_rank':    'muck',
-                'won':          0} for pl in self.players}
+        if not break_hand:
 
-        # one player left finally (other passed)
-        if len(hand_pls) == 1:
-            w_name = hand_pls[0].id
-            winnersD[w_name]['winner'] = True
-            winnersD[w_name]['full_rank'] = 'not_shown'
-            n_winners = 1
+            winnersD = {
+                pl.id: {
+                    'winner':       False,
+                    'full_rank':    'muck',
+                    'won':          0} for pl in self.players}
 
-        # got more than one player -> showdown
-        else:
-            state = ('TST', (5,))
-            hh.events.append(state)
-            self.logger.debug(hh.readable_event(state))
+            # one player left finally (other passed)
+            if len(hand_pls) == 1:
+                w_name = hand_pls[0].id
+                winnersD[w_name]['winner'] = True
+                winnersD[w_name]['full_rank'] = 'not_shown'
+                n_winners = 1
 
-            # get their ranks and top rank
-            top_rank = 0
-            for pl in hand_pls:
-                cards = list(pl.hand)+self.cards
-                rank = PDeck.cards_rank(cards)
-                winnersD[pl.id]['full_rank'] = rank
-                if top_rank < rank[1]: top_rank = rank[1]
+            # got more than one player -> showdown
+            else:
+                self.add_hh_event(event=('TST', (5,)))
 
-            # who's got top rank
-            n_winners = 0
-            for pln in winnersD:
-                if winnersD[pln]['full_rank'][1] == top_rank:
-                    winnersD[pln]['winner'] = True
-                    n_winners += 1
+                # get their ranks and top rank
+                top_rank = 0
+                for pl in hand_pls:
+                    cards = list(pl.hand)+self.cards
+                    rank = PDeck.cards_rank(cards)
+                    winnersD[pl.id]['full_rank'] = rank
+                    if top_rank < rank[1]: top_rank = rank[1]
 
-            # not shown for rest
-            for pln in winnersD:
-                if not winnersD[pln]['winner']:
-                    if winnersD[pln]['full_rank'] != 'muck':
-                        winnersD[pln]['full_rank'] = 'not_shown'
+                # who's got top rank
+                n_winners = 0
+                for pln in winnersD:
+                    if winnersD[pln]['full_rank'][1] == top_rank:
+                        winnersD[pln]['winner'] = True
+                        n_winners += 1
 
-        # manage cash and information about
-        prize = self.pot / n_winners
-        for pl in self.players:
-            my_won = -pl.cash_ch  # netto lost
-            if winnersD[pl.id]['winner']: my_won += prize  # add netto winning
-            winnersD[pl.id]['won'] = my_won
+                # not shown for rest
+                for pln in winnersD:
+                    if not winnersD[pln]['winner']:
+                        if winnersD[pln]['full_rank'] != 'muck':
+                            winnersD[pln]['full_rank'] = 'not_shown'
 
-        for pl_id in winnersD:
-            state = ('PRS', (pl_id, winnersD[pl_id]['won'], winnersD[pl_id]['full_rank']))
-            hh.events.append(state)
-            self.logger.debug(hh.readable_event(state))
+            # manage cash and information about
+            prize = self.pot / n_winners
+            for pl in self.players:
+                my_won = -pl.cash_ch  # netto lost
+                if winnersD[pl.id]['winner']: my_won += prize  # add netto winning
+                winnersD[pl.id]['won'] = my_won
 
-        state = ('HFN', (self.name, self.hand_ID))
-        hh.events.append(state)
+            for pl_id in winnersD:
+                self.add_hh_event(event=('PRS', (pl_id, winnersD[pl_id]['won'], winnersD[pl_id]['full_rank'])))
+            self.add_hh_event(event=('HFN', (self.name, self.hand_ID)))
 
-        # occasion to take a reward
-        for pl in self.players:
-            pl.take_hh(hh)
+            # occasion to take a reward
+            for pl in self.players:
+                pl.take_hh(self.hh)
 
         if DEBUG_MODE:
             for pl in self.players:
@@ -570,45 +601,20 @@ class PTable:
         self.rotate_players()  # rotate table players for next hand
         self.hand_ID += 1
 
-        return hh
+        return self.hh
 
 
 class QPPlayer(PPlayer):
-    """ QPPlayer (PPlayer that uses Ques)
-    sends hh with que o_que and asks i_que for decisions
-        - o_que is common for all game players, i_que is one for player
-    QPPlayer sends with que_from_player QMessages of two types:
-        - 'make_decision' with data needed to make a decision (move)
-        - 'state_changes' with new state changes """
+    """ QPPlayer - PPlayer that uses Ques to communicate with DMK """
 
     def __init__(
             self,
-            que_to_player: Que,     # from DMK to player
-            que_from_player: Que,   # from player to DMK
+            que_to_player: Que,   # DMK -> player, player receives decision from DMK
+            que_from_player: Que, # player -> DMK, player sends to DMK state_changes & make_decision (extracted from hh)
             **kwargs):
         PPlayer.__init__(self, **kwargs)
         self.que_to_player = que_to_player
         self.que_from_player = que_from_player
-
-    def _make_decision(
-            self,
-            allowed_moves :List[bool],
-            moves_cash :List[int],
-    ) -> Tuple[int, NPL]:
-        """ makes decision (communicates with ques)
-        sends via que data with state before move and gets decision & probs from incoming que """
-
-        message = QMessage(
-            type = 'make_decision',
-            data = {
-                'id':               self.id,
-                'allowed_moves':    allowed_moves,
-                'moves_cash':       moves_cash})
-        self.que_from_player.put(message)
-
-        message = self.que_to_player.get()  # get move from DMK
-
-        return message.data['selected_move'], message.data['probs']
 
     def _prepare_nt_states(self, hh:HHistory) -> List[STATE]:
         """ prepares list of new & translated events from table hh """
@@ -617,23 +623,37 @@ class QPPlayer(PPlayer):
         return state_changes
 
     def take_hh(self, hh: HHistory):
-        """ takes actual hh from table, puts new & translated states to DMK """
+        """ takes actual hh from table, sends new & translated states to DMK """
         message = QMessage(
             type = 'state_changes',
+            data = {'id':self.id, 'state_changes':self._prepare_nt_states(hh)})
+        self.que_from_player.put(message)
+
+    def _make_decision(
+            self,
+            allowed_moves :List[bool],
+            moves_cash :List[int],
+    ) -> Tuple[int, NPL]:
+        """ makes decision (communicates with ques)
+        sends via que data with state before move and gets decision & probs from incoming que """
+        message = QMessage(
+            type = 'make_decision',
             data = {
                 'id':               self.id,
-                'state_changes':    self._prepare_nt_states(hh)})
+                'allowed_moves':    allowed_moves,
+                'moves_cash':       moves_cash})
         self.que_from_player.put(message)
+        message = self.que_to_player.get()  # get move from DMK
+        return message.data['selected_move'], message.data['probs']
 
 
 class QPTable(PTable, Process):
-    """ QPTable is a Poker Table as a Process using Ques
-    (Ques are managed by QPPlayer) """
+    """ QPTable is a Poker Table as a Process using ques to communicate with GM """
 
     def __init__(
             self,
-            que_to_gm :Que,                       # Que to GamesManager, here Table puts data for GamesManager
-            pl_ques: Dict[str, Tuple[Que,Que]],
+            pl_ques: Dict[str, Tuple[Que, Que]],
+            que_to_gm :Que,
             **kwargs):
 
         Process.__init__(
@@ -641,22 +661,18 @@ class QPTable(PTable, Process):
             name=   kwargs['name'],
             target= self.run_hand_loop)
 
-        self.que_to_gm = que_to_gm
-        self.que_from_gm = Que()  # here Table receives data from GM
+        self.que_to_gm = que_to_gm # here Table puts data for GM
+        self.que_from_gm = Que()   # here Table receives data from GM
 
-        PTable.__init__(self, **kwargs)
-
-        pl_ids = list(pl_ques.keys())
         self.pl_ques = pl_ques
-        self.players = self._build_players(pl_ids)
-        self._early_update_players()
 
+        PTable.__init__(self, pl_ids=list(self.pl_ques.keys()), **kwargs)
 
     def _build_players(self, pl_ids:List[str]) -> List[QPPlayer]:
         players = [
             QPPlayer(
                 id=                 id,
-                table_moves=        self.moves,
+                table_moves=        self.gc.table_moves,
                 que_to_player=      self.pl_ques[id][0],
                 que_from_player=    self.pl_ques[id][1],
                 logger=             self.logger,
@@ -667,9 +683,7 @@ class QPTable(PTable, Process):
         """ runs hands in a loop
         after starting the table target loop GM is waiting for a message from table """
 
-        message = QMessage(
-            type = 'table_status',
-            data = f'{self.name} (QPTable) process started')
+        message = QMessage('table_started')
         self.que_to_gm.put(message)
         while True:
 
@@ -677,14 +691,35 @@ class QPTable(PTable, Process):
 
             # eventually process Game Manager command
             message = self.que_from_gm.get(block=False)
+
             if message:
+
                 if message.type == 'stop_table':
-                    table_message = QMessage(
-                        type = 'table_status',
-                        data = f'{self.name} (QPTable) process started')
+                    table_message = QMessage('table_stopped')
                     self.que_to_gm.put(table_message)
                     break
 
-    def kill(self):
-        """ kills self (process) """
-        self.terminate()
+
+class StepQPTable(QPTable):
+
+    def run_hand_loop(self):
+        """ runs hands in a stepped loop
+        in the every loop table waits for GM instruction (message) """
+
+        message = QMessage('table_started')
+        self.que_to_gm.put(message)
+        while True:
+
+            message = self.que_from_gm.get()
+
+            if message.type == 'run_hand':
+                hh_given = message.data
+                hh_out = self.run_hand(hh_given=hh_given)
+                table_message = QMessage(type='hh_out', data=hh_out)
+                self.que_to_gm.put(table_message)
+
+            if message.type == 'stop_table':
+                table_message = QMessage(type='table_stopped')
+                self.que_to_gm.put(table_message)
+                break
+

@@ -1,7 +1,4 @@
-from pypaq.lipytools.files import list_dir
-import shutil
-from typing import List, Dict, Optional
-import yaml
+from typing import List
 
 
 # table states
@@ -40,6 +37,8 @@ PLAYER_STATS_USED = (
 CACHE_FD =       '_cache'
 ASC_FP =        f'{CACHE_FD}/asc.dict'
 
+GAME_CONFIGS_FD = 'game_configs'
+
 MODELS_FD =      '_models'
 CN_MODELS_FD =  f'{MODELS_FD}/cardNet'
 DMK_MODELS_FD = f'{MODELS_FD}/dmk'
@@ -49,6 +48,10 @@ TR_CONFIG_FP =  f'{DMK_MODELS_FD}/training.cfg'
 TR_RESULTS_FP = f'{DMK_MODELS_FD}/training_results.json'
 
 DEBUG_MODE =    True # True allows more information to be shown while playing HumanGame
+
+
+class PyPoksException(Exception):
+    pass
 
 
 def get_pos_names(table_size:int) -> List[str]:
@@ -62,41 +65,3 @@ def get_pos_names(table_size:int) -> List[str]:
 
 def get_cardNet_name(cards_emb_width:int):
     return f'cardNet{cards_emb_width}'
-
-
-def get_game_config_name(folder:str) -> str:
-    files = list_dir(folder)['files']
-    config_names = [fn[:-8] for fn in files if fn.endswith('_gc.yaml')]
-    if len(config_names) == 0:
-        raise PyPoksException('there is no config_file in given folder!')
-    if len(config_names) > 1:
-        raise PyPoksException('there are many config_files in given folder!')
-    return config_names[0]
-
-
-def load_game_config(
-        name: Optional[str]=    None,
-        folder: Optional[str]=  'game_configs',
-        copy_to: Optional[str]= None,
-) -> Dict:
-    """ loads game config with given name from folder,
-    optionally copies it to copy_to folder, if given
-    """
-
-    if name is None and folder is None:
-        raise PyPoksException('name or folder must be given!')
-
-    if not name:
-        name = get_game_config_name(folder)
-
-    with open(f"{folder}/{name}_gc.yaml", "r") as stream:
-        config = yaml.safe_load(stream)
-
-    if copy_to is not None:
-        shutil.copyfile(f'{folder}/{name}_gc.yaml', f'{copy_to}/{name}_gc.yaml')
-
-    return config
-
-
-class PyPoksException(Exception):
-    pass

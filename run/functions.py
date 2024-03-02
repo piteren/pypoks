@@ -11,9 +11,10 @@ import sys
 from typing import List, Optional, Dict, Tuple, Union
 
 from envy import DMK_MODELS_FD, TR_RESULTS_FP, PyPoksException
+from pologic.game_config import GameConfig
 from podecide.dmk import FolDMK
-from podecide.dmk_motorch import DMK_MOTorch_PG, DMK_MOTorch_PPO
-from podecide.games_manager import GamesManager_PTR
+from podecide.dmk_motorch import DMK_MOTorch, DMK_MOTorch_PG, DMK_MOTorch_PPO
+from podecide.game_manager import GameManager_PTR
 
 
 def check_continuation() -> Dict:
@@ -54,37 +55,21 @@ def get_saved_dmks_names(folder:Optional[str]=None) -> List[str]:
     return [d for d in all_dirs if d.startswith('dmk')]
 
 
-def get_fresh_dna(game_config: Dict, name:str, family:str) -> POINT:
+def get_fresh_dna(game_config:GameConfig, name:str, family:str) -> POINT:
 
-    # a - PG
-    # b - PPO
+    # a - 12
+    # b - 24
+    # c - 12 small
+    # p - PPO
 
-    if family not in 'ab':
+    if family not in 'abcp':
         raise PyPoksException(f'unknown family: {family}')
 
     motorch_psdd: PSDD = {
-        'baseLR':                   [1e-6,  1e-4] if family =='a' else [1e-8,  1e-5],
-        'opt_alpha':                [0.7,   0.9],
-        'opt_beta':                 [0.3,   0.7],
-        'opt_amsgrad':              (True,  False),
-        'train_ce':                 (True,  False),
-        'reward_norm':              (True,  False),
-        'nam_loss_coef':            (0.0, 0.2, 0.5, 1.0, 1.5),
+        'baseLR':                   [5e-6, 1e-5],# if family != 'p' else [1e-7, 1e-6],
+        #'nam_loss_coef':            (1.5, 2.3, 3.0, 5.0, 10.0, 20.0),
+        #'entropy_coef':             (0.0, 0.01, 0.02, 0.05),
     }
-    if family == 'a':
-        motorch_psdd.update({
-            'use_rce':              (True, False),
-            'gc_do_clip':           (True, False),
-        })
-    if family == 'b':
-        motorch_psdd.update({
-            'gc_max_clip':          (0.3, 0.5, 0.7),
-            'gc_max_upd':           (1.1, 1.2, 1.5),
-            'clip_coef':            (0.1, 0.2, 0.3),
-            'entropy_coef':         (0.0, 0.005, 0.01),
-            'minibatch_num':        (3,4,5,6,7),
-            'n_epochs_ppo':         (1,2,3),
-        })
 
     motorch_point_common: POINT = {
         'family':                   family,
@@ -92,34 +77,38 @@ def get_fresh_dna(game_config: Dict, name:str, family:str) -> POINT:
         'n_lay':                    12,
         'load_cardnet_pretrained':  True,
         'psdd':                     motorch_psdd,
+        'device':                   None,
     }
 
-    foldmk_psdd: PSDD = {
-        'upd_trigger':              [20000, 50000] if family == 'a' else [40000, 80000],
-        'reward_share':             (None,  3,5,6),
-    }
-    if family == 'a':
-        foldmk_psdd.update({
-                # ExaDMK
-            'enable_pex':           (True, False),
-            'pex_max':              [0.01,  0.05],
-            'prob_zero':            [0.0,   0.45],
-            'prob_max':             [0.0,   0.45],
-            'step_min':             [100,   10000],
-            'step_max':             [10000, 100000],
-            'pid_pex_fraction':     [0.5,   1.0],
+    if family == 'b':
+        motorch_point_common['cards_emb_width'] = 24
+
+    if family == 'c':
+        motorch_point_common.update({
+            'event_emb_width':      4,
+            'float_feat_size':      4,
+            'player_id_emb_width':  4,
+            'player_pos_emb_width': 4,
+            'n_lay':                4,
         })
+
+    foldmk_psdd: PSDD = {
+        'upd_trigger':              [20000, 40000] if family != 'p' else [40000, 80000],
+        #'reward_share':             (None,  3,5,6),
+    }
 
     foldmk_point_common: POINT = {
         'name':                     name,
         'family':                   family,
-        'motorch_type':             DMK_MOTorch_PG if family == 'a' else DMK_MOTorch_PPO,
+        'motorch_type':             DMK_MOTorch_PG if family != 'p' else DMK_MOTorch_PPO,
         'trainable':                True,
-        'enable_pex':               False,
         'psdd':                     foldmk_psdd,
     }
 
-    foldmk_point = {k: game_config[k] for k in ['table_size', 'table_moves', 'table_cash_start']}
+    foldmk_point = {
+        'table_size':       game_config.table_size,
+        'table_moves':      game_config.table_moves,
+        'table_cash_start': game_config.table_cash_start}
     foldmk_point.update(foldmk_point_common)
     paspa_foldmk = PaSpa(psdd=foldmk_psdd, loglevel=30)
     foldmk_point.update(paspa_foldmk.sample_point_GX())
@@ -130,13 +119,11 @@ def get_fresh_dna(game_config: Dict, name:str, family:str) -> POINT:
     motorch_point.update(paspa_motorch.sample_point_GX())
     foldmk_point['motorch_point'] = motorch_point
 
-    # TODO: optimizers: torch.optim.RAdam torch.optim.RMSprop
-
     return foldmk_point
 
 
 def build_single_foldmk(
-        game_config: Dict,
+        game_config: GameConfig,
         name:str,
         family:str,
         oversave=   True, # if DMK exists, True for oversave creates fresh DMK, otherwise existing DMK will be used (-> no new build)
@@ -159,24 +146,20 @@ def build_single_foldmk(
             return
 
     FolDMK.build_from_point(
-        dmk_point=  get_fresh_dna(
-            game_config=    game_config,
-            name=           name,
-            family=         family),
+        dmk_point=  get_fresh_dna( game_config=game_config, name=name, family=family),
         logger=     logger)
 
 
 def pretrain(
-        game_config: Dict,
+        game_config: GameConfig,
         n_dmk_total: int,                   # final total number of pretrained DMKs
         families: str,
         multi_pretrain: int=    3,          # total multiplication of DMKs for pretrain, for 1 there is no pretrain
         n_dmk_TR_group: int=    10,         # DMKs group size while TR
         game_size_TR=           100000,
-        dmk_n_players_TR=       150,
+        n_tables=               1000,
         n_dmk_TS_group: int=    20,         # DMKs group size while TS
         game_size_TS=           100000,
-        dmk_n_players_TS=       150,
         logger=                 None):
     """ prepares some pretrained DMKs """
 
@@ -204,7 +187,6 @@ def pretrain(
 
         pub = {
             'publish_player_stats': False,
-            'publish_pex':          False,
             'publish_update':       False,
             'publish_more':         False}
 
@@ -217,10 +199,10 @@ def pretrain(
             tr_groups.append(tr_names[:n_dmk_TR_group])
             tr_names = tr_names[n_dmk_TR_group:]
         for tg in tr_groups:
-            run_GM(
+            run_PTR_game(
                 dmk_point_TRL=  [{'name':nm, 'motorch_point':{'device':n%2}, **pub} for n,nm in enumerate(tg)],
                 game_size=      game_size_TR,
-                dmk_n_players=  dmk_n_players_TR,
+                n_tables=       n_tables,
                 logger=         logger)
 
         ### 2. test DMKs in groups
@@ -233,10 +215,10 @@ def pretrain(
             ts_groups.append(ts_names[:n_dmk_TS_group])
             ts_names = ts_names[n_dmk_TS_group:]
         for tg in ts_groups:
-            rgd = run_GM(
+            rgd = run_PTR_game(
                 dmk_point_PLL=  [{'name':nm, 'motorch_point':{'device':n%2}, **pub} for n,nm in enumerate(tg)],
                 game_size=      game_size_TS,
-                dmk_n_players=  dmk_n_players_TS,
+                n_tables=       n_tables,
                 logger=         logger)
             dmk_results.update(rgd['dmk_results'])
 
@@ -248,7 +230,7 @@ def pretrain(
 
 
 def build_from_names(
-        game_config: Dict,
+        game_config: GameConfig,
         names: List[str],
         families: Union[str,List[str]],
         oversave=   True,
@@ -310,31 +292,39 @@ def set_all_to_family(family='a'):
     for nm in get_saved_dmks_names():
         FolDMK.oversave_point(name=nm, family=family)
 
+# helper to multiply LR of all saved DDMK_MOTorch
+def set_LR(mul=0.5):
+    for nm in get_saved_dmks_names():
+        point = DMK_MOTorch.load_point(name=nm)
+        print(nm, point)
+        DMK_MOTorch.oversave_point(name=nm, baseLR=point['baseLR']*mul)
+
 @proc_return
-def run_GM(
+def run_PTR_game(
         logger,
-        game_config: Dict,
+        game_config: GameConfig,
         name: Optional[str]=                        None,
+        gm_loop: Optional[int]=                     None,
         dmk_point_refL: Optional[List[Dict]]=       None,
         dmk_point_PLL: Optional[List[Dict]]=        None,
         dmk_point_TRL: Optional[List[Dict]]=        None,
         game_size: int=                             100000,
-        dmk_n_players: int=                         60,
+        n_tables: int=                              1000,
         sep_all_break: bool=                        False,
         sep_pairs: Optional[List[Tuple[str,str]]]=  None,
         sep_pairs_factor: float=                    0.9,
         sep_n_stddev: float=                        1.0,
         publish: bool=                              True,
 ) -> Dict[str, Dict]:
-    """ runs GM game in a subprocess """
-
-    gm = GamesManager_PTR(
+    """ runs GM PTR game in a subprocess """
+    gm = GameManager_PTR(
         game_config=    game_config,
         name=           name,
+        gm_loop=        gm_loop,
         dmk_point_refL= dmk_point_refL,
         dmk_point_PLL=  dmk_point_PLL,
         dmk_point_TRL=  dmk_point_TRL,
-        dmk_n_players=  dmk_n_players,
+        n_tables=       n_tables,
         logger=         logger)
     return gm.run_game(
         game_size=          game_size,
@@ -345,33 +335,5 @@ def run_GM(
         sep_n_stddev=       sep_n_stddev)
 
 
-def results_report(
-        dmk_results: Dict[str, Dict],
-        dmks: Optional[List[str]]=  None,
-) -> str:
-
-    if not dmks:
-        dmks = list(dmk_results.keys())
-
-    res_nfo = ''
-    for ix,dn in enumerate(sorted(dmks, key=lambda x: dmk_results[x]['last_wonH_afterIV'], reverse=True)):
-
-        wonH = dmk_results[dn]['last_wonH_afterIV']
-        wonH_IV_std = dmk_results[dn]['wonH_IV_stddev']
-        wonH_mstd = dmk_results[dn]['wonH_IV_mean_stddev']
-        wonH_mstd_str = f'[{wonH_IV_std:.2f}/{wonH_mstd:.2f}]'
-
-        stats_nfo = ''
-        for k in dmk_results[dn]["global_stats"]:
-            v = dmk_results[dn]["global_stats"][k]
-            stats_nfo += f'{k}:{v*100:4.1f} '
-
-        wonH_diff = f"diff: {dmk_results[dn]['wonH_diff']:5.2f}" if 'wonH_diff' in dmk_results[dn] else ""
-        sep = f" sepF: {dmk_results[dn]['separated_factor']:4.2f}" if 'separated_factor' in dmk_results[dn] else ""
-        lifemark = f" {dmk_results[dn]['lifemark']}" if 'lifemark' in dmk_results[dn] else ""
-
-        res_nfo += f'{ix:2} {dn:18} : {wonH:6.2f} {wonH_mstd_str:>12}  {stats_nfo}  {wonH_diff}{sep}{lifemark}\n'
-
-    if res_nfo:
-        res_nfo = res_nfo[:-1]
-    return res_nfo
+if __name__ == "__main__":
+    set_LR(mul=0.5)

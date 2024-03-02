@@ -1,7 +1,7 @@
 import torch
 from torchness.types import TNS, DTNS
 from torchness.motorch import Module, MOTorchException
-from torchness.base_elements import my_initializer, select_with_indices, reinforced_cross_entropy
+from torchness.base_elements import my_initializer, select_with_indices
 from torchness.layers import LayDense
 from torchness.encoders import EncCNN
 from typing import Optional, Tuple, Dict, List
@@ -17,7 +17,7 @@ class ProCNN_DMK_PG(Module):
             self,
             table_size: int,                            # number of table players / opponents
             table_moves: List,                          # moves supported by DMK Module
-            train_ce :bool=                 True,       # enable training of cards encoder (CardEnc)
+            train_ce :bool=                 False,      # enable training of cards encoder (CardEnc)
             cards_emb_width: int=           12,         # card embedding width
             event_emb_width: int=           12,         # event embedding width
             float_feat_size: int=           8,
@@ -27,21 +27,34 @@ class ProCNN_DMK_PG(Module):
             n_lay=                          12,         # number of CNN layers >> makes network deep ( >> context length)
             cnn_ldrt_scale=                 0,
             activation=                     torch.nn.ReLU,
-            use_rce=                        False,      # use reinforced_cross_entropy
             opt_class=                      torch.optim.Adam,
             opt_alpha=                      0.7,
             opt_beta=                       0.7,
             opt_amsgrad=                    False,
-            baseLR=                         3e-6,
-            warm_up=                        100,        # num of steps has to be small (since we do rare updates)
+            baseLR=                         5e-6,
+            warm_up=                        100,        # num of steps has to be small (since updates are rare)
             gc_do_clip=                     True,
             gc_factor=                      0.05,
-            reward_norm: bool=              False,      # apply normalization to rewards
+            reward_norm: bool=              True,       # apply normalization to rewards
             clip_coef: float=               0.2,        # PPO clipping coefficient, set here for watch
-            nam_loss_coef: float=           0.5,        # not allowed moves loss coefficient
+            nam_loss_coef: float=           20.0,       # not allowed moves loss coefficient
+            entropy_coef: float=            0.02,       # entropy loss coefficient
             device=                         None,
             dtype=                          None,
             **kwargs):
+        """ Notes about hyper-parameters:
+
+        Many training loops has been run, and some values of hpms worked better than other.
+        Most loops were run with PG 12 (cards_emb_width).
+
+        - train_ce -> False
+
+        many optimizer configuration were tested, like amsgrad, rmsprop, but finally Adam was performing best with:
+        - opt_alpha -> 0.7
+        - opt_beta -> 0.7
+        - baseLR -> <1e-6;1e-5>
+        - gc_do_clip -> True
+        - reward_norm -> True """
 
         Module.__init__(self, **kwargs)
 
@@ -96,8 +109,6 @@ class ProCNN_DMK_PG(Module):
             bias=           False,
             initializer=    my_initializer)
 
-        self.use_rce = use_rce
-
         self.opt_class = opt_class
         self.opt_alpha = opt_alpha
         self.opt_beta = opt_beta
@@ -106,6 +117,7 @@ class ProCNN_DMK_PG(Module):
         self.reward_norm = reward_norm
         self.clip_coef = clip_coef
         self.nam_loss_coef = nam_loss_coef
+        self.entropy_coef = entropy_coef
 
     def forward(
             self,
@@ -156,10 +168,11 @@ class ProCNN_DMK_PG(Module):
 
     def fwd_logprob(self, move:TNS, **kwargs) -> DTNS:
         """ FWD
-        + preparation of logprob (policy logits of selected move)
+        + preparation of logprob (ln(prob) of selected move)
         this method comes from PPO """
         out = self(**kwargs)
-        out['logprob'] = select_with_indices(source=out['logits'], indices=move)
+        prob_move = select_with_indices(source=out['probs'], indices=move)
+        out['logprob'] = torch.log(prob_move)
         return out
 
     def fwd_logprob_ratio(self, old_logprob:TNS, **kwargs) -> DTNS:
@@ -212,6 +225,10 @@ class ProCNN_DMK_PG(Module):
 
         return self.opt_class, opt_kwargs
 
+    @staticmethod
+    def loss_nam(logits:TNS, allowed_moves:TNS) -> TNS:
+        return torch.sum(torch.softmax(logits, dim=-1) * ~allowed_moves, dim=-1) ** 2
+
     def loss(
             self,
             cards: TNS,
@@ -224,6 +241,7 @@ class ProCNN_DMK_PG(Module):
             reward: TNS,         # (dreturns)
             allowed_moves: TNS,  # OH tensor
             enc_cnn_state: Optional[TNS]=   None,
+            old_logprob: Optional[TNS]=     None, # not used by PG, added for compatibility with PPO
     ) -> DTNS:
 
         out = self(
@@ -238,72 +256,41 @@ class ProCNN_DMK_PG(Module):
         logits = out['logits']
 
         reward_norm = self.norm(reward)
-        reward_selected = reward_norm if self.reward_norm else reward
-
         deciding_state = torch.sum(allowed_moves, dim=-1) > 0  # bool tensor, True where state is deciding one (OD in MSOD)
 
-        if self.use_rce:
-            rce_out = reinforced_cross_entropy(
-                labels=     move,
-                scale=      reward_selected,
-                logits=     logits)
-            loss_actor = rce_out['reinforced_cross_entropy']
-
-        else:
-            # INFO: loss for reshaped tensors since torch does not support higher dim here
-            orig_shape = list(logits.shape)
-            loss_actor = torch.nn.functional.cross_entropy(
-                input=      logits.view(-1, orig_shape[-1]),
-                target=     move.view(-1),
-                reduction=  'none')
-            loss_actor = loss_actor.view(orig_shape[:-1])
-            loss_actor = loss_actor * reward_selected
-
-        # multiplying by deciding_state zeroes loss for non-deciding states,
-        # those states should have reward == 0,
-        # BUT after normalization reward_norm (-> reward_selected) may be != 0 for those
+        # INFO: loss for reshaped tensors since torch does not support higher dim here
+        orig_shape = list(logits.shape)
+        loss_actor = torch.nn.functional.cross_entropy(
+            input=      logits.view(-1, orig_shape[-1]),
+            target=     move.view(-1),
+            reduction=  'none')
+        loss_actor = loss_actor.view(orig_shape[:-1])
+        loss_actor = loss_actor * (reward_norm if self.reward_norm else reward)
+        # multiply by deciding_state for zero loss in non-deciding states,
+        # non-deciding states should have reward == 0, BUT after reward normalization
+        # reward_norm (-> reward_selected) may be != 0 for those
         loss_actor *= deciding_state
         loss_actor = torch.mean(loss_actor)
 
-        loss_not_allowed_moves = torch.sum(torch.softmax(logits, dim=-1) * ~allowed_moves, dim=-1)**2
-        loss_not_allowed_moves *= deciding_state
-        loss_not_allowed_moves = torch.mean(loss_not_allowed_moves)
+        entropy = out['entropy']
+        loss_entropy_factor = self.entropy_coef * entropy
 
-        loss = loss_actor + self.nam_loss_coef * loss_not_allowed_moves
+        loss_nam = self.loss_nam(
+            logits=         logits,
+            allowed_moves=  allowed_moves)
+        loss_nam *= deciding_state
+        loss_nam = torch.mean(loss_nam)
+        loss_nam_factor = self.nam_loss_coef * loss_nam
+
+        loss = loss_actor - loss_entropy_factor + loss_nam_factor
 
         out.update({
-            'reward':                   reward,
-            'reward_norm':              reward_norm,
-            'loss':                     loss,
-            'loss_actor':               loss_actor,
-            'loss_not_allowed_moves':   loss_not_allowed_moves,
-        })
-        out.update(self.min_max_probs(out['probs']))
-        out.update(self.probs_mean123(out['probs']))
+            'reward':       reward,
+            'reward_norm':  reward_norm,
+            'loss':         loss,
+            'loss_actor':   loss_actor,
+            'loss_nam':     loss_nam})
         return out
-
-    @staticmethod
-    def min_max_probs(probs) -> DTNS:
-        with torch.no_grad():
-            max_probs = torch.max(probs, dim=-1)[0] # max probs
-            min_probs = torch.min(probs, dim=-1)[0] # min probs
-            max_probs_mean = torch.mean(max_probs)  # mean of max probs
-            min_probs_mean = torch.mean(min_probs)  # mean of min probs
-        return {'max_probs_mean':max_probs_mean, 'min_probs_mean':min_probs_mean}
-
-    @staticmethod
-    def probs_mean123(probs) -> DTNS:
-        """ mean of probs: 1st,2nd,3rd max """
-        rd = {}
-        with torch.no_grad():
-            probs = torch.clone(probs).view(-1,probs.shape[-1])
-            for r in [1, 2, 3]:
-                mx = torch.max(probs, dim=-1)
-                vals = mx[0]
-                inds = mx[1]
-                rd[f'probs_{r}mean'] = torch.mean(vals)
-                probs[range(len(inds)), inds] = 0
-        return rd
 
     @staticmethod
     def norm(tns:TNS) -> TNS:
@@ -349,21 +336,19 @@ class ProCNN_DMK_A2C(ProCNN_DMK_PG):
 
         # INFO: loss for reshaped tensors since torch does not support higher dim here
         orig_shape = list(logits.shape)
-        loss_actor = torch.nn.functional.cross_entropy(
+        actor_ce = torch.nn.functional.cross_entropy(
             input=      logits.view(-1,orig_shape[-1]),
             target=     move.view(-1),
             reduction=  'none')
-        loss_actor = loss_actor.view(orig_shape[:-1])
-        loss_actor = (loss_actor * advantage_nograd).mean()
+        actor_ce = actor_ce.view(orig_shape[:-1])
+        loss_actor = torch.mean(actor_ce * advantage_nograd)
 
         loss_critic = torch.nn.functional.huber_loss(input=value, target=reward)
 
         out.update({
-            'loss':             loss_actor + loss_critic,
-            'loss_actor':       loss_actor,
-            'loss_critic':      loss_critic})
-        out.update(self.min_max_probs(out['probs']))
-        out.update(self.probs_mean123(out['probs']))
+            'loss':         loss_actor + loss_critic,
+            'loss_actor':   loss_actor,
+            'loss_critic':  loss_critic})
         return out
 
 
@@ -372,18 +357,15 @@ class ProCNN_DMK_PPO(ProCNN_DMK_PG):
 
     def __init__(
             self,
-            gc_do_clip=             True,
-            gc_factor=              0.01,
-            gc_max_clip=            0.5,
-            gc_max_upd=             1.1,
-            entropy_coef: float=    0.01,
-            minibatch_num: int=     5,
-            n_epochs_ppo: int=      1,
+            gc_do_clip=         True,
+            gc_factor=          0.01,
+            gc_max_clip=        0.5,
+            gc_max_upd=         1.1,
+            minibatch_num: int= 5,
+            n_epochs_ppo: int=  1,
             **kwargs
     ):
         ProCNN_DMK_PG.__init__(self, **kwargs)
-
-        self.entropy_coef = entropy_coef
 
     def loss_actor(self, advantage:TNS, ratio:TNS) -> TNS:
         """ actor (policy) loss, clipped """
@@ -404,7 +386,6 @@ class ProCNN_DMK_PPO(ProCNN_DMK_PG):
         ratio_out = self.fwd_logprob_ratio(old_logprob=old_logprob, **kwargs)
 
         reward_norm = self.norm(reward)
-
         deciding_state = torch.sum(allowed_moves, dim=-1) > 0
 
         loss_actor = self.loss_actor(
@@ -413,23 +394,24 @@ class ProCNN_DMK_PPO(ProCNN_DMK_PG):
         loss_actor *= deciding_state
         loss_actor = torch.mean(loss_actor)
 
-        loss_entropy = ratio_out['entropy']
+        entropy = ratio_out['entropy']
+        loss_entropy_factor = self.entropy_coef * entropy
 
-        loss_not_allowed_moves = torch.sum(torch.softmax(ratio_out['logits'], dim=-1) * ~allowed_moves, dim=-1)**2
-        loss_not_allowed_moves *= deciding_state
-        loss_not_allowed_moves = torch.mean(loss_not_allowed_moves)
+        loss_nam = self.loss_nam(
+            logits=         ratio_out['logits'],
+            allowed_moves=  allowed_moves)
+        loss_nam *= deciding_state
+        loss_nam = torch.mean(loss_nam)
+        loss_nam_factor = self.nam_loss_coef * loss_nam
 
-        loss = loss_actor - self.entropy_coef * loss_entropy + self.nam_loss_coef * loss_not_allowed_moves
+        loss = loss_actor - loss_entropy_factor + loss_nam_factor
 
         out = ratio_out
         out.update({
-            'reward':                   reward,
-            'reward_norm':              reward_norm,
-            'loss':                     loss,
-            'loss_actor':               loss_actor,
-            'loss_entropy':             loss_entropy,
-            'loss_not_allowed_moves':   loss_not_allowed_moves,
-        })
-        out.update(self.min_max_probs(out['probs']))
-        out.update(self.probs_mean123(out['probs']))
+            'reward':       reward,
+            'reward_norm':  reward_norm,
+            'entropy':      entropy,
+            'loss':         loss,
+            'loss_actor':   loss_actor,
+            'loss_nam':     loss_nam})
         return out

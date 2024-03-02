@@ -3,37 +3,42 @@ from pypaq.lipytools.files import w_json, w_pickle, r_pickle
 from pypaq.lipytools.pylogger import get_pylogger, get_child
 from pypaq.lipytools.printout import stamp
 from pypaq.pms.config_manager import ConfigManager
+from pypaq.pms.points_cloud import VPoint
 import random
 import shutil
 import time
 from torchness.tbwr import TBwr
 from typing import List, Tuple
 
-from envy import DMK_MODELS_FD, TR_CONFIG_FP, TR_RESULTS_FP, get_game_config_name, load_game_config
+from envy import DMK_MODELS_FD, TR_CONFIG_FP, TR_RESULTS_FP
+from pologic.game_config import GameConfig
 from podecide.dmk import FolDMK
 from podecide.dmk_motorch import DMK_MOTorch
-from podecide.games_manager import separation_report, separated_factor
-from run.functions import check_continuation, get_saved_dmks_names, run_GM, copy_dmks, build_single_foldmk, results_report, dmk_name
+from podecide.game_manager import separation_report, separated_factor
+from run.functions import check_continuation, get_saved_dmks_names, run_PTR_game, copy_dmks, build_single_foldmk, \
+    dmk_name
+from run.after_run.reports import results_report
+from run.after_run.review_points import merged_point_in_psdd, points_nice_table
 
 # training config
-TR_CONFIG = {
+LOOP_CONFIG = {
         # general
     'exit':                     False,      # exits loop (after train)
     'pause':                    False,      # pauses loop after test till Enter pressed
-    'families':                 'ab',       # active families (forced to be present in learners)
+    'families':                 'a',        # active families (forced to be present in learners)
     'min_familyF':              0.5,        # forces every family to be present in learners by at least F of initial amount
-    'ndmk_refs':                6,          # number of refs DMKs
+    'ndmk_refs':                4,          # number of refs DMKs
     'ndmk_learners':            16,         # number of learners DMKs
     'group_size_TR':            20,         # learners are trained against refs in groups of this size
     'group_size_TS':            50,         # learners and refs are tested against refs in groups of this size
         # train / test
-    'game_size_TR':             200000,
+    'game_size_TR':             100000,
     'against_best':             3,          # every Nth loop train against only best ref
     'game_size_TS':             100000,
-    'n_tables':                 1200,       # target number of tables (TR & TS)
+    'n_tables':                 1000,       # target number of tables (TR & TS)
         # replace / new
     'n_stddev':                 1.0,        # number of stddev that is considered to be valid separation distance
-    'remove_key':               [3,1],      # [A,B] remove DMK if in last A+B life marks there are A -| and last is not +/
+    'remove_key':               [4,1],      # [A,B] remove DMK if in last A+B life marks there are A -| and last is not +/
     'prob_fresh_dmk':           0.5,        # probability of 100% fresh DMK (otherwise GX)
     'prob_fresh_ckpt':          0.5,        # probability of fresh checkpoint (child from GX of point only, without GX of ckpt)
         # PMT (Periodical Masters Test)
@@ -41,10 +46,10 @@ TR_CONFIG = {
     'ndmk_PMT':                 10,         # max number of DMKs (masters) in PMT
 }
 
-PUB_REF = {'publish_player_stats':False, 'publish_pex':False, 'publishFWD':False, 'publishUPD':False}
-PUB_TR =  {'publish_player_stats':False, 'publish_pex':False, 'publishFWD':False, 'publishUPD':True}
-PUB_TS =  {'publish_player_stats':False, 'publish_pex':False, 'publishFWD':False, 'publishUPD':False}
-PUB_PMT = {'publish_player_stats':True,  'publish_pex':False, 'publishFWD':False, 'publishUPD':False}
+PUB_REF = {'publish_player_stats':False, 'publishFWD':False, 'publishUPD':False}
+PUB_TR =  {'publish_player_stats':False, 'publishFWD':False, 'publishUPD':True}
+PUB_TS =  {'publish_player_stats':True,  'publishFWD':True,  'publishUPD':False}
+PUB_PMT = {'publish_player_stats':False, 'publishFWD':False, 'publishUPD':False}
 
 PMT_FD = f'{DMK_MODELS_FD}/_pmt'
 
@@ -227,7 +232,6 @@ def modify_lists_V2(
 
 def run(game_config_name: str):
     """ Trains DMKs against REFs using groups of learners(aged) and old.
-    Configuration is set to utilize power of 2 GPUs (11GB RAM) strong CPU and ~200GB RAM.
 
     Below are descriptions of some structures used:
 
@@ -237,7 +241,7 @@ def run(game_config_name: str):
                 'dmk1': '+|/++',
                 ..
             },
-            'refs_ranked': ['dmk4','dmk1',..]
+            'refs_ranked': ['dmk4','dmk1', ..]
         }
 
         dmk_results = {
@@ -271,7 +275,6 @@ def run(game_config_name: str):
         test may be broken with 'separated' condition
     4. Analyse & report results of learners and refs
     5. Manage (modify) DMKs lists (learners & refs)
-    TODO: automatically adjust TS/TR game size
     6. PMT evaluation """
 
     cc = check_continuation()
@@ -285,19 +288,19 @@ def run(game_config_name: str):
         level=      20,
         #flat_child= True,
     )
-    logger.info(f'train_loop {tl_name} starts..')
+    logger.info(f'{tl_name} starts..')
     sub_logger = get_child(logger)
 
-    cm = ConfigManager(file_FP=TR_CONFIG_FP, config_init=TR_CONFIG, logger=logger)
+    cm = ConfigManager(file_FP=TR_CONFIG_FP, config_init=LOOP_CONFIG, logger=logger)
     tbwr = TBwr(logdir=f'{DMK_MODELS_FD}/{tl_name}')
 
     if cc['continuation']:
 
-        game_config_name = get_game_config_name(DMK_MODELS_FD)
-        game_config = load_game_config(game_config_name)
+        game_config = GameConfig.from_name(folder=DMK_MODELS_FD)
+        logger.info(f'> game config name: {game_config.name}')
 
         saved_n_loops = int(tr_results['loop_ix'])
-        logger.info(f'> continuing with saved {saved_n_loops} loops of game config {game_config_name}')
+        logger.info(f'> continuing with saved {saved_n_loops} loops')
         loop_ix = saved_n_loops + 1
 
         dmk_refs = tr_results['refs_ranked']
@@ -307,7 +310,8 @@ def run(game_config_name: str):
 
     else:
 
-        game_config = load_game_config(name=game_config_name, copy_to=DMK_MODELS_FD)
+        game_config = GameConfig.from_name(name=game_config_name, copy_to=DMK_MODELS_FD)
+        logger.info(f'> game config name: {game_config.name}')
 
         loop_ix = 1
         dmk_refs = []
@@ -319,6 +323,8 @@ def run(game_config_name: str):
             'refs_ranked':  []}
 
         points_data = {'points_dmk':{}, 'points_motorch':{}, 'scores':{}}
+
+    logger.info(f'> game config: {game_config}')
 
     while True:
 
@@ -475,13 +481,14 @@ def run(game_config_name: str):
             dmk_refs_sel = [best] + best_copies
 
         for trg in tr_groups:
-            run_GM(
+            run_PTR_game(
                 game_config=    game_config,
                 name=           f'GM_TR{loop_ix:03}',
+                gm_loop=        loop_ix,
                 dmk_point_refL= [{'name':dn, 'motorch_point':{'device':i%2}, **PUB_REF} for i,dn in enumerate(dmk_refs_sel)],
                 dmk_point_TRL=  [{'name':dn, 'motorch_point':{'device':i%2}, **PUB_TR}  for i,dn in enumerate(trg)],
                 game_size=      cm.game_size_TR,
-                dmk_n_players=  cm.n_tables // len(trg),
+                n_tables=       cm.n_tables,
                 logger=         logger)
 
         # eventually remove copies
@@ -530,12 +537,13 @@ def run(game_config_name: str):
         speedL = []
         dmk_results = {}
         for tsg,pairs in zip(ts_groups,group_pairs):
-            rgd = run_GM(
+            rgd = run_PTR_game(
                 game_config=        game_config,
+                gm_loop=            loop_ix,
                 dmk_point_refL=     [{'name':dn, 'motorch_point':{'device': i % 2}, **PUB_REF} for i,dn in enumerate(dmk_refs)],
                 dmk_point_PLL=      [{'name':dn, 'motorch_point':{'device': i%2}, **PUB_TS}     for i,dn in enumerate(tsg)],
                 game_size=          cm.game_size_TS,
-                dmk_n_players=      cm.n_tables // len(tsg),
+                n_tables=           cm.n_tables,
                 sep_pairs=          pairs,
                 sep_pairs_factor=   1.1, # disables sep pairs break
                 logger=             logger,
@@ -577,6 +585,16 @@ def run(game_config_name: str):
 
         logger.info(f'DMKs results:\n{results_report(dmk_results, dmks=dmk_learners_aged+dmk_refs)}')
 
+        dmk_vp = sorted(dmk_learners_aged + dmk_refs, key=lambda x: dmk_results[x]['wonH_afterIV'], reverse=True)
+        vpoints = [VPoint(
+            point=merged_point_in_psdd(points_data['points_dmk'][dn[:9]], points_data['points_motorch'][dn[:9]]),
+            name=dn) for dn in dmk_vp]
+        table = points_nice_table(vpoints, do_val=False)
+        table_pos = [f'   {table[0]}']
+        table_pos += [f'{ix:2} {l}' for ix, l in enumerate(table[1:])]
+        points_str = '\n'.join(table_pos)
+        logger.info(f'DMKs POINTS:\n{points_str}')
+
         # add scores
         dmk_ranked = sorted(dmk_learners_aged + dmk_learners + dmk_refs, key= lambda x:dmk_results[x]['wonH_afterIV'], reverse=True)
         dmk_ranked_policies = []
@@ -587,7 +605,7 @@ def run(game_config_name: str):
         for ix,dn in enumerate(dmk_ranked_policies):
             if dn not in points_data['scores']:
                 points_data['scores'][dn] = {}
-            points_data['scores'][dn][f'rank_{loop_ix}'] = (n_dmk - ix) / n_dmk
+            points_data['scores'][dn][f'rank_{loop_ix:003}'] = (n_dmk - ix) / n_dmk
 
         #********************************************************************************* 5. manage / modify DMKs lists
 
@@ -657,7 +675,7 @@ def run(game_config_name: str):
 
         if loop_ix % cm.n_loops_PMT == 0:
             new_master = dmk_refs_new[0]
-            pmt_name = f'{new_master[:-1]}_pmt{loop_ix // cm.n_loops_PMT:02}'
+            pmt_name = f'{new_master[:-1]}_pmt{loop_ix:03}'
             copy_dmks(
                 names_src=          [new_master],
                 names_trg=          [pmt_name],
@@ -680,12 +698,12 @@ def run(game_config_name: str):
 
                 pmt_results = {}
                 for tsg in ts_groups:
-                    rgd = run_GM(
+                    rgd = run_PTR_game(
                         game_config=    game_config,
                         dmk_point_refL= [{'name':dn, 'motorch_point':{'device':i%2}, **PUB_REF} for i,dn in enumerate(dmk_refs_new)],
                         dmk_point_PLL=  [{'name':dn, 'motorch_point':{'device':i%2}, 'save_topdir':PMT_FD, **PUB_PMT} for i,dn in enumerate(tsg)],
                         game_size=      cm.game_size_TS,
-                        dmk_n_players=  cm.n_tables // len(tsg),
+                        n_tables=       cm.n_tables,
                         sep_all_break=  True,
                         logger=         logger,
                         publish=        False)
