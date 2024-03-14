@@ -49,7 +49,8 @@ class DMK(ABC):
             family: str=                'a',    # family (type) used to group DMKs and manage together
             save_topdir: Optional[str]= None,
             logger=                     None,
-            loglevel=                   20):
+            loglevel=                   20,
+    ):
 
         self.name = name
         self.save_topdir = save_topdir or self.SAVE_TOPDIR
