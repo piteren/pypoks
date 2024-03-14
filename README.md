@@ -17,7 +17,7 @@
 
 ### How to Read the Docs
 
-In some sub-folders, there are separate READMEs (.md). Please follow them for the more detailed concepts
+In some sub-folders, there are separate READMEs (.md). Please follow them for more detailed concepts
 of the code from the sub-folders. 
 
 ---
@@ -40,7 +40,7 @@ $ python run/run_train_loop.py
 ```
 
 This script will train a set of agents with RL self-play. The script is preconfigured with many options that will fit a system with 2x GPUs (11GB).
-Trained agents available for download with a link above took about 5 days to train.<br>
+Trained agents available for download with the link above took about 5 days to train.<br>
 
 While training, you may check the progress with TensorBoard (run `run_TB.sh`)
 

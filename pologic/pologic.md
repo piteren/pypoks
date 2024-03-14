@@ -15,11 +15,11 @@ The Table is initiated with a list of Player IDs.
 
 The initial order of Players, provided during the Table initialization,
 determines the sequence for the first hand played.
-For every following hand, players are rotated.
+For every following hand, the players are rotated.
 
 The Table builds a **Hand History** (HH) with events during the game.
 Periodically, each Player is asked to make a move - a decision based on probabilities.
-Player may (or should) utilize the data from HH.
+A Player may (or should) utilize the data from HH.
 
 ##### QPTable & QPPlayer:
 
@@ -33,7 +33,7 @@ with the decision-making object: DMK - Decision MaKer.
 Cards may be represented in three types:
 - int 0-52, where 52 represents a 'pad' (an unknown card)
 - tuple (int,int) (0-13,0-3) (pad is (13,0))
-- str ‘9C’, figures: 2..9TJDKAX; colors: SHDC (pad is XS)
+- str ‘9C’, figures: 2..9TJDKAX; suits: SHDC (pad is XS)
 
 Each representation has its advantages:
 - integers are simple
@@ -45,7 +45,7 @@ Each representation has its advantages:
 
 Hand History (HH) is a list of events that occurred during a single poker hand run.
 The primary purpose of HH in pypoks is to furnish all necessary information for DMK to make decisions.
-HH is build by the table while playing a hand, and it may contain some redundant information.
+HH is built by the table while playing a hand, and it may contain some redundant information.
 
 HH has events which are ```List[STATE]```, where ```STATE = Tuple[str,Tuple]```.
 HH can be saved as a jsonl.
@@ -81,7 +81,7 @@ Below is a detailed description of all possible ```STATES```:
     PRS: (pl_id:str, won:int, full_rank)                                                            player result (full_rank is a tuple returned by PDeck.cards_rank)
     HFN: (table_name:str, hand_id:int)                                                              hand finished
 
-Below is listed possible order of ```STATES```:
+Below is listed the possible order of ```STATES```:
     
     GCF
     HST                             <- hand starts
@@ -106,7 +106,7 @@ Below is listed possible order of ```STATES```:
 
 HH may be converted (reduced) to HHtexts. 
 HHtexts is a human friendly text format representation of HH.
-HHtexts still retains all the information needed to reply the hand.
+HHtexts still retains all the information needed to replay the hand.
 HHtexts may be used to replay the hand or evaluate an agent policy.
 HHtexts are built with a selection of HH ```STATES```, below is the syntax:
 
@@ -123,13 +123,13 @@ HHtexts are built with a selection of HH ```STATES```, below is the syntax:
     MOV       MOV: <player_name> <mov_name> <$>       : player made a move: player name, move name, move size
     PRS       result: <player_name> <$> <cards rank>  : player result, cards_rank comes from pologic.podeck.HND_RNK or not_shown, muck
 
-While replaying the hand with HHtexts, the table validates the given data for the consistency.
+While replaying the hand with HHtexts, the table validates the given data for consistency.
 Only lines starting with ```GCF, POS, PLH, TCD, MOV``` are truly required
 to properly replay the hand, and only those are checked.
 Other lines are optional, added for better readability, and are not validated by the table.
 
 The break pattern: ```MOV: ??``` may be used to break the hand after a player move.
-Below is an example of hand (line numbers in brackets are not saved with HHtexts)
+Below is an example of a hand (line numbers in brackets are not saved with HHtexts)
 with the proper order of states:
 
     (01)    GCF: 2players_2bets
@@ -155,4 +155,4 @@ with the proper order of states:
 
 additional notes:
 - the actual table POT size is added in the second line (02), after blinds (07), after each MOV (11,13,19), at the beginning of each river (16)
-- if the break pattern is not be added at the end (20) the game would continue by the table till the end of a hand
+- if the break pattern is not added at the end (20) the game would continue by the table till the end of a hand
