@@ -1,3 +1,4 @@
+<!--SKIP_FIX-->
 ## pologic - poker logic of Table & (table) Player
 
 Pologic - logic of the poker game.

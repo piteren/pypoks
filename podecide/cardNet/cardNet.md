@@ -1,3 +1,4 @@
+<!--SKIP_FIX-->
 ## cardNet
 
 **cardNet** (CN) is a neural network responsible for representing and evaluating poker hands.

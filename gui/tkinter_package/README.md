@@ -1,3 +1,4 @@
+<!--SKIP_FIX-->
 #### Tkinter for Python 3.11
 1. Search the web for the correct `python3-tk.*deb` file.
    1. You can start here: https://mirrors.wikimedia.org/ubuntu/ubuntu/pool/main/p/python3-stdlib-extensions/

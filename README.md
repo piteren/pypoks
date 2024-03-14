@@ -1,3 +1,4 @@
+<!--SKIP_FIX-->
 ![](images/pypoks_logo.png)
 
 ## Deep Reinforcement Learning (DRL) with Neural Network (NN) based Agent in NL Texas Holdem Poker Game Environment with Python & PyTorch
