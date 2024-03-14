@@ -1,6 +1,6 @@
 ## podecide - Poker Decisions
 
-Podecide folder contains code responsible for making poker decisions using policies. The main objects are:
+```podecide``` folder contains code responsible for making poker decisions using policies. The main objects are:
 
 - **DMK** - Decision MaKer, the top layer of abstraction responsible for learning and making decisions 
 - **DMK Module** - PyTorch definition of NN used for learning / storing / and running policy 
@@ -10,12 +10,17 @@ Podecide folder contains code responsible for making poker decisions using polic
 
 ### DMK - Decision MaKer
 
-The Decision MaKer (DMK) defines basic interface for making decisions for poker players (PPlayer on PTable).
+The Decision MaKer (DMK) - the Agent - defines basic interface for making decisions for poker players (PPlayer on PTable).
 A single DMK handles one policy and makes decisions for multiple players (n_players).
+
+An Agent is based on NN built of 2 main parts:
+- **cardNet** - a Transformer based NN part responsible for preparation of cards representations
+- agent network - Casual Convolution based NN part responsible for encoding sequence of states data
+
 Decisions are made using the **Many States One Decision** (MSOD) concept.
-MSOD assumes that a table player can send multiple (1-N) states to DMK before asking DMK for a move decision.
+**MSOD** assumes that a table player can send multiple (1-N) states to DMK before asking DMK for a move decision.
 DMK computes policy moves probabilities for all sent states, even for those
-that do not require table decisions from a player. 
+that do not require table decisions from a player (while training those decisions got 0 loss) 
 
 The two main functions of DMK are:
 - receive data from poker players (instances on the tables)
@@ -30,12 +35,12 @@ After sending possible moves, the player/table must wait for DMK's decision:
 - table with the waiting player is locked at this point
 
 ##### Making Decisions
-DMK makes decisions (moves) for players. Move is selected based on:
-- DMK’s trainable policy
-- possible moves sent by the player 
+DMK usually makes decisions (moves) for many poker table players sitting at different tables.
+A move is made with the Agent policy based on the given data:
 - received states (saved in ```_states_new```)
-- any previous history saved by DMK
+- possible moves sent by the player
+- any previous history stored by DMK
 
-DMK decides WHEN to make decisions (```DMK.make_decisions```). DMK makes decisions for (one-some-all) players
+DMK decides WHEN to make decisions (```DMK.make_decisions()```). DMK makes decisions for (one-some-all) players
 with allowed_moves saved in ```_states_new```. States used to make decisions are moved (appended)
 to ```_states_dec```, from where they are used to update DMK’s policy during training.
