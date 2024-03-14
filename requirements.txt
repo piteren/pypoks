@@ -1,8 +1,8 @@
-GPUtil==1.4.0
-numpy==1.26.4
-ompr==1.3.0
-pypaq==1.7.1
-pyyaml==6.0.1
-torch==2.2.1
-torchness==1.3.1
-tqdm==4.66.2
+GPUtil
+numpy
+ompr
+pypaq
+pyyaml
+tqdm
+torch
+torchness

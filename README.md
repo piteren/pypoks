@@ -17,8 +17,13 @@
 
 ![](images/pypoks_ques.png)
 
----
 
+### How to read the docs
+
+In some sub-folders there are separate readmies (.md), please follow them for the more detailed concepts
+of the code from the sub-folders. 
+
+---
 ### Setup
 
 The project may be set up with python=<3.11. Install requirements from ```requirements.txt```
