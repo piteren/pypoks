@@ -1,3 +1,4 @@
+<!--SKIP_FIX-->
 ## podecide - Poker Decisions
 
 `podecide` folder contains code responsible for making poker decisions using policies. The main objects are:
@@ -17,17 +18,17 @@ The Decision MaKer (DMK) - the Agent - defines the basic interface for making de
 A single DMK handles one policy and makes decisions for multiple players (n_players).
 
 An Agent is based on NN built of 2 main parts:
-- **cardNet** - a Transformer based NN part responsible for preparation of card representations
-- agent network - Causal Convolution based NN part responsible for encoding sequence of states data
+- **cardNet** - a Transformer-based NN part responsible for preparation of card representations.
+- agent network - Causal Convolution-based NN part responsible for encoding sequence of states data.
 
 Decisions are made using the **Many States One Decision** (MSOD) concept.
 **MSOD** assumes that a table player can send multiple (1-N) states to DMK before asking DMK for a move decision.
 DMK computes policy move probabilities for all sent states, even for those
-that do not require table decisions from a player (while training those decisions got 0 loss)
+that do not require table decisions from a player (while training those decisions got 0 loss).
 
 The two main functions of DMK are:
-- receive data from poker players (instances on the tables)
-- make decisions (moves) for the players
+- receiving data from poker players (instances on the tables)
+- making decisions (moves) for the players
 
 ##### Receiving Data
 DMK receives data (Hand History) from a table player. The player sends a list of states (calling: `DMK.collect_states`)
