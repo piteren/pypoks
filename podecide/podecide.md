@@ -1,12 +1,14 @@
-<!--SKIP_FIX-->
 ## podecide - Poker Decisions
 
 `podecide` folder contains code responsible for making poker decisions using policies. The main objects are:
 
 - **DMK** - Decision Maker, the top layer of abstraction responsible for learning and making decisions
 - **DMK Module** - PyTorch definition of NN used for learning / storing / and running policy
-- **StatsManager** - a component that provides statistics to support DMK during learning and decision-making
-- **GameManager** - manages many DMKs while playing poker game on multiple tables
+- **StatsManager** - (SM) a component that provides statistics to support DMK during learning and decision-making
+- **GameManager** - (GM) manages many DMKs while playing poker game on multiple tables
+
+![](../images/pypoks_ques.png)
+
 ---
 
 ### DMK - Decision MaKer

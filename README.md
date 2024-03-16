@@ -1,7 +1,7 @@
 <!--SKIP_FIX-->
 ![](images/pypoks_logo.png)
 
-## Deep Reinforcement Learning (DRL) with Neural Network (NN) based Agent in NL Texas Holdem Poker Game Environment with Python & PyTorch
+## Deep Reinforcement Learning (DRL) with Neural Network (NN) based Agent in NL Texas Hold'em Poker Game Environment with Python & PyTorch
 
 ### Research Scope of the Project (ML/RL):
 - Testbed for different RL concepts like PG, A3C, PPO, and their modifications
@@ -13,9 +13,6 @@
 - High (poker) variance & backpropagation
 - High (poker) variance & policy evaluation
 
-![](images/pypoks_ques.png)
-
-
 ### How to Read the Docs
 
 In some sub-folders, there are separate READMEs (.md). Please follow them for more detailed concepts
@@ -24,15 +21,14 @@ of the code from the sub-folders.
 ---
 ### Setup
 
-The project may be set up with Python=<3.11. Install requirements from `requirements.txt`
+The project may be set up with Python=<3.11. Install requirements from `requirements.txt`<br>
+For instructions on how to install `tkinter` for Python 3.11, please go to the gui/tkinter folder.
+
+### Training
 
 To run training scripts, you will need about 50 CPU cores, 120GB RAM, and a 2x GPU system.<br>
 You may just play `run_human_game.py` with trained agents downloaded from [here](https://drive.google.com/file/d/1e4QEdch2SVgloQjSNzftAohn_Y_lji-U/view?usp=sharing)
 To play a human game with agents, you will also need `tkinter` for GUI. Please install it.
-For instructions on how to install `tkinter` for Python 3.11, please go to the gui/tkinter folder.
-
-
-### Training
 
 To train a poker agent **(DMK)** from scratch, run:
 
