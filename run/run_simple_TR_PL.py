@@ -2,9 +2,10 @@ from pypaq.lipytools.pylogger import get_pylogger, get_child
 from pypaq.mpython.mpdecor import proc_wait
 from typing import Optional
 
-from envy import DMK_MODELS_FD, load_game_config
+from envy import DMK_MODELS_FD
 from run.functions import run_PTR_game, build_from_names, copy_dmks, get_saved_dmks_names
 from run.after_run.reports import results_report
+from pologic.game_config import GameConfig
 
 PUB =     {'publish_player_stats':True,  'publishFWD':True,  'publishUPD':True}
 PUB_REF = {'publish_player_stats':False, 'publishFWD':False, 'publishUPD':False}
@@ -42,21 +43,23 @@ def run(game_config_name: Optional[str]=    None,   # must be given if not saved
 
     if use_saved:
 
-        game_config = load_game_config(folder=DMK_MODELS_FD)
-
         dmk_names = get_saved_dmks_names()
         dmk_refs = [dn for dn in dmk_names if dn.endswith('R')]
         for dn in dmk_refs:
             dmk_names.remove(dn)
 
         if dmk_names:
+
+            game_config = GameConfig.from_name(folder=DMK_MODELS_FD)
+
             logger.info(f'using saved DMKs ({len(dmk_names)}): {dmk_names}')
             logger.info(f'using saved DMK refs ({len(dmk_refs)}): {dmk_refs}')
             logger.info(f'and game_config: {game_config}')
 
     if not dmk_names:
 
-        game_config = load_game_config(name=game_config_name, copy_to=DMK_MODELS_FD)
+        game_config = GameConfig.from_name(name=game_config_name, copy_to=DMK_MODELS_FD)
+        logger.info(f'> game config name: {game_config.name}')
 
         families = family * n_dmk
         families = families[:n_dmk]
@@ -90,7 +93,6 @@ def run(game_config_name: Optional[str]=    None,   # must be given if not saved
         {'name':dn, 'motorch_point':{'device':n%n_gpu if n_gpu else None}, **PUB_REF}
         for n, dn in enumerate(dmk_refs)]
 
-    table_multiplier = game_config['table_size'] if not dmk_refs else 1
     rgd = run_PTR_game(
         game_config=    game_config,
         name=           f'GM_{mode}',
@@ -106,9 +108,9 @@ def run(game_config_name: Optional[str]=    None,   # must be given if not saved
 
 if __name__ == "__main__":
     run(
-        game_config_name=   '2players_2bets',
+        game_config_name=   '3players_2bets',
         #do_TR=              False,
-        n_tables=           999,
+        n_tables=           1000,
         #family=             'a',
         n_dmk=              7,
         n_refs=             4,
