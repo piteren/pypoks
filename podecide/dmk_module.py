@@ -319,7 +319,7 @@ class ProCNN_DMK_A2C(ProCNN_DMK_PG):
 
         enc_cnn_output = s_out['enc_cnn_output']
 
-        value = self.value(enc_cnn_output) # baseline architecture, where value comes from common A+C tower
+        value = self.value(enc_cnn_output) # baseline architecture, where value and policy share same NN
         value = torch.reshape(value, (value.shape[:-1]))  # remove last dim
 
         s_out['value'] = value
