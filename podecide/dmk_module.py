@@ -36,7 +36,7 @@ class ProCNN_DMK_PG(Module):
             gc_do_clip=                     True,
             gc_factor=                      0.05,
             reward_norm: bool=              True,       # apply normalization to rewards
-            clip_coef: float=               0.2,        # PPO clipping coefficient, set here for watch
+            clip_coef: float=               0.2,        # PPO policy clipping coefficient, set here for monitoring PG update
             nam_loss_coef: float=           20.0,       # not allowed moves loss coefficient
             entropy_coef: float=            0.02,       # entropy loss coefficient
             device=                         None,
@@ -193,8 +193,8 @@ class ProCNN_DMK_PG(Module):
         # stats
         with torch.no_grad():
             out.update({
-                'approx_kl':    ((ratio - 1) - logratio).mean(),
-                'clipfracs':    ((ratio - 1.0).abs() > self.clip_coef).float().mean()})
+                'approx_kl': ((ratio - 1) - logratio).mean(),
+                'clipfracs': ((ratio - 1.0).abs() > self.clip_coef).float().mean()})
 
         return out
 
@@ -266,6 +266,7 @@ class ProCNN_DMK_PG(Module):
             reduction=  'none')
         loss_actor = loss_actor.view(orig_shape[:-1])
         loss_actor = loss_actor * (reward_norm if self.reward_norm else reward)
+
         # multiply by deciding_state for zero loss in non-deciding states,
         # non-deciding states should have reward == 0, BUT after reward normalization
         # reward_norm (-> reward_selected) may be != 0 for those
@@ -301,8 +302,9 @@ class ProCNN_DMK_PG(Module):
 class ProCNN_DMK_A2C(ProCNN_DMK_PG):
     """ Actor + Critic based (in one tower) DMK Module """
 
-    def __init__(self, **kwargs):
+    def __init__(self, loss_critic_factor:float=0.5, **kwargs):
         ProCNN_DMK_PG.__init__(self, **kwargs)
+        self.loss_critic_factor = loss_critic_factor
 
         self.value = LayDense(
             in_features=    self.enc_cnn.n_filters,
@@ -315,40 +317,78 @@ class ProCNN_DMK_A2C(ProCNN_DMK_PG):
 
         s_out = super().forward(**kwargs)
 
-        output = s_out['enc_cnn_output']
+        enc_cnn_output = s_out['enc_cnn_output']
 
-        value = self.value(output) # baseline architecture, where value comes from common A+C tower
+        value = self.value(enc_cnn_output) # baseline architecture, where value comes from common A+C tower
         value = torch.reshape(value, (value.shape[:-1]))  # remove last dim
 
         s_out['value'] = value
         return s_out
 
-    def loss(self, move:TNS, reward:TNS, **kwargs) -> DTNS:
+    def loss_critic(self, value:TNS, dreturn:TNS) -> TNS:
+        loss_critic = torch.nn.functional.huber_loss(input=value, target=dreturn)
+        return loss_critic * self.loss_critic_factor
+
+    def loss(
+            self,
+            move: TNS,
+            reward: TNS,
+            allowed_moves: TNS,  # OH tensor
+            old_logprob: Optional[TNS]= None,  # not used by A2C (similar to PG), added for compatibility with PPO
+            **kwargs
+    ) -> DTNS:
+        """ A2C loss overrides PG loss:
+        - replaces reward (dreturn) with advantage, reward norm is disabled
+        - adds Critic loss """
 
         out = self(**kwargs)
 
-        logits = out['logits']
         value = out['value']
+        logits = out['logits']
+
+        deciding_state = torch.sum(allowed_moves, dim=-1) > 0  # bool tensor, True where state is deciding one (OD in MSOD)
 
         advantage = reward - value
-
         advantage_nograd = advantage.detach()  # to prevent flow of Actor loss gradients to Critic network
 
         # INFO: loss for reshaped tensors since torch does not support higher dim here
         orig_shape = list(logits.shape)
-        actor_ce = torch.nn.functional.cross_entropy(
-            input=      logits.view(-1,orig_shape[-1]),
+        loss_actor = torch.nn.functional.cross_entropy(
+            input=      logits.view(-1, orig_shape[-1]),
             target=     move.view(-1),
             reduction=  'none')
-        actor_ce = actor_ce.view(orig_shape[:-1])
-        loss_actor = torch.mean(actor_ce * advantage_nograd)
+        loss_actor = loss_actor.view(orig_shape[:-1])
+        loss_actor = loss_actor * advantage_nograd
 
-        loss_critic = torch.nn.functional.huber_loss(input=value, target=reward)
+        # multiply by deciding_state for zero loss in non-deciding states,
+        # non-deciding states should have reward == 0, BUT after reward normalization
+        # reward_norm (-> reward_selected) may be != 0 for those
+        loss_actor *= deciding_state
+        loss_actor = torch.mean(loss_actor)
+
+        loss_critic = self.loss_critic(
+            value=      value,
+            dreturn=    reward)
+
+        entropy = out['entropy']
+        loss_entropy_factor = self.entropy_coef * entropy
+
+        loss_nam = self.loss_nam(
+            logits=         logits,
+            allowed_moves=  allowed_moves)
+        loss_nam *= deciding_state
+        loss_nam = torch.mean(loss_nam)
+        loss_nam_factor = self.nam_loss_coef * loss_nam
+
+        loss = loss_actor + loss_critic - loss_entropy_factor + loss_nam_factor
 
         out.update({
-            'loss':         loss_actor + loss_critic,
+            'reward':       reward,
+            'advantage':    advantage_nograd,
+            'loss':         loss,
             'loss_actor':   loss_actor,
-            'loss_critic':  loss_critic})
+            'loss_critic':  loss_critic,
+            'loss_nam':     loss_nam})
         return out
 
 

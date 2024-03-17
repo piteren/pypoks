@@ -13,7 +13,7 @@ from typing import List, Optional, Dict, Tuple, Union
 from envy import DMK_MODELS_FD, TR_RESULTS_FP, PyPoksException
 from pologic.game_config import GameConfig
 from podecide.dmk import FolDMK
-from podecide.dmk_motorch import DMK_MOTorch, DMK_MOTorch_PG, DMK_MOTorch_PPO
+from podecide.dmk_motorch import DMK_MOTorch, DMK_MOTorch_PG, DMK_MOTorch_A2C, DMK_MOTorch_PPO
 from podecide.game_manager import GameManager_PTR
 
 
@@ -57,16 +57,17 @@ def get_saved_dmks_names(folder:Optional[str]=None) -> List[str]:
 
 def get_fresh_dna(game_config:GameConfig, name:str, family:str) -> POINT:
 
-    # a - 12
-    # b - 24
-    # c - 12 small
-    # p - PPO
+    # a - PG 12
+    # b - PG 24
+    # c - PG 12 small
+    # d - A2C 12
+    # p - PPO 12
 
-    if family not in 'abcp':
+    if family not in 'abcdp':
         raise PyPoksException(f'unknown family: {family}')
 
     motorch_psdd: PSDD = {
-        'baseLR':                   [5e-6, 1e-5],# if family != 'p' else [1e-7, 1e-6],
+        'baseLR':                   [5e-6, 1e-5],
         #'nam_loss_coef':            (1.5, 2.3, 3.0, 5.0, 10.0, 20.0),
         #'entropy_coef':             (0.0, 0.01, 0.02, 0.05),
     }
@@ -100,10 +101,14 @@ def get_fresh_dna(game_config:GameConfig, name:str, family:str) -> POINT:
     foldmk_point_common: POINT = {
         'name':                     name,
         'family':                   family,
-        'motorch_type':             DMK_MOTorch_PG if family != 'p' else DMK_MOTorch_PPO,
+        'motorch_type':             DMK_MOTorch_PG,
         'trainable':                True,
         'psdd':                     foldmk_psdd,
     }
+    if family == 'd':
+        foldmk_point_common['motorch_type'] = DMK_MOTorch_A2C
+    if family == 'p':
+        foldmk_point_common['motorch_type'] = DMK_MOTorch_PPO
 
     foldmk_point = {
         'table_size':       game_config.table_size,

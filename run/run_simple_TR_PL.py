@@ -15,12 +15,12 @@ PUB_REF = {'publish_player_stats':False, 'publishFWD':False, 'publishUPD':False}
 def run(game_config_name: Optional[str]=    None,   # must be given if not saved
         do_TR=                              True,   # True / False (TR/PL)
         n_tables=                           1000,
-        game_size=                          100000,
+        game_size=                          200000,
         n_gpu=                              2,
         use_saved=                          True,   # tries to use DMKs saved in DMK_MODELS_FD, creates new if no DMKs
             # parameters below are used only when DMKs are not saved before
-        family=                             'a',
-        n_dmk=                              10,
+        family=                             'adp',
+        n_dmk=                              20,
         n_refs=                             0,      # 0 or more, sets (copies) first n_refs from DMKs as refs
         ):
     """ with this script may be run simple game of:
@@ -110,8 +110,7 @@ if __name__ == "__main__":
     run(
         game_config_name=   '3players_2bets',
         #do_TR=              False,
-        n_tables=           1000,
         #family=             'a',
-        n_dmk=              7,
-        n_refs=             4,
+        n_dmk=              18,
+        n_refs=             0,
         )

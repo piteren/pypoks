@@ -58,9 +58,9 @@ class DMK_MOTorch(MOTorch):
         else:
             self._log.info(f'{self.name} has not loaded pretrained CN checkpoint (DMK saved_already:{saved_already}, load_cardnet_pretrained:{load_cardnet_pretrained})')
 
-        self.zero_state = self.convert(self.module.enc_cnn.get_zero_history())
-        self._last_fwd_state: Dict[str,TNS] = {pa: self.zero_state for pa in self._player_ids}  # state after last fwd
-        self._last_upd_state: Dict[str,TNS] = {pa: self.zero_state for pa in self._player_ids}  # state after last upd
+        self._zero_state = self.convert(self.module.enc_cnn.get_zero_history())
+        self._last_fwd_state: Dict[str,TNS] = {pa: self._zero_state for pa in self._player_ids}  # state after last fwd
+        self._last_upd_state: Dict[str,TNS] = {pa: self._zero_state for pa in self._player_ids}  # state after last upd
 
         self._ze_pro_enc = ZeroesProcessor(
             intervals=      (5,20),
@@ -92,7 +92,7 @@ class DMK_MOTorch(MOTorch):
         if len(self._last_fwd_state) > 1:
             raise PyPoksException('reset_fwd_state is valid only for one player')
         pid = list(self._last_fwd_state.keys())[0]
-        self._last_fwd_state[pid] = self.zero_state
+        self._last_fwd_state[pid] = self._zero_state
 
     def build_batch(
             self,
@@ -113,7 +113,7 @@ class DMK_MOTorch(MOTorch):
         return out['probs'].cpu().detach().numpy()
 
     def update_policy(self, player_ids:List[str], batch:DTNS) -> None:
-        """ backward + data wrangling, baseline implementation """
+        """ backward + save states (baseline) """
         out = self.backward(bypass_data_conv=True, **batch)
 
         # save UPD states
@@ -301,11 +301,12 @@ class DMK_MOTorch_PG(DMK_MOTorch):
             batch['enc_cnn_state'].append(enc_cnn_state)
 
         # convert data for torch
+        batch_conv_torch = {}
         for k in batch_keys[:-1]:
-            batch[k] = self.convert(batch[k])
-        batch['enc_cnn_state'] = torch.stack(batch['enc_cnn_state'])
+            batch_conv_torch[k] = self.convert(batch[k])
+        batch_conv_torch['enc_cnn_state'] = torch.stack(batch['enc_cnn_state'])
 
-        return batch
+        return batch_conv_torch
 
     def update_policy(self, player_ids:List[str], batch:DTNS) -> None:
         """ + compute logprob + publish """
@@ -336,6 +337,7 @@ class DMK_MOTorch_PG(DMK_MOTorch):
                 'entropy',
                 'loss',
                 'loss_actor',
+                'loss_critic',
                 'loss_nam',
                 'gg_norm',
                 'gg_norm_clip']
@@ -354,7 +356,7 @@ class DMK_MOTorch_PG(DMK_MOTorch):
 
             self.log_histogram_TB(values=ratio_out['ratio'], tag=f'policy/a.ratio')
             self.log_histogram_TB(values=out['probs'], tag=f'policy/b.probs')
-            for l,k in zip('cd',['reward', 'reward_norm']):
+            for l,k in zip('cdef',['reward', 'reward_norm', 'advantage']):
                 if k in out:
                     self.log_histogram_TB(values=out[k], tag=f'policy/{l}.{k}', step=self.train_step)
 
@@ -401,7 +403,7 @@ class DMK_MOTorch_PPO(DMK_MOTorch_PG):
         if self.n_epochs_ppo > 1:
             mb_more = minibatches * (self.n_epochs_ppo - 1)
             random.shuffle(mb_more)
-            minibatches += mb_more
+            minibatches = mb_more + minibatches # put more (shuffled) first
 
         res = {}
         for mb in minibatches:
@@ -428,17 +430,20 @@ class DMK_MOTorch_PPO(DMK_MOTorch_PG):
 
             self._opt.step()                # apply optimizer
 
+        #print(f'---batch_width: {batch_width}')
+        #for k in res:
+        #    print(k, len(res[k]), type(res[k][0]), res[k][0].shape if type(res[k][0]) is torch.Tensor else '')
+
         ### merge outputs
 
         res_prep = {}
         for k in [
+            'reward',
+            'reward_norm',
             'probs',
             'fin_state',
             'zeroes_enc',
-            'zeroes_cnn',
-            'reward',
-            'reward_norm',
-            'ratio']:
+            'zeroes_cnn']:
             res_prep[k] = torch.cat(res[k], dim=0)
 
         for k in [
@@ -452,14 +457,9 @@ class DMK_MOTorch_PPO(DMK_MOTorch_PG):
             'clipfracs']:
             res_prep[k] = torch.Tensor(res[k]).mean()
 
-        # trim to batch width
+        # trim to batch width (from the end.. not shuffled)
         if self.n_epochs_ppo > 1:
-            for k in [
-                'fin_state',
-                'reward',
-                'reward_norm',
-            ]:
-                res_prep[k] = res_prep[k][:batch_width]
+            res_prep['fin_state'] = res_prep['fin_state'][-batch_width:]
 
         self._scheduler.step()  # apply LR scheduler
         self.train_step += 1    # update step
