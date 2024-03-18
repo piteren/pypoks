@@ -338,7 +338,7 @@ class ProCNN_DMK_A2C(ProCNN_DMK_PG):
             **kwargs
     ) -> DTNS:
         """ A2C loss overrides PG loss:
-        - replaces reward (dreturn) with advantage, reward norm is disabled
+        - replaces reward (dreturn) with advantage, reward_norm replaced by advantage_norm
         - adds Critic loss """
 
         out = self(**kwargs)
@@ -350,6 +350,7 @@ class ProCNN_DMK_A2C(ProCNN_DMK_PG):
 
         advantage = reward - value
         advantage_nograd = advantage.detach()  # to prevent flow of Actor loss gradients to Critic network
+        advantage_norm = self.norm(advantage_nograd)
 
         # INFO: loss for reshaped tensors since torch does not support higher dim here
         orig_shape = list(logits.shape)
@@ -358,7 +359,7 @@ class ProCNN_DMK_A2C(ProCNN_DMK_PG):
             target=     move.view(-1),
             reduction=  'none')
         loss_actor = loss_actor.view(orig_shape[:-1])
-        loss_actor = loss_actor * advantage_nograd
+        loss_actor = loss_actor * (advantage_nograd if self.reward_norm else advantage_nograd)
 
         # multiply by deciding_state for zero loss in non-deciding states,
         # non-deciding states should have reward == 0, BUT after reward normalization
@@ -383,12 +384,13 @@ class ProCNN_DMK_A2C(ProCNN_DMK_PG):
         loss = loss_actor + loss_critic - loss_entropy_factor + loss_nam_factor
 
         out.update({
-            'reward':       reward,
-            'advantage':    advantage_nograd,
-            'loss':         loss,
-            'loss_actor':   loss_actor,
-            'loss_critic':  loss_critic,
-            'loss_nam':     loss_nam})
+            'reward':           reward,
+            'advantage':        advantage_nograd,
+            'advantage_norm':   advantage_norm,
+            'loss':             loss,
+            'loss_actor':       loss_actor,
+            'loss_critic':      loss_critic,
+            'loss_nam':         loss_nam})
         return out
 
 

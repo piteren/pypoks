@@ -356,7 +356,7 @@ class DMK_MOTorch_PG(DMK_MOTorch):
 
             self.log_histogram_TB(values=ratio_out['ratio'], tag=f'policy/a.ratio')
             self.log_histogram_TB(values=out['probs'], tag=f'policy/b.probs')
-            for l,k in zip('cdef',['reward', 'reward_norm', 'advantage']):
+            for l,k in zip('cdef',['reward', 'reward_norm', 'advantage', 'advantage_norm']):
                 if k in out:
                     self.log_histogram_TB(values=out[k], tag=f'policy/{l}.{k}', step=self.train_step)
 
