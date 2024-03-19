@@ -19,7 +19,7 @@ A single DMK handles one policy and makes decisions for multiple players (n_play
 
 An Agent is based on NN built of 2 main parts:
 - **cardNet** - a Transformer-based NN part responsible for preparation of card representations.
-- agent network - Causal Convolution-based NN part responsible for encoding sequence of states data.
+- agent network - Causal version of Temporal Convolution-based NN part responsible for encoding sequence of states data.
 
 Decisions are made using the **Many States One Decision** (MSOD) concept.
 **MSOD** assumes that a table player can send multiple (1-N) states to DMK before asking DMK for a move decision.

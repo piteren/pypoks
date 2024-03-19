@@ -316,8 +316,10 @@ class GameManager:
         there is no real need to change this design.
         """
 
-        if self._run_game_called: raise PyPoksException('GM cannot run_game() more than once!')
-        else: self._run_game_called = True
+        if self._run_game_called:
+            raise PyPoksException('GM cannot run_game() more than once!')
+        else:
+            self._run_game_called = True
 
         tbwr = TBwr(logdir=f'{DMK_MODELS_FD}/{self.name}') if publish else None
 
@@ -335,7 +337,7 @@ class GameManager:
             dn: {
                 'wonH_IV':              [],     # wonH (won $ / hand) of interval
                 'wonH_afterIV':         [],     # wonH (won $ / hand) after interval
-                'last_wonH_afterIV':    None,
+                'last_wonH_afterIV':    0,
                 'wonH_IV_stddev':       None,
                 'wonH_IV_mean_stddev':  None,
                 'family':               self.dmkD[dn].family,
@@ -353,7 +355,7 @@ class GameManager:
         time_last_report = stime
         n_hands_last_report = 0
 
-        self.logger.debug(f'> {self.name} starts a game..')
+        self.logger.info(f'> {self.name} starts a game..')
         loop_ix = 0
         while True:
 
@@ -604,14 +606,14 @@ class GameManager_PTR(GameManager):
             seed=           seed,
             **kwargs)
 
-        self.logger.info(f'*** GameManager_PTR started with (PL:{len(dmk_point_PLL)} TR:{len(dmk_point_TRL)} ref:{len(dmk_point_refL)}) DMKs on {n_tables} tables')
+        self.logger.info(f'*** GameManager_PTR initialized with (PL:{len(dmk_point_PLL)} TR:{len(dmk_point_TRL)} ref:{len(dmk_point_refL)}) DMKs on {n_tables} tables')
         for dna in dmk_point_PLL + dmk_point_TRL:
             self.logger.debug(f'> {dna["name"]} with {dna["n_players"]} players, trainable: {dna["trainable"]}')
 
     @staticmethod
     def _get_num_players_tables(n_tables:int, n_dmk:int, table_size:int, is_ref:bool) -> Tuple[int,int]:
         """ computes proper number of players per DMK and number of tables
-        for given desired number of tables """
+        for given expected number of tables """
 
         if is_ref:
             n_dmk_players = math.ceil(n_tables / n_dmk)             # adjusted up number of players per DMK
