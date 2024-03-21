@@ -27,10 +27,10 @@ DMK computes policy move probabilities for all sent states, even for those
 that do not require table decisions from a player (while training those decisions got 0 loss).
 
 The two main functions of DMK are:
-- receiving data from poker players (instances on the tables)
+- collecting data from poker players (instances on the tables)
 - making decisions (moves) for the players
 
-##### Receiving Data
+##### Collecting Data
 DMK receives data (Hand History) from a table player. The player sends a list of states (calling: `DMK.collect_states`)
 either before making a move or after a hand. Occasionally, the player sends a list of possible_moves
 (calling: `DMK.collect_possible_moves`). Possible_moves are added by DMK to the last sent state.
@@ -48,3 +48,11 @@ A move is made with the Agent policy based on the given data:
 DMK decides WHEN to make decisions (`DMK.make_decisions()`). DMK makes decisions for (one-some-all) players
 with allowed_moves saved in `_states_new`. States used to make decisions are moved (appended)
 to `_states_dec`, from where they are used to update DMK’s policy during training.
+
+### PPO implementation
+pypoks implements PPO in a modified / simplified version:
+- GAE is not used
+- Value Function and Advantage are not used / implemented, reward is used as a reinforce signal
+
+PPO implementation is split among few scripts. `DMK_Motorch` (`dmk_motorch.py`) implements (overrides MOTorch) `backward()`
+with update ovre mini-batches. `ProCNN_DMK_PPO` module (`dmk_module.py`) implements PPO loss with all the details.
