@@ -3,6 +3,10 @@
 
 ## Deep Reinforcement Learning (DRL) with Neural Network (NN) based Agent in NL Texas Hold'em Poker Game Environment with Python & PyTorch
 
+It is a pure DRL with implemented algorithms such as PG, A2C and PPO.<br>
+No prior knowledge of poker game rules is required by the RL algorithm.<br>
+The algorithm can be easily adjusted for any bet sizes, table sizes, starting stacks, etc.
+
 ### Research Scope of the Project (ML/RL):
 - Testbed for different RL concepts like PG, A3C, PPO, and their modifications
 - Efficient NN Agent (PyTorch-based) architecture details
