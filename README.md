@@ -4,6 +4,7 @@
 ## Deep Reinforcement Learning (DRL) with Neural Network (NN) based Agent in NL Texas Hold'em Poker Game Environment with Python & PyTorch
 
 It is a pure DRL with implemented algorithms such as PG, AC and PPO.<br>
+pypoks does not use any search algorithm while training or playing.<br>
 No prior knowledge of poker game rules is required by the RL algorithm.<br>
 The algorithm can be easily adjusted for any bet sizes, table sizes, starting stacks, etc.
 
