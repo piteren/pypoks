@@ -1,6 +1,6 @@
 import copy
 import math
-from pypaq.lipytools.printout import stamp, progress_
+from pypaq.lipytools.printout import stamp, ProgBar
 from pypaq.lipytools.pylogger import get_pylogger, get_child
 from pypaq.lipytools.files import list_dir, prep_folder
 from pypaq.mpython.mptools import Que, QMessage
@@ -356,6 +356,7 @@ class GameManager:
         n_hands_last_report = 0
 
         self.logger.info(f'> {self.name} starts a game..')
+        pb = ProgBar(total=1.0)
         loop_ix = 0
         while True:
 
@@ -420,12 +421,9 @@ class GameManager:
 
                 sep_report_pairs = f'::{sep_pairs_nc:.2f}[{sep_pairs_nf:.2f}]' if sep_pairs else ''
 
-                progress_(
-                    current=    game_factor,
-                    total=      1.0,
-                    prefix=     f'GM: {passed:.1f}min left:{left_nfo}min',
-                    suffix=     f'{int(hspeed)}H/s -- SEP:{sep_nc:.2f}[{sep_nf:.2f}]{sep_report_pairs}',
-                    length=     20)
+                pb(current= game_factor,
+                   prefix=  f'GM: {passed:.1f}min left:{left_nfo}min',
+                   suffix=  f'{int(hspeed)}H/s -- SEP:{sep_nc:.2f}[{sep_nf:.2f}]{sep_report_pairs}')
 
                 if tbwr: tbwr.add(value=hspeed, tag=f'GM/speedH/s', step=loop_ix)
 
