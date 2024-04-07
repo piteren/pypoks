@@ -15,7 +15,8 @@
 ### DMK - Decision MaKer
 
 The Decision MaKer (DMK) - the Agent - defines the basic interface for making decisions for poker players (PPlayer on PTable).
-A single DMK handles one policy and makes decisions for multiple players (n_players).
+A single DMK handles one policy and got many (n_players) players placed on different tables.
+DMK makes decisions for all his players.
 
 An Agent is based on NN built of 2 main parts:
 - **cardNet** - a Transformer-based NN part responsible for preparation of card representations.
