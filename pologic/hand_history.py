@@ -25,7 +25,7 @@ class HHistory:
             fr: Optional[int]=  None,   # starting index
             to: Optional[int]=  None,   # ending index
     ) -> List[STATE]:
-        """ returns events translated into "player perspective" - I am 0
+        """ returns events translated into "player perspective" - I am 0:
         - player names (pl_id:str) is replaced with int, where 0 means "me" and other players are marked with 1,2..
         - PLH of other players are removed (if not DEBUG_MODE) """
 
@@ -41,6 +41,10 @@ class HHistory:
             if state[0] in ('POS','PSB','PBB','PLH','MOV','PRS'):
                 sd = list(state[1])
                 sd[0] = pls.index(sd[0])
+
+                # append name pl name (player_id) to POS
+                if state[0] == 'POS':
+                    sd.append(pls[sd[0]])
 
                 # remove not my (0) cards
                 if state[0] == 'PLH' and not DEBUG_MODE:

@@ -13,9 +13,7 @@ from pologic.podeck import PDeck
 
 
 class PPlayer:
-    """ PPlayer is an interface of player @table
-    PPlayer is "a part of" poker table (PTable)
-    it is only kind of mechanical interface with $
+    """ PPlayer is an interface of player on a table (PTable) - player specific table endpoint
     the second part of player - policy - its "brain" - is managed by DMK """
 
     def __init__(
@@ -29,7 +27,7 @@ class PPlayer:
             logger = get_pylogger(name='PPlayer', level=loglevel)
         self.logger = logger
 
-        self.id = id        # player id/address, unique for all tables
+        self.id = id        # player id
         self.table_moves = table_moves
 
         # fields below are managed(updated) by table._early_update_players()
@@ -617,7 +615,7 @@ class QPPlayer(PPlayer):
         self.que_from_player = que_from_player
 
     def _prepare_nt_states(self, hh:HHistory) -> List[STATE]:
-        """ prepares list of new & translated events from table hh """
+        """ prepares list of new & translated events from the table hh """
         state_changes = hh.translated(pls=self.pls, fr=self.nhs_IX)
         self.nhs_IX = len(hh.events)  # update index for next
         return state_changes
