@@ -72,7 +72,7 @@ Below is a detailed description of all possible ```STATES```:
     GCF: (game_config_name:str,)                                                                    name of the game config
     HST: (table_name:str, hand_id:int)                                                              hand starts
     TST: (table_state:int,)                                                                         one from envy.TBL_STT
-    POS: (pl_id:str, pos:int, pl.cash)                                                              player position and starting cash
+    POS: (pl_id:str, pos:int, pl.cash, pl_id:str)                                                   player position and starting cash (when translating first pl_id is replaced with index)
     PSB: (pl_id:str, SB$:int)                                                                       player puts SB
     PBB: (pl_id:str, BB$:int)                                                                       player puts BB
     T$$: (pot:int, cash_cs:int, cash_tc:int, cash_rs:int)                                           table cash, for every table cash change (street, MOV ..PSB+PBB <- together)
@@ -82,7 +82,7 @@ Below is a detailed description of all possible ```STATES```:
     PRS: (pl_id:str, won:int, full_rank)                                                            player result (full_rank is a tuple returned by PDeck.cards_rank)
     HFN: (table_name:str, hand_id:int)                                                              hand finished
 
-Below is listed the possible order of ```STATES```:
+Below is presented usual order of ```STATES```:
     
     GCF
     HST                             <- hand starts
@@ -112,7 +112,7 @@ HHtexts may be used to replay the hand or evaluate an agent policy.
 HHtexts are built with a selection of HH ```STATES```, below is the syntax:
 
     HH STATE  HHtexts syntax                          : desc                                
-    --------------------------------------------------------
+    --------------------------------------------------------------------------------------------------------------------
     GCF       GCF: <game_config_name>                 : game config name, one from pologic.game_config.GAME_CONFIG_NAMES
     POS       POS: <player_name> <pos> <$>            : player name, position and stack
     PSB       <player_name> SB <SB $>                 : small blind
