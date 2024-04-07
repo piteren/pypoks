@@ -1,3 +1,8 @@
+""" with this script a simple training (TR) or playing (PL)
+with multiple DMKs on multiple tables may be run
+- DMKs (pretrained) may be present in a DMK_MODELS_FD folder or will be generated from scratch
+- with or without refs """
+
 from pypaq.lipytools.pylogger import get_pylogger, get_child
 from pypaq.mpython.mpdecor import proc_wait
 from typing import Optional
@@ -23,10 +28,6 @@ def run(game_config_name: Optional[str]=    None,   # must be given if not saved
         n_dmk=                              20,
         n_refs=                             0,      # 0 or more, sets (copies) first n_refs from DMKs as refs
         ):
-    """ with this script may be run simple game of:
-    - TR / TS mode
-    - DMKs (pretrained) may be present in a DMK_MODELS_FD folder or will be generated from scratch
-    - with or without refs """
 
     mode = 'TR' if do_TR else 'PL'
     logger = get_pylogger(
@@ -111,7 +112,7 @@ if __name__ == "__main__":
     run(
         game_config_name=   '3players_2bets',
         #do_TR=              False,
-        family=             'adp',
-        n_dmk=              18,
+        family=             'as', # adp
+        n_dmk=              20,
         n_refs=             0,
         )

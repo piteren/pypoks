@@ -61,9 +61,10 @@ def get_fresh_dna(game_config:GameConfig, name:str, family:str) -> POINT:
     # b - PG 24
     # c - PG 12 small
     # d - A2C 12
+    # s - PG 12 with states
     # p - PPO 12
 
-    if family not in 'abcdp':
+    if family not in 'abcdsp':
         raise PyPoksException(f'unknown family: {family}')
 
     motorch_psdd: PSDD = {
@@ -109,7 +110,8 @@ def get_fresh_dna(game_config:GameConfig, name:str, family:str) -> POINT:
         foldmk_point_common['motorch_type'] = DMK_MOTorch_A2C
     if family == 'p':
         foldmk_point_common['motorch_type'] = DMK_MOTorch_PPO
-
+    if family == 's':
+        foldmk_point_common['use_poker_stats'] = True
     foldmk_point = {
         'table_size':       game_config.table_size,
         'table_moves':      game_config.table_moves,

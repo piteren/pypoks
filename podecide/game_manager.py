@@ -375,6 +375,18 @@ class GameManager:
                 num_IV.append(len(dmk_results[dn]['wonH_IV']))
             min_num_IV = min(num_IV) # lowest number of wonH_IV
 
+            for dn in self.dmkD:
+                message = QMessage(type='send_global_stats')
+                self.dmkD[dn].que_from_gm.put(message)
+            opp_stats = {}
+            for _ in self.dmkD:
+                message = self.que_to_gm.get()
+                opp_stats[message.data['dmk_name']] = message.data['global_stats']
+            # TODO: add periodical, random flush of stats (in PStatsEx!)
+            for dn in self.dmkD:
+                message = QMessage(type='get_opponent_stats', data=opp_stats)
+                self.dmkD[dn].que_from_gm.put(message)
+
             # calculate game factor
             nhL = [reports[dn]['n_hands'] for dn in reports]
             n_hands = sum(nhL)      # total

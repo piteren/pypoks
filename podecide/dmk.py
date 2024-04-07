@@ -25,10 +25,10 @@ from podecide.stats.won_manager import WonMan
 from podecide.stats.player_stats import PStatsEx
 from podecide.tools.tbwr_dmk import TBwr_DMK
 
-# DMK won interval
-# number of hands for which WON$ and some other stats are accumulated and then processed
-# it is an important constant for DMK (-> WonMan & GamesManager)
-# since produces data used to monitor separation, stddev, progress -> training process
+""" WON_IV - DMK won interval
+number of hands for which WON$ and some other stats are accumulated and then processed
+it is an important constant for DMK (-> WonMan & GamesManager)
+since affects data used to monitor separation, stddev, progress -> training process """
 WON_IV = 1000
 
 
@@ -42,7 +42,7 @@ class DMK(ABC):
 
     def __init__(
             self,
-            name: str,                          # name should be unique (@table)
+            name: str,                          # name should be unique
             table_size: int,                    # number of table players / opponents
             table_moves: List,                  # moves supported by DMK
             n_players: int=             1,      # number of table players managed by one DMK
@@ -63,7 +63,7 @@ class DMK(ABC):
                 level=      loglevel)
         self._logger = logger
 
-        self._player_ids = [f'{self.name}_{ix}' for ix in range(n_players)] if n_players>1 else [self.name] # DMK keeps unique ids (str) of table players
+        self._player_ids = [f'{self.name}:{ix}' for ix in range(n_players)] if n_players>1 else [self.name] # DMK keeps unique ids (str) of table players
         self.table_moves = table_moves
         self.table_size = table_size
         self.family = family
@@ -587,16 +587,15 @@ class QueDMK(MeTrainDMK, ABC):
 
 class StaMaDMK(QueDMK, ABC):
     """ Stats Manager DMK
-    adds WonMan & PStatsEx objects
-    communicates with GamesManager (GM)
-    """
+    adds WonMan & PStatsEx
+    enables monitoring of opponents poker stats """
 
     def __init__(
             self,
             won_iv=                 WON_IV,
             fwd_stats_step=         0,      # FWD stats step, increased every WON_IV
-            build_villain_stats=    False,  # TODO: use it in the future
-            publish_player_stats=   True,   # player (poker + FWD) stats
+            use_poker_stats=        False,  # use DMKs opponents stats (while training) or individual players (while playing) as a additional state information
+            publish_player_stats=   True,   # player (poker + FWD) stats, only for training
             n_player_stats=         10,     # publish stats every n step
             **kwargs):
 
@@ -605,8 +604,12 @@ class StaMaDMK(QueDMK, ABC):
         self.won_iv = won_iv
         self.fwd_stats_step = fwd_stats_step
 
-        self.build_villain_stats = build_villain_stats
+        self.use_poker_stats = use_poker_stats
+        self._pstats_ex = {}
+        self._dmks_stats = {}
+
         self.publish_player_stats = publish_player_stats
+
         self.n_player_stats = n_player_stats
 
     def _accumulate_global_stats(self) -> Dict[str,float]:
@@ -619,6 +622,7 @@ class StaMaDMK(QueDMK, ABC):
                 my_stats[k] += e[k]
         for k in my_stats:
             my_stats[k] /= nk
+        my_stats['n_hands'] = sum([self._pstats_ex[pid][0].n_hands for pid in self._player_ids])
         return my_stats
 
     def _encode_states(
@@ -628,7 +632,8 @@ class StaMaDMK(QueDMK, ABC):
     ) -> List[GameState]:
         """ adds stats management """
 
-        for i in (range(self.table_size) if self.build_villain_stats else [0]):
+        # if trainable process only my stats, else (playing) process all for use_poker_stats
+        for i in range(self.table_size) if not self.trainable and self.use_poker_stats else [0]:
             self._pstats_ex[player_id][i].process_states(player_stateL)
 
         wonD = self._wm.process_states(player_stateL) # send states to WonMan
@@ -642,6 +647,7 @@ class StaMaDMK(QueDMK, ABC):
                 if self.publish_player_stats:
 
                     my_stats = self._accumulate_global_stats()
+                    my_stats.pop('n_hands')
                     for l,k in zip('abcdefghijklmnoprs'[:len(my_stats)], my_stats):
                         self._tbwr.add(
                             value=  my_stats[k],
@@ -683,17 +689,19 @@ class StaMaDMK(QueDMK, ABC):
         self._wonH_IV = []      # my wonH of interval (DMK_STATS_IV), computed by WonMan
         self._wonH_afterIV = [] # my wonH AFTER interval, sum(wonH_IV)/len(wonH_IV)
 
-        # PStatsEx for each table player, 0-my, 1-1st villain, ..
+
         ps_logger = get_child(logger=self._logger, name='pstatsex')
+        # PStatsEx for each table player, 0-my, 1-1st villain, .. of each DMK player
         self._pstats_ex = {
             pid: {ix: PStatsEx(
                 player=         ix,
                 table_size=     self.table_size,
                 table_moves=    self.table_moves,
                 use_initial=    False,
-                upd_freq=       10,
+                initial_size=   10 if self.trainable else 100,
+                upd_freq=       10 if self.trainable else 100,
                 logger=         ps_logger,
-            ) for ix in (range(self.table_size) if self.build_villain_stats else [0])} for pid in self._player_ids}
+            ) for ix in range(self.table_size)} for pid in self._player_ids}
 
         super()._pre_process()
 
@@ -716,6 +724,9 @@ class StaMaDMK(QueDMK, ABC):
                 data=   {
                     'dmk_name':     self.name,
                     'global_stats': self._accumulate_global_stats()}))
+
+        if message.type == 'get_opponent_stats':
+            self._dmks_stats.update(message.data)
 
 
 class ExaDMK(StaMaDMK, ABC):
@@ -894,7 +905,8 @@ class NeurDMK(ExaDMK):
                     event_id = 0
                     mv_cash = 0.0
                     pl_cash = [float(val[1][2]), 0.0, 0.0]
-                    self._pos[player_id][val[1][0]] = val[1][1]     # save POS for next MOVes
+                    self._pos[player_id][val[1][0]] = val[1][1]
+                    self._dmkn[player_id][val[1][0]] = val[1][-1].split(':')[0]
                 else:
                     event_id = 1 + val[1][1]                        # 1 + mov_id (index in table_moves)
                     mv_cash = val[1][2]
@@ -903,7 +915,16 @@ class NeurDMK(ExaDMK):
                 # merge and normalize
                 cash = [mv_cash, *pl_cash, *self._table_cash[player_id]]
                 cash = [v / self.table_cash_start for v in cash]
-                pl_stats = list(self._pstats_ex[player_id][val[1][0]].player_stats.values()) if self.build_villain_stats else [0.0 for _ in PLAYER_STATS_USED]
+                pl_stats = [0.0] * (len(PLAYER_STATS_USED)+1) # +1 for n_hands
+                if self.use_poker_stats:
+                    if self.trainable:
+                        dmk_name = self._dmkn[player_id][val[1][0]]
+                        if dmk_name in self._dmks_stats:
+                            pl_stats = list(self._dmks_stats[dmk_name].values())
+                            pl_stats[-1] = float(np.tanh(pl_stats[-1] / 1000))
+                    else:
+                        psex = self._pstats_ex[player_id][val[1][0]]
+                        pl_stats = list(psex.player_stats.values()) + [float(np.tanh(psex.n_hands / 1000))]
 
                 nval = {
                     'cards':    [] + self._my_cards[player_id],     # List[7 x int] copy of my cards: 0-52
@@ -1145,6 +1166,7 @@ class NeurDMK(ExaDMK):
         self._my_cards =   {pa: []        for pa in self._player_ids}  # current cards of player
         self._table_cash = {pa: [0,0,0,0] for pa in self._player_ids}  # current (before player move) table cash (from T$$ state)
         self._pos =        {pa: {}        for pa in self._player_ids}  # current players positions {pl_id:pos}
+        self._dmkn =       {pa: {}        for pa in self._player_ids}  # current players DMK.name
 
     def _do_what_GM_says(self, message: QMessage):
 

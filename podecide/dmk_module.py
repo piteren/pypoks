@@ -6,6 +6,7 @@ from torchness.layers import LayDense
 from torchness.encoders import EncCNN
 from typing import Optional, Tuple, Dict, List
 
+from envy import PLAYER_STATS_USED
 from podecide.cardNet.cardNet_module import CardNet_MOTorch
 
 
@@ -84,7 +85,7 @@ class ProCNN_DMK_PG(Module):
         self.player_pos_emb = torch.nn.Parameter(data=torch.empty(size=(table_size, player_pos_emb_width)))
         my_initializer(self.player_pos_emb)
 
-        n_st = 0#len(PLAYER_STATS_USED) # number of stats floats # INFO: since stats are temporary disabled
+        n_st = len(PLAYER_STATS_USED) + 1 # number of stats floats + n_hands
         n_floats = 1 + 8 + n_st # cn_prob_win + 8 cash + stats
         cnn_in_width =  cn_enc_width + event_emb_width + player_id_emb_width + player_pos_emb_width + n_floats
         cnn_out_width = cn_enc_width + event_emb_width + player_id_emb_width + player_pos_emb_width + n_floats * float_feat_size
@@ -145,7 +146,7 @@ class ProCNN_DMK_PG(Module):
             cash,
             self.player_id_emb[pl_id],
             self.player_pos_emb[pl_pos],
-            # pl_stats, # INFO: temporary disabled
+            pl_stats,
         ]
         inp = torch.cat(feats, dim=-1)
 
