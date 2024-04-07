@@ -4,13 +4,11 @@ from typing import List, Union, Dict, Optional
 from envy import PLAYER_STATS_USED, get_pos_names, PyPoksException
 from pologic.hand_history import STATE
 
-"""
-baseline values of stats to start with
+""" baseline values of stats to start with
 for each number of table players
 for their meaning: check PLAYER_STATS_USED
-for their definition: check PStatsEx.STATS_RECIPE
-"""
-# TODO: fill with good values
+for their definition: check PStatsEx.STATS_RECIPE """
+# TODO: fill with good (~GTO) values
 INITIAL_STATS = {
                 #2      #3      #6      #9      number of table players
     'VPIP':    [0.531,  0.331,  0.274,  0.192],
@@ -26,8 +24,7 @@ INITIAL_STATS = {
     'WTS':     [0.333,  0.333,  0.333,  0.333],
     'W$SD':    [0.555,  0.555,  0.555,  0.555],
     'AFq':     [0.666,  0.666,  0.666,  0.666],
-    'HF':      [0.555,  0.555,  0.555,  0.555],
-}
+    'HF':      [0.555,  0.555,  0.555,  0.555]}
 
 
 class PStatsEx:
