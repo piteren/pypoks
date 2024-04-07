@@ -63,3 +63,13 @@ Allowed moves are defined in the ```/game_configs``` yaml file.
 While playing, a debug of the game is logged to the terminal - you can always check the cards played by each agent.
 
 ![](images/terminal_HDMK.png)
+
+### project dictionary
+
+- DMK - Decision MaKer - an agent, holds policy, is able to train / play on many tables simultaneously
+- GM - Game Manager, places DMKs on tables to run games in asynchronous way
+- ref - is a DMK serving as a reference for other DMKs while playing or training, ref does not update its policy,
+        ref concept is designed to ensure repeatability and uniformity of the evaluation environment in a multiplayer game,
+        also allows to train other DMKs against selected, the best ones DMKs, 
+        there is a special mode of a game managed by GameManager_PTR,
+        where refs are used
