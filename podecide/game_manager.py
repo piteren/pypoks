@@ -604,7 +604,13 @@ class GameManager_PTR(GameManager):
             seed=           seed,
             **kwargs)
 
-        self.logger.info(f'*** GameManager_PTR initialized with (PL:{len(dmk_point_PLL)} TR:{len(dmk_point_TRL)} ref:{len(dmk_point_refL)}) DMKs on {n_tables} tables')
+        npl_avg = {
+            'PL':  [dmk['n_players'] for dmk in dmk_point_PLL],
+            'TR':  [dmk['n_players'] for dmk in dmk_point_TRL],
+            'ref': [dmk['n_players'] for dmk in dmk_point_refL]}
+        npl_avg = {k: int(sum(npl_avg[k])/len(npl_avg[k])) if npl_avg[k] else 0 for k in npl_avg}
+
+        self.logger.info(f'*** GameManager_PTR initialized with (PL:{len(dmk_point_PLL)}*{npl_avg["PL"]} TR:{len(dmk_point_TRL)}*{npl_avg["TR"]} ref:{len(dmk_point_refL)}*{npl_avg["ref"]}) DMKs on {n_tables} tables')
         for dna in dmk_point_PLL + dmk_point_TRL:
             self.logger.debug(f'> {dna["name"]} with {dna["n_players"]} players, trainable: {dna["trainable"]}')
 

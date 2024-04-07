@@ -24,8 +24,9 @@ def run(game_config_name: Optional[str]=    None,   # must be given if not saved
         n_refs=                             0,      # 0 or more, sets (copies) first n_refs from DMKs as refs
         ):
     """ with this script may be run simple game of:
-    - DMKs may be present in a DMK_MODELS_FD folder or may be generated from scratch
-    - TR / TS mode, with or without refs """
+    - TR / TS mode
+    - DMKs (pretrained) may be present in a DMK_MODELS_FD folder or will be generated from scratch
+    - with or without refs """
 
     mode = 'TR' if do_TR else 'PL'
     logger = get_pylogger(
