@@ -597,6 +597,8 @@ class StaMaDMK(QueDMK, ABC):
             use_poker_stats=        False,  # use DMKs opponents stats (while training) or individual players (while playing) as a additional state information
             publish_player_stats=   True,   # player (poker + FWD) stats, only for training
             n_player_stats=         10,     # publish stats every n step
+            reset_period_prob=      0.1,
+            zero_period_prob=       0.05,
             **kwargs):
 
         QueDMK.__init__(self, **kwargs)
@@ -608,6 +610,10 @@ class StaMaDMK(QueDMK, ABC):
         self._pstats_ex = {}
         self._dmks_stats = {}
 
+        self.reset_period_prob = reset_period_prob
+        self.zero_period_prob = zero_period_prob
+        self._factor_stats = 1.0
+
         self.publish_player_stats = publish_player_stats
 
         self.n_player_stats = n_player_stats
@@ -615,14 +621,46 @@ class StaMaDMK(QueDMK, ABC):
     def _accumulate_global_stats(self) -> Dict[str,float]:
         """ prepares macro-averaged stats of players -> DMK stats """
         my_statsL = [self._pstats_ex[pid][0].player_stats for pid in self._player_ids]
+        n_hands = sum([s.pop('n_hands') for s in my_statsL])
         my_stats = {k: 0.0 for k in my_statsL[0]}
+        for e in my_statsL:
+            for k in my_stats:
+                my_stats[k] += e[k]
         nk = len(self._player_ids)
+        for k in my_stats:
+            my_stats[k] /= nk
+        my_stats['n_hands'] = n_hands
+        return my_stats
+
+    def _accumulate_period_stats(self) -> Dict[str,float]:
+        """ prepares macro-averaged period stats of players -> period DMK stats """
+
+        if random.random() < self.reset_period_prob:
+            for pid in self._player_ids:
+                self._pstats_ex[pid][0].reset_period()
+
+            self._factor_stats = 1.0
+            if random.random() < 0.5:
+                self._factor_stats = random.random() * random.random()
+
+        # from time to time return zero stats (unknown stats)
+        if random.random() < self.zero_period_prob:
+            return {k: 0 for k in self._pstats_ex[self._player_ids[0]][0].player_stats_period}
+
+        pl_ids = [] + self._player_ids
+        nk = int(len(pl_ids) * self._factor_stats)
+        if nk < 1: nk = 1
+        pl_ids = pl_ids[:nk]
+
+        my_statsL = [self._pstats_ex[pid][0].player_stats_period for pid in pl_ids]
+        n_hands = sum([s.pop('n_hands') for s in my_statsL])
+        my_stats = {k: 0.0 for k in my_statsL[0]}
         for e in my_statsL:
             for k in my_stats:
                 my_stats[k] += e[k]
         for k in my_stats:
             my_stats[k] /= nk
-        my_stats['n_hands'] = sum([self._pstats_ex[pid][0].n_hands for pid in self._player_ids])
+        my_stats['n_hands'] = n_hands
         return my_stats
 
     def _encode_states(
@@ -689,17 +727,13 @@ class StaMaDMK(QueDMK, ABC):
         self._wonH_IV = []      # my wonH of interval (DMK_STATS_IV), computed by WonMan
         self._wonH_afterIV = [] # my wonH AFTER interval, sum(wonH_IV)/len(wonH_IV)
 
-
-        ps_logger = get_child(logger=self._logger, name='pstatsex')
         # PStatsEx for each table player, 0-my, 1-1st villain, .. of each DMK player
+        ps_logger = get_child(logger=self._logger, name='pstatsex')
         self._pstats_ex = {
             pid: {ix: PStatsEx(
                 player=         ix,
                 table_size=     self.table_size,
                 table_moves=    self.table_moves,
-                use_initial=    False,
-                initial_size=   10 if self.trainable else 100,
-                upd_freq=       10 if self.trainable else 100,
                 logger=         ps_logger,
             ) for ix in range(self.table_size)} for pid in self._player_ids}
 
@@ -725,88 +759,15 @@ class StaMaDMK(QueDMK, ABC):
                     'dmk_name':     self.name,
                     'global_stats': self._accumulate_global_stats()}))
 
+        if message.type == 'send_period_stats':
+            self._que_to_gm.put(QMessage(
+                type=   'period_stats',
+                data=   {
+                    'dmk_name':     self.name,
+                    'period_stats': self._accumulate_period_stats()}))
+
         if message.type == 'get_opponent_stats':
             self._dmks_stats.update(message.data)
-
-
-class ExaDMK(StaMaDMK, ABC):
-    """ Exploring Advanced DMK
-    implements Policy of EXploring (PEX) while making a decision (active while training only).
-    DMK is a probabilistic model, which by nature explores,
-    this is an additional policy that may be turned od and configured.
-
-    INFO: ExaDMK functionality probably should be turned off for PPO
-    """
-
-    def __init__(
-            self,
-            enable_pex: bool=           False,  # enables/disables PEX
-            pex_max: float=             0.05,   # maximal pex value
-            prob_zero: float=           0.2,    # prob of setting: pex = 0
-            prob_max: float=            0.2,    # prob of setting: pex = pex_max
-            step_min: int=              1000,   # minimal step count to choose new pex
-            step_max: int=              100000, # maximal step count to choose new pex
-            pid_pex_fraction: float=    1.0,    # performs pex only on fraction <0.0-1.0> of players
-            publish_pex=                False,  # publish pex to TB
-            **kwargs):
-
-        StaMaDMK.__init__(self, **kwargs)
-        self.enable_pex = enable_pex
-        self.pex_max = pex_max
-        self.prob_max = prob_max
-        self.prob_zero = prob_zero
-        self.step_min = step_min
-        self.step_max = step_max
-        self.pid_pex_fraction = pid_pex_fraction
-        self.publish_pex = publish_pex
-
-        self._pid_pex = {pid: False for pid in self._player_ids} # enable pex for a player
-        self._pex = 0.0  # probability of exploring >> probability of choosing exploring move
-        self._step = 0   # step counter - for this number of steps pex will be fixed (0 for sampling in the first step)
-
-    def __pex_probs(
-            self,
-            probs: np.ndarray,
-            pid: str,
-    ) -> np.ndarray:
-        """ random probs forced by pex-advanced - keeps pex for n steps, then samples new value """
-
-        # eventually set new pex
-        if self._step == 0:
-            self._step = random.randint(self.step_min, self.step_max) # set new next step counter
-            # set factor
-            if random.random() < self.prob_max+self.prob_zero:
-                if random.random() < self.prob_max/(self.prob_max+self.prob_zero): factor = 1
-                else:                                                              factor = 0
-            else:                                                                  factor = random.random()
-            self._pex = factor * self.pex_max
-            self._pid_pex = {pid: random.random() < self.pid_pex_fraction for pid in self._player_ids}
-        else: self._step -= 1
-
-        # choose exploring move, encode it into probs
-        if self._pid_pex[pid] and random.random()<self._pex:
-            n_moves = len(self.table_moves)
-            move_ix = self._rng.choice(n_moves)
-            probs = np.zeros(shape=n_moves)
-            probs[move_ix] = 1
-        return probs
-
-    def _sample_move(
-            self,
-            probs: np.ndarray,
-            allowed_moves :List[bool],
-            pid: str,
-    ) -> int:
-        """ adds sampling with PEX """
-        if self.enable_pex and self.trainable:
-            probs = self.__pex_probs(probs, pid)
-        return super()._sample_move(probs, allowed_moves, pid)
-
-    def _publish_FWD_stats(self, step):
-        """ adds pex to TB """
-        super()._publish_FWD_stats(step)
-        if self.enable_pex and self.publish_pex:
-            self._tbwr.add(value=self._pex, tag='process.FWD/pex', step=step)
 
 # ***************************************************************************************** NOT abstract implementations
 
@@ -825,7 +786,7 @@ class RanDMK(StaMaDMK):
     def save(self): pass
 
 
-class NeurDMK(ExaDMK):
+class NeurDMK(StaMaDMK):
     """ Neural DMK
     with NN (MOTorch) as a deciding model
 
@@ -843,7 +804,7 @@ class NeurDMK(ExaDMK):
             reward_share: Optional[int]=        5, # reward sharing (between states) policy, for None every state gets reward/len(moves), for int gets reward/N
             **kwargs):
 
-        ExaDMK.__init__(
+        StaMaDMK.__init__(
             self,
             table_size=     table_size,
             table_moves=    table_moves,

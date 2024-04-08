@@ -1,34 +1,14 @@
 from pypaq.lipytools.pylogger import get_pylogger
+from pypaq.lipytools.moving_average import MovAvg
 from typing import List, Union, Dict, Optional
 
 from envy import PLAYER_STATS_USED, get_pos_names, PyPoksException
 from pologic.hand_history import STATE
 
-""" baseline values of stats to start with
-for each number of table players
-for their meaning: check PLAYER_STATS_USED
-for their definition: check PStatsEx.STATS_RECIPE """
-# TODO: fill with good (~GTO) values
-INITIAL_STATS = {
-                #2      #3      #6      #9      number of table players
-    'VPIP':    [0.531,  0.331,  0.274,  0.192],
-    'PFR':     [0.502,  0.303,  0.256,  0.171],
-    '3BET':    [0.022,  0.022,  0.022,  0.022],
-    '4BET':    [0.022,  0.022,  0.022,  0.022],
-    'ATS':     [0.555,  0.555,  0.555,  0.555],
-    'FTS':     [0.555,  0.555,  0.555,  0.555],
-    'CB':      [0.777,  0.777,  0.777,  0.777],
-    'CBFLD':   [0.222,  0.222,  0.222,  0.222],
-    'DNK':     [0.111,  0.111,  0.111,  0.111],
-    'pAGG':    [0.666,  0.666,  0.666,  0.666],
-    'WTS':     [0.333,  0.333,  0.333,  0.333],
-    'W$SD':    [0.555,  0.555,  0.555,  0.555],
-    'AFq':     [0.666,  0.666,  0.666,  0.666],
-    'HF':      [0.555,  0.555,  0.555,  0.555]}
-
 
 class PStatsEx:
-    """ Player Stats Extractor """
+    """ Player Stats Extractor,
+    supports period stats, which may be reset from time to time """
 
     # recipe how to calculate stats with __interval_counts (val = a / b but only if b != 0)
     STATS_RECIPE = {
@@ -53,10 +33,9 @@ class PStatsEx:
             player: Union[str,int],                     # player name in states
             table_size: int,
             table_moves: List,
-            use_initial=                        True,   # for True starts with INITIAL_STATS
-            initial_override: Optional[Dict]=   None,   # optional dict with stats to be overriden
+            factor: float=                      0.01,   # MovAvg factor
+            initial_override: Optional[Dict]=   None,   # optional dict with stats to override
             initial_size=                       100,    # weight of INITIAL_STATS
-            upd_freq=                           100,    # how often player stats are updated (every N of hands)
             logger=                             None,
             loglevel=                           20,
     ):
@@ -64,34 +43,28 @@ class PStatsEx:
             logger = get_pylogger(name='PStatsEx', level=loglevel)
         self.logger = logger
 
-        for sname in PLAYER_STATS_USED:
-            if sname not in INITIAL_STATS:
-                raise PyPoksException(f'Stat {sname} not in INITIAL_STATS!')
-            if sname not in PStatsEx.STATS_RECIPE:
-                raise PyPoksException(f'Stat {sname} not in PStatsEx.STATS_RECIPE!')
+        for sn in PLAYER_STATS_USED:
+            if sn not in PStatsEx.STATS_RECIPE:
+                raise PyPoksException(f'Stat {sn} not in PStatsEx.STATS_RECIPE!')
 
         self.player = player
         self.table_moves = table_moves
-        self.n_hands = 0 # global hands counter
         self.__table_pos_names = get_pos_names(table_size)
+        self.factor = factor
 
-        # player stats {k: [value, n]} n - number of events / weight
-        self.__stats = {k: [0.0,   0] for k in PLAYER_STATS_USED}
-        if use_initial:
-            ix_is = 0 # 2 players
-            if len(self.__table_pos_names) == 3: ix_is = 1
-            if len(self.__table_pos_names) == 6: ix_is = 2
-            if len(self.__table_pos_names) == 9: ix_is = 3
-            for k in self.__stats:
-                self.__stats[k] = [INITIAL_STATS[k][ix_is], initial_size]
+        # prepare initial values
+        iv = {k: (0,0) for k in PLAYER_STATS_USED}
         if initial_override:
-            for sname in initial_override:
-                if sname not in self.__stats:
-                    raise PyPoksException(f'Unknown initial stat given: {sname}!')
-                self.__stats[sname] = [initial_override[sname], initial_size]
+            for sn in initial_override:
+                if sn not in iv:
+                    raise PyPoksException(f'Unknown initial stat given: {sn}!')
+                iv[sn] = (initial_override[sn], initial_size)
 
-        self.__upd_freq = upd_freq
-        self.__n_interval_hands = 0
+        self.__stats = {k: MovAvg(factor=self.factor, init_value=iv[k][0], init_weight=iv[k][1]) for k in iv}
+        self.n_hands = 0  # global hands counter
+        self.__stats_period = {k: MovAvg(factor=self.factor, init_value=0, init_weight=0) for k in iv}
+        self.n_hands_period = 0  # period hands counter
+        self.__reset_period = False
 
         self.__hen = {} # current hand events notes 
         self.__interval_counts = {} # my interval events, are build with hand events notes
@@ -100,12 +73,10 @@ class PStatsEx:
         self.__reset_interval()
 
     def __reset_hand_notes(self):
-        
         self.__hen = {
-            
                 ### preflop
             'my_preflop':        False, # I have done at least one move
-            'is_preflop':        True,  # is it preflop now
+            'is_preflop':        True,  # it is  preflop now
             'nBRpreflop':        0,     # number of preflop BR moves (from all)
             'firstBRpreflop':    None,  # player name (Union[str,int]) TODO: ?? some before limped to BB
             'playerPOS':         {},    # {player: POS name (str)}
@@ -182,7 +153,10 @@ class PStatsEx:
             'nMOV':              0, # number of MOV - total
             'nHF':               0, # number of folded hands
         }
-        self.__n_interval_hands = 0
+
+    def reset_period(self):
+        """ will reset period stats with the next hand completed """
+        self.__reset_period = True
 
     def process_states(self, states:List[STATE]):
 
@@ -391,10 +365,6 @@ class PStatsEx:
                 self.__interval_counts['nBR'] += self.__hen['nBRmy']
                 self.__interval_counts['nMOV'] += self.__hen['nMOVmy']
 
-                # update & reset
-                self.n_hands += 1
-                self.__n_interval_hands += 1
-
                 self.logger.debug('### hand notes:')
                 for k in self.__hen:
                     if k not in ['is_preflop','playerPOS','is_flop']:
@@ -402,26 +372,39 @@ class PStatsEx:
 
                 self.__reset_hand_notes()
 
-                # time to update stats
-                if self.__n_interval_hands == self.__upd_freq:
+                for k in self.__stats:
+                    # (nh,nc) if nc != 0 -> stat = nh/nc -> add it with weight of nc -> update weight
+                    nhk,nck = PStatsEx.STATS_RECIPE[k]
+                    nh,nc = self.__interval_counts[nhk], self.__interval_counts[nck]
+                    if nc:
+                        self.__stats[k].upd(nh/nc)
+                        self.__stats_period[k].upd(nh/nc)
 
-                    for k in self.__stats:
-                        # (nh,nc) if nc != 0 -> stat = nh/nc -> add it with weight of nc -> update weight
-                        nhk,nck = PStatsEx.STATS_RECIPE[k]
-                        nh,nc = self.__interval_counts[nhk], self.__interval_counts[nck]
-                        if nc:
-                            self.__stats[k][0] = (self.__stats[k][0] * self.__stats[k][1] + nh) / (self.__stats[k][1] + nc)
-                            self.__stats[k][1] += nc
+                self.n_hands += 1
+                self.n_hands_period += 1
 
-                    self.__reset_interval()
+                if self.__reset_period:
+                    self.__stats_period = {k: MovAvg(factor=self.factor, init_value=0, init_weight=0) for k in self.__stats_period}
+                    self.n_hands_period = 0
+                    self.__reset_period = False
+
+                self.__reset_interval()
 
     @property
     def player_stats(self) -> Dict:
-        return {k: self.__stats[k][0] for k in self.__stats}
+        st = {k: self.__stats[k]() for k in self.__stats}
+        st['n_hands'] = self.n_hands
+        return st
+
+    @property
+    def player_stats_period(self) -> Dict:
+        st = {k: self.__stats_period[k]() for k in self.__stats_period}
+        st['n_hands'] = self.n_hands_period
+        return st
 
     # returns detailed str with player stats (with support)
     def __str__(self):
         s = f'player {self.player} played {self.n_hands} hands:\n'
         for k in self.__stats:
-            s += f'{k:5} : {self.__stats[k][0]*100:4.1f}% ({self.__stats[k][1]})\n'
+            s += f'{k:5} : {self.__stats[k]()*100:4.1f}%\n'
         return s[:-1]

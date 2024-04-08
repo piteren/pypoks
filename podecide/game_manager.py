@@ -1,5 +1,8 @@
 import copy
 import math
+
+import numpy as np
+
 from pypaq.lipytools.printout import stamp, ProgBar
 from pypaq.lipytools.pylogger import get_pylogger, get_child
 from pypaq.lipytools.files import list_dir, prep_folder
@@ -351,6 +354,8 @@ class GameManager:
         self._start_dmks_processes()
         self._start_dmks_loops()
 
+        period_stats_n_hands = []
+
         stime = time.time()
         time_last_report = stime
         n_hands_last_report = 0
@@ -375,17 +380,20 @@ class GameManager:
                 num_IV.append(len(dmk_results[dn]['wonH_IV']))
             min_num_IV = min(num_IV) # lowest number of wonH_IV
 
+            # period stats
             for dn in self.dmkD:
-                message = QMessage(type='send_global_stats')
+                message = QMessage(type='send_period_stats')
                 self.dmkD[dn].que_from_gm.put(message)
             opp_stats = {}
             for _ in self.dmkD:
                 message = self.que_to_gm.get()
-                opp_stats[message.data['dmk_name']] = message.data['global_stats']
-            # TODO: add periodical, random flush of stats (in PStatsEx!)
+                opp_stats[message.data['dmk_name']] = message.data['period_stats']
             for dn in self.dmkD:
                 message = QMessage(type='get_opponent_stats', data=opp_stats)
                 self.dmkD[dn].que_from_gm.put(message)
+            if tbwr:
+                period_stats_n_hands += [int(opp_stats[d]['n_hands']) for d in opp_stats]
+                tbwr.add_histogram(values=np.asarray(period_stats_n_hands), tag='GM/period_stats_n_hands', step=loop_ix)
 
             # calculate game factor
             nhL = [reports[dn]['n_hands'] for dn in reports]
