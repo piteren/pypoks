@@ -26,7 +26,7 @@ def results_report(
         stats_nfo = ''
         for k in dmk_results[dn]["global_stats"]:
             v = dmk_results[dn]["global_stats"][k]
-            stats_nfo += f'{k}:{v*100:4.1f} '
+            stats_nfo += f'{k}:{int(v)} ' if k == 'n_hands' else f'{k}:{v*100:4.1f} '
 
         wonH_diff = f"diff: {dmk_results[dn]['wonH_diff']:5.2f}" if 'wonH_diff' in dmk_results[dn] else ""
         sep = f" sepF: {dmk_results[dn]['separated_factor']:4.2f}" if 'separated_factor' in dmk_results[dn] else ""

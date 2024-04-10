@@ -1,5 +1,4 @@
-""" with this script a simple training (TR) or playing (PL)
-with multiple DMKs on multiple tables may be run
+""" this script runs a simple training (TR) or playing (PL) with multiple DMKs on multiple tables
 - DMKs (pretrained) may be present in a DMK_MODELS_FD folder or will be generated from scratch
 - with or without refs """
 

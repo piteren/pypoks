@@ -17,7 +17,7 @@ LOOP_CONFIG = {
         # general
     'exit_after':               None,       # exits loop for given int
     'pause':                    False,      # pauses loop after test till Enter pressed
-    'families':                 'a',        # active families (forced to be present)
+    'families':                 'as',       # active families (forced to be present)
     'n_dmk':                    20,         # number of DMKs
     'n_dmk_refs':               0,          # number of refs DMKs
     'n_gpu':                    2,
@@ -275,8 +275,6 @@ def run(game_config_name:str, use_saved_dmks=True, del_removed_dmks=False):
                     dmk_point_PLL=  [{'name':dn, 'motorch_point':{'device':i%2}, 'save_topdir':PMT_FD, **PUB_NONE} for i,dn in enumerate(all_pmt)],
                     game_size=      cm.game_size_PMT,
                     n_tables=       cm.n_tables,
-                    sep_all_break=  True,
-                    sep_n_stddev=   2.0,
                     logger=         logger,
                     publish=        False)
                 pmt_results = rgd['dmk_results']

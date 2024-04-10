@@ -876,7 +876,7 @@ class NeurDMK(StaMaDMK):
                 # merge and normalize
                 cash = [mv_cash, *pl_cash, *self._table_cash[player_id]]
                 cash = [v / self.table_cash_start for v in cash]
-                pl_stats = [0.0] * (len(PLAYER_STATS_USED)+1) # +1 for n_hands
+                pl_stats = [0.0] * (len(PLAYER_STATS_USED) + 1) # +1 for n_hands
                 if self.use_poker_stats:
                     if self.trainable:
                         dmk_name = self._dmkn[player_id][val[1][0]]
@@ -885,7 +885,8 @@ class NeurDMK(StaMaDMK):
                             pl_stats[-1] = float(np.tanh(pl_stats[-1] / 1000))
                     else:
                         psex = self._pstats_ex[player_id][val[1][0]]
-                        pl_stats = list(psex.player_stats.values()) + [float(np.tanh(psex.n_hands / 1000))]
+                        pl_stats = list(psex.player_stats.values())
+                        pl_stats[-1] = float(np.tanh(pl_stats[-1] / 1000))
 
                 nval = {
                     'cards':    [] + self._my_cards[player_id],     # List[7 x int] copy of my cards: 0-52
