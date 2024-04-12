@@ -282,12 +282,12 @@ def run(game_config_name:str, use_saved_dmks=True, del_removed_dmks=False):
                 logger.info(f'PMT results:\n{results_report(pmt_results)}')
 
                 # remove worst
-                if len(all_pmt) == cm.ndmk_PMT:
+                if len(all_pmt) >= cm.ndmk_PMT:
                     dmk_rw = [(dn, pmt_results[dn]['last_wonH_afterIV']) for dn in pmt_results]
                     pmt_ranked = [e[0] for e in sorted(dmk_rw, key=lambda x: x[1], reverse=True)]
-                    dn = pmt_ranked[-1]
-                    shutil.rmtree(f'{PMT_FD}/{dn}', ignore_errors=True)
-                    logger.info(f'removed PMT: {dn}')
+                    for dn in pmt_ranked[cm.ndmk_PMT:]:
+                        shutil.rmtree(f'{PMT_FD}/{dn}', ignore_errors=True)
+                        logger.info(f'removed PMT: {dn}')
 
         loop_ix += 1
 
