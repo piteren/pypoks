@@ -340,12 +340,12 @@ class GameManager:
             dn: {
                 'wonH_IV':              [],     # wonH (won $ / hand) of interval
                 'wonH_afterIV':         [],     # wonH (won $ / hand) after interval
-                'last_wonH_afterIV':    0,
+                'last_wonH_afterIV':    0,      # last value [-1] from wonH_afterIV
                 'wonH_IV_stddev':       None,
                 'wonH_IV_mean_stddev':  None,
                 'family':               self.dmkD[dn].family,
                 'trainable':            self.dmkD[dn].trainable,
-                'global_stats':         None,   # SM.global_stats, will be updated at the end of the game
+                'global_stats':         None,   # will be updated at the end of the game
             } for dn in self._get_dmk_focus_names()}
 
         # start all subprocesses

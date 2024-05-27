@@ -748,7 +748,7 @@ class StaMaDMK(QueDMK, ABC):
                 type=   'dmk_report',
                 data=   {
                     'dmk_name':     self.name,
-                    'n_hands':      self._wm.get_global_nhands(),           # current number of hands (since init)
+                    'n_hands':      self._wm.nhands_total,                 # current number of hands (since init)
                     'wonH_IV':      self._wonH_IV[message.data:],           # wonH of intervals GM is asking for
                     'wonH_afterIV': self._wonH_afterIV[message.data:]}))    # wonH AFTER intervals GM is asking for
 
