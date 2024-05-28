@@ -39,7 +39,7 @@ class ProCNN_DMK_PG(Module):
             reward_norm: bool=              True,       # apply normalization to rewards
             clip_coef: float=               0.2,        # PPO policy clipping coefficient, set here for monitoring PG update
             nam_loss_coef: float=           20.0,       # not allowed moves loss coefficient
-            entropy_coef: float=            0.02,       # entropy loss coefficient
+            entropy_coef: float=            0.00,#0.02,       # entropy loss coefficient
             device=                         None,
             dtype=                          None,
             **kwargs):

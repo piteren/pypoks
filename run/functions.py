@@ -61,7 +61,7 @@ def get_fresh_dna(game_config:GameConfig, name:str, family:str) -> POINT:
     # b - PG 24
     # c - PG 12 small
     # d - A2C 12
-    # s - PG 12 with states
+    # s - PG 12 with stats
     # p - PPO 12
 
     if family not in 'abcdsp':
@@ -70,7 +70,7 @@ def get_fresh_dna(game_config:GameConfig, name:str, family:str) -> POINT:
     motorch_psdd: PSDD = {
         'baseLR':                   [5e-6, 1e-5],
         #'nam_loss_coef':            (1.5, 2.3, 3.0, 5.0, 10.0, 20.0),
-        #'entropy_coef':             (0.0, 0.01, 0.02, 0.05),
+        'entropy_coef':             (0.0, 0.01, 0.02, 0.05),
     }
 
     motorch_point_common: POINT = {
