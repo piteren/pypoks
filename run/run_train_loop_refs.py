@@ -18,17 +18,17 @@ LOOP_CONFIG = {
     'exit_after':               None,       # exits loop for given int
     'pause':                    False,      # pauses loop after test till Enter pressed
     'families':                 'ap',       # active families (forced to be present)
-    'n_dmk':                    30,         # number of DMKs
+    'n_dmk':                    20,         # target number of DMKs
     'n_dmk_refs':               0,          # number of refs DMKs
     'n_gpu':                    2,
     'n_tables':                 1000,       # target number of tables (for any game: TR, PMT)
     'game_size_TR':             100000,
         # remove / new DMKs
-    'do_removal':               False,
-    'remove_n_loops':           5,          # perform removal attempt every N loops
-    'remove_tail':              4,          # number of DMKs taken into removal pipeline
+    'remove_n_loops':           5,          # conduct removal attempt every N loops
+    'remove_tail':              4,          # number of DMKs (ranked tail) taken into removal pipeline
     'remove_n_dmk':             1,          # target number of DMKs to remove
-    'remove_old':               20,         # remove DMKs that are at least such old
+    'remove_old':               1e6,        # remove DMKs that are at least such old
+
     'prob_fresh_dmk':           0.5,        # probability of 100% fresh DMK (otherwise GX)+
     'prob_fresh_ckpt':          0.5,        # probability of fresh checkpoint (GX of POINT only, without GX of ckpt)
         # Periodical Masters Test
@@ -113,12 +113,6 @@ def run(game_config_name:str, use_saved_dmks=True, del_removed_dmks=False):
             break
 
         logger.info(f'\n ************** starts loop #{loop_ix} **************')
-
-        # eventually remove some DMKs, if there is too much
-        while len(dmk_ranked) > cm.n_dmk:
-            dn = dmk_ranked.pop()
-            logger.info(f'removing {dn} ({len(dmk_ranked)}/{cm.n_dmk})')
-            shutil.rmtree(f'{PMT_FD}/{dn}', ignore_errors=True)
 
         # eventually build new
         if len(dmk_ranked) < cm.n_dmk:
@@ -229,13 +223,15 @@ def run(game_config_name:str, use_saved_dmks=True, del_removed_dmks=False):
             shutil.rmtree(f'{DMK_MODELS_FD}/{dn}', ignore_errors=True)
 
         # eventually remove some
-        if cm.do_removal and loop_ix % cm.remove_n_loops == 0:
+        if loop_ix % cm.remove_n_loops == 0:
 
-            remove_candids = dmk_ranked[-cm.remove_tail:]       # take the tail
-            remove_candids = list(reversed(remove_candids))     # first from the worst
-            remove_candids.sort(key= lambda x: int(x[3:6]))     # next from the oldest
-            remove_candids = remove_candids[:cm.remove_n_dmk]   # finally trim
-            remove_candids = [dn for dn in remove_candids if (loop_ix - int(dn[3:6])) >= cm.remove_old]
+            remove_candids = list(reversed(dmk_ranked[-cm.remove_tail:]))   # take the reversed tail
+            remove_candids.sort(key= lambda x: int(x[3:6]))                 # next from the oldest
+            remove_candids = remove_candids[:cm.remove_n_dmk]               # finally trim
+
+            # if number of DMKs is not exceeding the target, remove only qualified by the age
+            if len(dmk_ranked) == cm.n_dmk:
+                remove_candids = [dn for dn in remove_candids if (loop_ix - int(dn[3:6])) >= cm.remove_old]
 
             if remove_candids:
                 logger.info(f'removing {len(remove_candids)} DMKs: {", ".join(remove_candids)}')
