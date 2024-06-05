@@ -67,9 +67,9 @@ def separation_report(
             if dn_a != dn_b:
                 sf = separated_factor(
                     a_wonH=             dmk_results[dn_a]['last_wonH_afterIV'],
-                    a_wonH_mean_stddev=  dmk_results[dn_a]['wonH_IV_mean_stddev'],
+                    a_wonH_mean_stddev= dmk_results[dn_a]['wonH_IV_mean_stddev'],
                     b_wonH=             dmk_results[dn_b]['last_wonH_afterIV'],
-                    b_wonH_mean_stddev=  dmk_results[dn_b]['wonH_IV_mean_stddev'])
+                    b_wonH_mean_stddev= dmk_results[dn_b]['wonH_IV_mean_stddev'])
                 if sf < n_stddev:
                     sep[dn_a] -= 1
                 sep_nf += min(sf, max_nf*n_stddev)
