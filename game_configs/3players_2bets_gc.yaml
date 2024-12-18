@@ -5,8 +5,15 @@ table_cash_bb:    5      # big blind
 
 # [[name, preflop x, flop %pot]]
 table_moves:
-    - [CCK]              # check
-    - [FLD]              # fold
-    - [CLL]              # call
-    - [BR1, 2.4,  0.5 ]
-    - [BR2, 3.8,  1.4 ]
+    table_moves:
+    - [CCK]            # Check (过牌)
+    - [FLD]            # Fold (弃牌)
+    - [CLL]            # Call (跟注)
+    - [BR1, 2.4, 0.5]  # 2.4倍加注，底池50%
+    - [BR2, 3.8, 1.4]  # 3.8倍加注，底池140%
+    - [BET, 0.25]      # 下注底池的 1/4
+    - [BET, 0.33]      # 下注底池的 1/3
+    - [BET, 0.5]       # 下注底池的 1/2
+    - [BET, 0.67]      # 下注底池的 2/3
+    - [BET, 0.75]      # 下注底池的 3/4
+    - [BET, 1]         # 全押，下注底池的 100%
