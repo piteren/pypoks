@@ -1,20 +1,23 @@
 <!--SKIP_FIX-->
 ## cardNet
 
-**cardNet** (CN) is a Transformer (TNS) based Neural Network responsible for representing and evaluating poker hands.
-CN encodes 7 given cards (2 player and 5 table cards) into a single tensor.
-This tensor stores all the information about the cards, their strength, rank, and other valuable properties.
-Cards are represented with embeddings. Embeddings are learned while training the NN.
+**cardNet** (CN) is a Transformer (TNS) based Neural Network that encodes and evaluates poker cards combinations.
 
-There are two predefined cardNet versions used in the project that differ in the used card embedding size:
-- CN12 (card embedding width: 12) is an 8-layer TNS encoder to an 84 width tensor.
-- CN24 (card embedding width: 24) is an 8-layer TNS encoder to a 168 width tensor.
+Cards are represented with 52+1 embeddings. 52 are for all cards, and last one is an empty card placeholder.
+Embeddings are learned while training the NN.
+CN encodes 7 given cards (2 player and 5 table cards) into a single cards representation tensor.
+This tensor stores all the information about the cards,
+their strength - equity (EQ), rank, and other valuable properties.
+
+There are two predefined cardNet versions. Both are 8-layer TNS encoder. used in the project that differ in the embedding width:
+- CN12 uses card embedding width 12, which results in the cards representation tensor 84,
+- CN24 uses card embedding width 24, which results in the cards representation tensor 168.
 
 CN is trained in a supervised scheme. Data for training is generated with a Monte Carlo simulation.
-Pretrained CN is used by the DMK NN module while training Agents with a Reinforcement Learning (RL) algorithm,
-where cardNet may be further fine-tuned or its weights locked.
-There is also an option to start RL without a pretrained cardNet; the weights of cardNet will be trained from scratch
-using a reinforce signal, but it will take longer.
+Pretrained CN is used by the DMK NN module while training poker Agents with a Reinforcement Learning (RL) algorithm,
+where cardNet weights can be locked or further fine-tuned.
+There is also an option to start RL without a pretrained cardNet.
+The weights of cardNet will be trained from scratch using a reinforce signal, but it will take longer.
 
 ### Training
 
