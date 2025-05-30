@@ -158,7 +158,7 @@ def _get_batches(
         devices=    1.0,
 ) -> List:
     """ prepares list of batches """
-    logger.info(f'preparing batches {n_batches} x({batch_size},{n_monte})..')
+    logger.info(f'preparing batches {n_batches}x({batch_size},{n_monte})..')
     ompr = OMPRunner_Batch2X7(
         batch_size= batch_size,
         n_monte=    n_monte,
@@ -215,6 +215,7 @@ def get_test_batch(
     fn = f'{CACHE_FD}/s{batch_size}_m{n_monte}.batch'
     logger.info(f'Reading test batch from file: {fn} ..')
     test_batch = r_pickle(fn)
+    # print(test_batch.keys())  # ['cards_A', 'cards_B', 'label_won', 'label_rank_A', 'label_rank_B', 'prob_won_A']
 
     if test_batch:
         logger.info(f'> got test batch from file: {fn}')

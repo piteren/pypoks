@@ -19,8 +19,6 @@ if __name__ == "__main__":
     test_batch, _ = get_test_batch(batch_size=2000, n_monte=10000000)
     test_batch_conv = {k: card_net.convert(data=test_batch[k]) for k in test_batch}
 
-    #print(test_batch.keys()) # ['cards_A', 'cards_B', 'label_won', 'label_rank_A', 'label_rank_B', 'prob_won_A']
-
     out = card_net.loss(**test_batch_conv)
 
     deck = PDeck()
