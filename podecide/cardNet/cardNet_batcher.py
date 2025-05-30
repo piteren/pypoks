@@ -117,10 +117,8 @@ def prep2X7batch(
 
 class Batch2X7_RW(RunningWorker):
 
-    def __init__(
-            self,
-            batch_size: int,
-            n_monte: int):
+    def __init__(self, batch_size:int, n_monte:int):
+        super().__init__()
         self.deck = PDeck()
         self.batch_size = batch_size
         self.n_monte = n_monte
@@ -139,15 +137,14 @@ class OMPRunner_Batch2X7(OMPRunner):
 
     def __init__(
             self,
-            rw_class=       Batch2X7_RW,
-            batch_size=     1000,
-            n_monte=        100,
-            devices=        1.0,
+            rww_class=  Batch2X7_RW,
+            batch_size= 1000,
+            n_monte=    100,
+            devices=    1.0,
             **kwargs):
-        OMPRunner.__init__(
-            self,
-            rw_class=           rw_class,
-            rw_init_kwargs=     {'batch_size':batch_size, 'n_monte':n_monte},
+        super().__init__(
+            rww_class=          rww_class,
+            rww_init_kwargs=    {'batch_size':batch_size, 'n_monte':n_monte},
             devices=            devices,
             ordered_results=    False,
             **kwargs)
@@ -218,23 +215,22 @@ def get_test_batch(
     fn = f'{CACHE_FD}/s{batch_size}_m{n_monte}.batch'
     logger.info(f'Reading test batch from file: {fn} ..')
     test_batch = r_pickle(fn)
-    if test_batch:
-        logger.info(f'got test batch from file: {fn}')
-    else:
 
-        # prepare batches of size 1
+    if test_batch:
+        logger.info(f'> got test batch from file: {fn}')
+
+    else:
+        logger.info(f'> file not found, building test batch ..')
         batches = _get_batches(
             logger=     logger,
             n_batches=  batch_size,
             batch_size= 1,
             n_monte=    n_monte,
             devices=    devices)
-
         test_batch = {k: [] for k in batches[0]}
         for b in batches:
             for k in test_batch:
                 test_batch[k] += b[k]
-
         logger.info(f'writing the batch ({batch_size},{n_monte}) to {fn} ..')
         w_pickle(test_batch, fn)
 

@@ -1,6 +1,6 @@
 import torch
-from torchness.types import TNS, DTNS, ACT
-from torchness.base_elements import my_initializer
+from torchness.base import TNS, DTNS, ACT
+from torchness.initialize import my_initializer
 from torchness.layers import TF_Dropout, LayDense
 from torchness.encoders import EncTNS, EncDRT
 from torchness.motorch import Module, MOTorch

@@ -7,7 +7,7 @@ from podecide.cardNet.cardNet_batcher import get_test_batch
 
 if __name__ == "__main__":
 
-    #CardNet_MOTorch.copy_saved('cn1210_1335','cardNet12')
+    # CardNet_MOTorch.copy_saved('cn1210_1335','cardNet12')
 
     card_net = CardNet_MOTorch(
         #name=               'cn1210_1159',

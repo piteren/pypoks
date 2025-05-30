@@ -3,9 +3,9 @@ import numpy as np
 from ompr.runner import RunningWorker, OMPRunner
 from pypaq.lipytools.files import r_pickle, w_pickle
 from pypaq.lipytools.pylogger import get_pylogger
+from pypaq.pytypes import NUM, NPL
 import random
 import time
-from torchness.types import NUM, NPL
 from typing import Any, Union, Tuple, Optional, List, Iterable
 from tqdm import tqdm
 
