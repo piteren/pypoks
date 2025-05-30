@@ -15,7 +15,7 @@ from envy import ASC_FP
 ALL_CARDS = np.arange(52) # used by monte_carlo_prob_won()
 
 # card figures
-CRD_FIG = {
+CARD_FIG = {
     0:      '2',
     1:      '3',
     2:      '4',
@@ -26,44 +26,26 @@ CRD_FIG = {
     7:      '9',
     8:      'T',
     9:      'J',
-    10:     'D',
+    10:     'Q',
     11:     'K',
     12:     'A',
     13:     'X'}
 
 # inverted card figures
-CF_I = {
-    '2':     0,
-    '3':     1,
-    '4':     2,
-    '5':     3,
-    '6':     4,
-    '7':     5,
-    '8':     6,
-    '9':     7,
-    'T':     8,
-    'J':     9,
-    'D':     10,
-    'K':     11,
-    'A':     12,
-    'X':     13}
+CARD_FIG_INV = {v:k for k,v in CARD_FIG.items()}
 
 # card colors
-CRD_COL = {
-    0:      'S',    # spades, black (wino)
-    1:      'H',    # hearts, red (serce)
-    2:      'D',    # diamonds, blue (diament)
-    3:      'C'}    # clubs, green (żołądź)
+CARD_COL = {
+    0:      's',    # spades, black
+    1:      'h',    # hearts, red
+    2:      'd',    # diamonds, blue
+    3:      'c'}    # clubs, green
 
 # inverted card colors
-CC_I = {
-    'S':    0,
-    'H':    1,
-    'D':    2,
-    'C':    3}
+CARD_COL_INV = {v:k for k,v in CARD_COL.items()}
 
 # hand (5 cards) ranks (codes)
-HND_RNK = {
+HAND_RNK = {
     0:      'hc',   # high card
     1:      '2_',   # pair
     2:      '22',   # two pairs
@@ -204,7 +186,7 @@ class PDeck:
     @staticmethod
     def _stt(card:str) -> Tuple[int,int]:
         """ card str to tuple """
-        return CF_I[card[0]],CC_I[card[1]]
+        return CARD_FIG_INV[card[0]],CARD_COL_INV[card[1]]
 
     @staticmethod
     def cti(card:Union[int,tuple,str]) -> int:
@@ -238,7 +220,7 @@ class PDeck:
         if type(card) is int:
             card = PDeck.ctt(card)
         if type(card) is tuple:
-            return CRD_FIG[card[0]] + CRD_COL[card[1]]
+            return CARD_FIG[card[0]] + CARD_COL[card[1]]
         return card
 
     @staticmethod
@@ -389,7 +371,7 @@ class PDeck:
         for ix in range(5):
             rank_value += five_cards[ix][0]*13**ix
 
-        string = f'{HND_RNK[top_rank]} {rank_value:7} {" ".join([PDeck.cts(c) for c in five_cards])}'
+        string = f'{HAND_RNK[top_rank]} {rank_value:7} {" ".join([PDeck.cts(c) for c in five_cards])}'
 
         return top_rank, rank_value, five_cards, string
 
@@ -405,11 +387,11 @@ class PDeck:
 
 
 class ASC(dict):
-    """ a dictionary with rank value of every sorted 7 cards ints
-    example: {(0,1,9,20,30,34,43): 1001801}
-    it speeds up rank "computation" massively:
-    100K/sec with PDeck.cards_rank() to 500K/sec with ASC
-    but ASC because of its size cannot be used with MP """
+    """ A dictionary with rank value of every sorted 7 cards ints.
+    Example: {(0,1,9,20,30,34,43): 1001801}.
+    It speeds up rank "computation" massively:
+    100K/sec with PDeck.cards_rank() to 500K/sec with ASC.
+    However, ASC because of its size cannot be used with MP. """
 
     def __init__(
             self,
@@ -453,7 +435,7 @@ class ASC(dict):
                 if task_bunch:
                     tasks.append({'tasks':task_bunch})
 
-                ompr = OMPRunner(rw_class=CRW)
+                ompr = OMPRunner(rww_class=CRW)
                 ompr.process(tasks=tasks)
 
                 asc_ranks = {}
@@ -471,16 +453,13 @@ class ASC(dict):
         self.update(asc_ranks)
 
 
-    def cards_rank(self, c:Tuple[int]) -> int:
-        """ returns rank for 7 cards (cards have to be sorted!) """
+    def cards_rank(self, c:Tuple[int,...]) -> int:
+        """ returns rank for 7 cards
+        WARNING: (cards have to be sorted!) """
         return self[c]
 
 
-def monte_carlo_prob_won(
-        cards: Iterable[int],  # cards as an iterable of ints
-        n_samples: int,
-        asc: Optional[ASC] = None,
-) -> float:
+def monte_carlo_prob_won(cards:Iterable[int], n_samples:int, asc:Optional[ASC]=None) -> float:
     """ winning probability estimation (Monte Carlo) for given cards """
 
     rng = np.random.default_rng()
@@ -491,7 +470,7 @@ def monte_carlo_prob_won(
     all_cards_left = np.setdiff1d(ALL_CARDS, got_cards)
     n_missing = 9-len(got_cards)
 
-    # TODO: it may be numpyized with batches of cards
+    # TODO: it may be parallelized with numpy and batches of cards
 
     n_wins = 0
     for it in range(n_samples):

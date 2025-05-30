@@ -7,7 +7,7 @@ from tkinter import Tk, Label, Button, Frame, IntVar
 from typing import List, Optional
 
 from envy import DEBUG_MODE, TABLE_CASH_START, TABLE_CASH_SB, TABLE_CASH_BB, TBL_MOV, get_pos_names
-from pologic.podeck import CRD_FIG, CRD_COL
+from pologic.podeck import CARD_FIG, CARD_COL
 from pologic.hand_history import HHistory, STATE
 from podecide.stats.player_stats import PStatsEx
 
@@ -24,9 +24,9 @@ def get_card_FN(
 # builds tk images dict
 def build_cards_img_dict(cards_FD):
     cD = {None: ImageTk.PhotoImage(Image.open(get_card_FN(cards_FD, None)))}
-    for cf in CRD_FIG.values():
+    for cf in CARD_FIG.values():
         if cf != 'X': # remove pad
-            for cc in CRD_COL.values():
+            for cc in CARD_COL.values():
                 cD[cf+cc] = ImageTk.PhotoImage(Image.open(get_card_FN(cards_FD, cf+cc)))
     return cD
 
