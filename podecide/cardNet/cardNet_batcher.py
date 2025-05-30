@@ -1,5 +1,5 @@
 from ompr.runner import RunningWorker, OMPRunner
-from pypaq.lipytools.files import r_pickle, w_pickle
+from pypaq.lipytools.files import prep_folder, r_pickle, w_pickle
 from pypaq.lipytools.pylogger import get_pylogger
 import random
 from tqdm import tqdm
@@ -195,6 +195,7 @@ def get_train_batches(
             batch_size= batch_size,
             n_monte=    n_monte,
             devices=    devices)
+        prep_folder(CACHE_FD)
         w_pickle(batches, fn)
 
     return batches
@@ -233,6 +234,7 @@ def get_test_batch(
             for k in test_batch:
                 test_batch[k] += b[k]
         logger.info(f'writing the batch ({batch_size},{n_monte}) to {fn} ..')
+        prep_folder(CACHE_FD)
         w_pickle(test_batch, fn)
 
     c_tuples = []
@@ -246,8 +248,8 @@ def get_test_batch(
 if __name__ == "__main__":
 
     for nm in [
-        10,
-        100,
+        #10,
+        #100,
     ]:
         get_train_batches(n_monte=nm)
 
