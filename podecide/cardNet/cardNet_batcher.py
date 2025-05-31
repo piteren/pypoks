@@ -3,7 +3,7 @@ from pypaq.lipytools.files import prep_folder, r_pickle, w_pickle
 from pypaq.lipytools.pylogger import get_pylogger
 import random
 from tqdm import tqdm
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Tuple
 
 from envy import CACHE_FD
 from pologic.podeck import PDeck, ASC, monte_carlo_prob_won
@@ -207,7 +207,7 @@ def get_test_batch(
         devices=        1.0,
         logger=         None,
         loglevel=       20,
-):
+) -> Tuple[Dict,List]:
     """ prepares tests batch """
 
     if not logger:

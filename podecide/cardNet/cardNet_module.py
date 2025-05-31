@@ -9,8 +9,8 @@ from typing import Optional, Tuple, Dict
 from envy import CN_MODELS_FD, get_cardNet_name, PyPoksException
 
 
-# Cards Encoder, TNS based
 class CardEnc(Module):
+    """ Cards Encoder, TNS based """
 
     def __init__(
             self,
@@ -284,7 +284,7 @@ class CardNet(Module):
             'diff_won_prob_max':    diff_won_prob_max})
         return out
 
-# MOTorch for CardNet
+
 class CardNet_MOTorch(MOTorch):
 
     SAVE_TOPDIR = CN_MODELS_FD

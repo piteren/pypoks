@@ -1,7 +1,7 @@
 from pypaq.mpython.mpdecor import proc
 from pypaq.lipytools.printout import stamp
 from pypaq.lipytools.pylogger import get_child
-from torchness.comoneural.zeroes_processor import ZeroesProcessor
+from torchness.zeroes_processor import ZeroesProcessor
 import time
 
 from podecide.cardNet.cardNet_module import CardNet_MOTorch
@@ -45,14 +45,14 @@ def train_cardNet(
         train_batches = get_train_batches(
             batch_size= tr_batch_size,
             n_monte=    tr_n_monte,
-            logger=     get_child(logger))
+            logger=     get_child(logger, name=None))
         n_train_batches = len(train_batches)
     else:
         ompr = OMPRunner_Batch2X7(
             batch_size= tr_batch_size,
             n_monte=    tr_n_monte,
             devices=    0.9,
-            logger=     get_child(logger))
+            logger=     get_child(logger, name=None))
 
     test_batch = None
     if do_test:
