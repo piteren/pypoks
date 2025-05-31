@@ -464,11 +464,11 @@ def monte_carlo_prob_won(cards:Iterable[int], n_samples:int, asc:Optional[ASC]=N
 
     rng = np.random.default_rng()
 
-    got_cards = np.asarray(cards)
-    got_cards = np.delete(got_cards, np.where(got_cards == 52))
+    cards = np.asarray(cards)
+    cards = np.delete(cards, np.where(cards == 52))
 
-    all_cards_left = np.setdiff1d(ALL_CARDS, got_cards)
-    n_missing = 9-len(got_cards)
+    all_cards_left = np.setdiff1d(ALL_CARDS, cards)
+    n_missing = 9-len(cards)
 
     # TODO: it may be parallelized with numpy and batches of cards
 
@@ -476,7 +476,7 @@ def monte_carlo_prob_won(cards:Iterable[int], n_samples:int, asc:Optional[ASC]=N
     for it in range(n_samples):
 
         sampled_cards = rng.choice(all_cards_left, size=n_missing, replace=False)
-        nine_cards = np.concatenate([got_cards, sampled_cards])
+        nine_cards = np.concatenate([cards, sampled_cards])
 
         my_cards = nine_cards[:7]
         op_cards = nine_cards[2:]
