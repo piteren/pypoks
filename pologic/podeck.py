@@ -45,7 +45,7 @@ CARD_COL = {
 CARD_COL_INV = {v:k for k,v in CARD_COL.items()}
 
 # hand (5 cards) ranks (codes)
-HAND_RNK = {
+HAND_RANK = {
     0:      'hc',   # high card
     1:      '2_',   # pair
     2:      '22',   # two pairs
@@ -371,7 +371,7 @@ class PDeck:
         for ix in range(5):
             rank_value += five_cards[ix][0]*13**ix
 
-        string = f'{HAND_RNK[top_rank]} {rank_value:7} {" ".join([PDeck.cts(c) for c in five_cards])}'
+        string = f'{HAND_RANK[top_rank]} {rank_value:7} {" ".join([PDeck.cts(c) for c in five_cards])}'
 
         return top_rank, rank_value, five_cards, string
 
@@ -454,7 +454,7 @@ class ASC(dict):
 
 
     def cards_rank(self, c:Tuple[int,...]) -> int:
-        """ returns rank for 7 cards
+        """ returns a rank of 7 cards
         WARNING: (cards have to be sorted!) """
         return self[c]
 
@@ -465,7 +465,7 @@ def monte_carlo_prob_won(cards:Iterable[int], n_samples:int, asc:Optional[ASC]=N
     rng = np.random.default_rng()
 
     cards = np.asarray(cards)
-    cards = np.delete(cards, np.where(cards == 52))
+    cards = cards[cards != 52]
 
     all_cards_left = np.setdiff1d(ALL_CARDS, cards)
     n_missing = 9-len(cards)
