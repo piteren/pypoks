@@ -249,13 +249,13 @@ if __name__ == "__main__":
 
     for nm in [
         #10,
-        #100,
+        100,
     ]:
         get_train_batches(n_monte=nm)
 
     for size,mcs in [
-        (2000, 1000),
-        (2000, 100000),
+        #(2000, 1000),
+        #(2000, 100000),
         (2000, 10000000),
     ]:
         get_test_batch(batch_size=size, n_monte=mcs)

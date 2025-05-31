@@ -387,8 +387,8 @@ class PDeck:
 
 
 class ASC(dict):
-    """ A dictionary with rank value of every sorted 7 cards ints.
-    Example: {(0,1,9,20,30,34,43): 1001801}.
+    """ All-Seven-Cards rank dict - a dictionary with rank value of every (sorted!) 7 cards ints,
+    example: {(0,1,9,20,30,34,43): 1001801}.
     It speeds up rank "computation" massively:
     100K/sec with PDeck.cards_rank() to 500K/sec with ASC.
     However, ASC because of its size cannot be used with MP. """
