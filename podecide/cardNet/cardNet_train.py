@@ -29,7 +29,7 @@ def train_cardNet(
     """ CN training function """
 
     card_net = CardNet_MOTorch(
-        name=               f'cn{cards_emb_width}_{stamp(month=False, letters=0)}' if add_stamp else None,
+        name=               f'cn{cards_emb_width}_{stamp(letters=0)}' if add_stamp else None,
         #n_layers=           12,
         #ann_step=           0.02,
         cards_emb_width=    cards_emb_width,
