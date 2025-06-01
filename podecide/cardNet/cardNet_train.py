@@ -2,6 +2,7 @@ from pypaq.mpython.mpdecor import proc
 from pypaq.lipytools.printout import stamp
 from pypaq.lipytools.pylogger import get_child
 from torchness.zeroes_processor import ZeroesProcessor
+from torchness.devices import get_devices
 import time
 
 from podecide.cardNet.cardNet_module import CardNet_MOTorch
@@ -142,8 +143,8 @@ if __name__ == "__main__":
         'tr_n_monte':   10}
     more_conf = {
         #'n_batches':    200000,
-        'n_batches':    1000000,
-        'tr_n_monte':   100}
+        'n_batches':    500000,
+        'tr_n_monte':   1000}
 
     #config = base_conf
     config = more_conf
@@ -153,6 +154,6 @@ if __name__ == "__main__":
         'ts_batch_size':    2000,
         'ts_n_monte':       10_000_000})
 
-
-    #train_wrap(cards_emb_width=12, device=0, **config)
-    train_wrap(cards_emb_width=24, device=1, **config)
+    train_wrap(
+        cards_emb_width=96,
+        device=get_devices(devices=[], eventually_cpu=True)[0], **config)
