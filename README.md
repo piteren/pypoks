@@ -38,7 +38,7 @@ To play a human game with agents, you will also need `tkinter` for GUI. Please i
 To train a poker agent **(DMK)** from scratch, run:
 
 ```
-$ python run/run_train_loop.py
+$ python run/run_train_loop_refs.py
 ```
 
 This script will train a set of agents with RL self-play. The script is preconfigured with many options that will fit a system with 2x GPUs (11GB).
