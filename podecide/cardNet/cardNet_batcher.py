@@ -13,8 +13,8 @@ def prep2X7batch(
         deck: Optional[PDeck]=      None,
         task=                       None,   # needed by OMPR, here passed avoid_tuples - list of sorted_card tuples (from test batch) to avoid in batch
         batch_size=                 1000,   # batch size
-        r_balance=                  True,   # rank balance (forces to balance ranks)
-        d_balance=                  0.1,    # draw balance (False or fraction of draws)
+        r_balance=                  True,   # forces to balance ranks
+        d_balance: Optional[float]= 0.1,    # forces fraction of daws
         no_maskP: Optional[float]=  None,   # probability of not masking (all cards are known), for None uses full random
         n_monte=                    30,     # num of montecarlo samples for A win chance estimation
         asc: ASC=                   None,
