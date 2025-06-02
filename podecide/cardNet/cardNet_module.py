@@ -307,6 +307,5 @@ class CardNet_MOTorch(MOTorch):
             self,
             module_type=        module_type,
             name=               name,
-            cards_emb_width=    cards_emb_width,
             read_only=          read_only,
             **kwargs)
