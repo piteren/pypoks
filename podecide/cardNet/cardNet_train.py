@@ -2,6 +2,7 @@ from pypaq.mpython.mpdecor import proc
 from pypaq.lipytools.printout import stamp
 from pypaq.lipytools.pylogger import get_child
 from torchness.zeroes_processor import ZeroesProcessor
+from torchness.devices import get_devices
 import time
 
 from podecide.cardNet.cardNet_module import CardNet_MOTorch
@@ -12,6 +13,7 @@ from podecide.cardNet.cardNet_batcher import get_train_batches, get_test_batch, 
 def train_cardNet(
         cards_emb_width: int,
         device=             -1,
+        add_stamp=          False,
         n_batches=          10000,
         tr_batch_size=      1000,
         tr_n_monte=         10,
@@ -27,7 +29,7 @@ def train_cardNet(
     """ CN training function """
 
     card_net = CardNet_MOTorch(
-        #name=               f'cn12{stamp(month=False, letters=None)}',
+        name=               f'cn{cards_emb_width}_{stamp(letters=0)}' if add_stamp else None,
         #n_layers=           12,
         #ann_step=           0.02,
         cards_emb_width=    cards_emb_width,
@@ -84,13 +86,14 @@ def train_cardNet(
 
         if bix % rep_freq == 0:
 
-            loss =    out['loss']
-            acc_WIN = out['accuracy_winner']
-            gn =      out['gg_norm']
+            loss =       out['loss']
+            loss_won_A = out['loss_won_A']
+            acc_WIN =    out['accuracy_winner']
+            gn =         out['gg_norm']
             speed = int(rep_freq * tr_batch_size / (time.time() - sTime))
             sTime = time.time()
 
-            logger.info(f'{bix:6}, loss:{loss:.6f}, accW:{acc_WIN:.6f}, gn:{gn:.6f}, {speed}H/s')
+            logger.info(f'{bix:6}, loss:{loss:.6f}, loss_won_A:{loss_won_A:.6f}, accW:{acc_WIN:.6f}, gn:{gn:.6f}, {speed}H/s')
 
             card_net.log_TB(value=1-acc_WIN,              tag='1_CN_TR/0_inv_accWIN', step=bix)
             card_net.log_TB(value=1-out['accuracy_rank'], tag='1_CN_TR/1_inv_accRNK', step=bix)
@@ -107,10 +110,11 @@ def train_cardNet(
         if bix%1000 == 0 and test_batch is not None:
 
             out = card_net.loss(**test_batch, bypass_data_conv=True)
-            loss =          out['loss']
-            acc_WIN =       out['accuracy_winner']
+            loss =       out['loss']
+            loss_won_A = out['loss_won_A']
+            acc_WIN =    out['accuracy_winner']
 
-            logger.info(f'{bix:6}, loss:{loss:.6f}, accW:{acc_WIN:.6f}')
+            logger.info(f'{bix:6}, loss:{loss:.6f}, loss_won_A:{loss_won_A:.6f}, accW:{acc_WIN:.6f}')
 
             card_net.log_TB(value=1-acc_WIN,                 tag='2_CN_TS/0_inv_accWIN',  step=bix) # inverted accuracy 1-..
             card_net.log_TB(value=1-out['accuracy_rank'],    tag='2_CN_TS/1_inv_accRNK',  step=bix)
@@ -135,24 +139,21 @@ def train_wrap(**kwargs):
 if __name__ == "__main__":
 
     base_conf = {
-        'n_batches':        50000,
-        'tr_batch_size':    1000,
-        'tr_n_monte':       10,
-        'ts_batch_size':    2000,
-        'ts_n_monte':       100000,
-    }
+        'n_batches':    50000,
+        'tr_n_monte':   10}
     more_conf = {
-        'n_batches':        200000,
-        'tr_batch_size':    1000,
-        'tr_n_monte':       100,
-        'ts_batch_size':    2000,
-        'ts_n_monte':       10000000,
-        'loglevel':         10,
-    }
+        #'n_batches':    200000,
+        'n_batches':    500000,
+        'tr_n_monte':   1000}
 
-    #config = {}
     #config = base_conf
     config = more_conf
+    config.update({
+        'add_stamp':        True,
+        'tr_batch_size':    1000,
+        'ts_batch_size':    2000,
+        'ts_n_monte':       10_000_000})
 
-    #train_wrap(cards_emb_width=12, device=0, **config)
-    train_wrap(cards_emb_width=24, device=1, **config)
+    train_wrap(
+        cards_emb_width=96,
+        device=get_devices(devices=[], eventually_cpu=True)[0], **config)

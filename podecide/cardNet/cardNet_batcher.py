@@ -13,8 +13,8 @@ def prep2X7batch(
         deck: Optional[PDeck]=      None,
         task=                       None,   # needed by OMPR, here passed avoid_tuples - list of sorted_card tuples (from test batch) to avoid in batch
         batch_size=                 1000,   # batch size
-        r_balance=                  True,   # rank balance (forces to balance ranks)
-        d_balance=                  0.1,    # draw balance (False or fraction of draws)
+        r_balance=                  True,   # forces to balance ranks
+        d_balance: Optional[float]= 0.1,    # forces fraction of daws
         no_maskP: Optional[float]=  None,   # probability of not masking (all cards are known), for None uses full random
         n_monte=                    30,     # num of montecarlo samples for A win chance estimation
         asc: ASC=                   None,
@@ -140,12 +140,10 @@ class OMPRunner_Batch2X7(OMPRunner):
             rww_class=  Batch2X7_RW,
             batch_size= 1000,
             n_monte=    100,
-            devices=    1.0,
             **kwargs):
         super().__init__(
             rww_class=          rww_class,
             rww_init_kwargs=    {'batch_size':batch_size, 'n_monte':n_monte},
-            devices=            devices,
             ordered_results=    False,
             **kwargs)
 
@@ -249,13 +247,14 @@ if __name__ == "__main__":
 
     for nm in [
         #10,
-        100,
+        #100,
+        1000,
     ]:
         get_train_batches(n_monte=nm)
 
     for size,mcs in [
         #(2000, 1000),
         #(2000, 100000),
-        (2000, 10000000),
+        #(2000, 10000000),
     ]:
         get_test_batch(batch_size=size, n_monte=mcs)
