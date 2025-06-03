@@ -94,8 +94,8 @@ class Test_cardNet(unittest.TestCase):
 
         infer_batch = prep2X7batch(
             batch_size= batch_size,
-            r_balance=  False,
-            d_balance=  False,
+            rank_balance=  False,
+            draw_balance=  False,
             n_monte=    0)
         infer_batch = {k: infer_batch[k] for k in ['cards_A','cards_B']}
         s_time = time.time()

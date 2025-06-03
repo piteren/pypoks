@@ -10,15 +10,15 @@ from pologic.podeck import PDeck, ASC, monte_carlo_prob_won
 
 
 def prep2X7batch(
-        deck: Optional[PDeck]=      None,
-        task=                       None,   # needed by OMPR, here passed avoid_tuples - list of sorted_card tuples (from test batch) to avoid in batch
-        batch_size=                 1000,   # batch size
-        r_balance=                  True,   # forces to balance ranks
-        d_balance: Optional[float]= 0.1,    # forces fraction of daws
-        no_maskP: Optional[float]=  None,   # probability of not masking (all cards are known), for None uses full random
-        n_monte=                    30,     # num of montecarlo samples for A win chance estimation
-        asc: ASC=                   None,
-        verbosity=                  0
+        deck: Optional[PDeck]=          None,
+        task=                           None,   # needed by OMPR, here passed avoid_tuples - list of sorted_card tuples (from test batch) to avoid in batch
+        batch_size=                     1000,   # batch size
+        rank_balance=                   True,   # forces to balance ranks
+        draw_balance: Optional[float]=  0.1,    # forces fraction of draws
+        no_maskP: Optional[float]=      None,   # probability of not masking (all cards are known), for None uses full random
+        n_monte=                        30,     # num of montecarlo samples for A win chance estimation
+        asc: ASC=                       None,
+        verbosity=                      0
 ) -> Dict[str, List]:
     """ prepares batch of 2x 7cards
     MP ready """
@@ -40,7 +40,7 @@ def prep2X7batch(
         n_min_rank = min(rank_counter)
         desired_rank = rank_counter.index(n_min_rank)
 
-        desired_draw = False if d_balance is False else won_counter[2] < d_balance * sum(won_counter)
+        desired_draw = False if draw_balance is False else won_counter[2] < draw_balance * sum(won_counter)
 
         cards_7A = None     # seven cards of A
         cards_7B = None     # seven cards of B
@@ -52,7 +52,7 @@ def prep2X7batch(
         got_all_cards = False  # got all (proper) cards
         while not got_all_cards:
 
-            cards_7A = deck.get_7of_rank(desired_rank) if r_balance else [deck.get_card() for _ in range(7)] # 7 cards for A
+            cards_7A = deck.get_7of_rank(desired_rank) if rank_balance else [deck.get_card() for _ in range(7)] # 7 cards for A
             cards_7B = [deck.get_card() for _ in range(2)] + cards_7A[2:] # 2+5 cards for B
 
             # randomly swap hands of A and B (to avoid win bias)
