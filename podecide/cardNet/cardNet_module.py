@@ -182,7 +182,8 @@ class CardNet(Module):
     def forward(
             self,
             cards_A: TNS,
-            cards_B: TNS) -> DTNS:
+            cards_B: TNS,
+    ) -> DTNS:
 
         enc_out_A = self.card_enc(cards_A)
         enc_out_B = self.card_enc(cards_B)
